@@ -18,6 +18,7 @@ logging.basicConfig(
 DATA_FILE = "bot_data.json"
 USERS_FILE = "users_data.json"
 CHAT_FILE = "chat_data.json"
+WATCHED_DSE_FILE = "watched_dse.json"
 
 
 def load_data(filename):

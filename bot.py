@@ -9,10 +9,6 @@ async def chat_command(update, context):
     from user_manager import has_permission
     user_id = str(update.effective_user.id)
 
-    if has_permission(user_id, 'chat_dse'):
-        await show_chat_menu(update, context)
-    else:
-        await update.message.reply_text("❌ У вас нет прав для использования чата.")
 
 
 async def end_chat_command(update, context):
