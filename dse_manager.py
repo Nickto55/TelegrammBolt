@@ -36,11 +36,12 @@ def search_dse_records(dse_filter=None, problem_type_filter=None):
     return records
 
 
-def get_unique_dse_list():
-    """Получить уникальный список всех ДСЕ"""
+def get_unique_dse_values():
+    """Получить список уникальных значений ДСЕ из всех записей."""
     records = get_all_dse_records()
-    dse_list = list(set([r.get('dse', '') for r in records if r.get('dse', '')]))
-    return sorted(dse_list)
+    dse_values = list(
+        set([record.get('dse', '').strip().lower() for record in records if record.get('dse', '').strip()]))
+    return sorted(dse_values)
 
 
 def get_problem_types_list():

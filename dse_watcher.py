@@ -4,14 +4,15 @@ import json
 import os
 import asyncio
 from typing import Dict, List, Set
+# Импортируем load_data из config
 from config import WATCHED_DSE_FILE, DATA_FILE, load_data as config_load_data
 
 # Глобальная переменная для хранения отслеживаемых ДСЕ в памяти
-# Формат: {user_id: set(dse_values)}
+# Формат: {user_id: set(dse_values)}. Храним в нижнем регистре для сравнения.
 watched_dse_data: Dict[str, Set[str]] = {}
 
 # Храним последние известные ID записей, чтобы не дублировать уведомления
-# Формат: {dse_value: set(record_ids)}
+# Формат: {dse_value_lower: set(record_ids)}
 last_known_records: Dict[str, Set[str]] = {}
 
 
@@ -21,8 +22,9 @@ def load_watched_dse_data():
     if os.path.exists(WATCHED_DSE_FILE):
         try:
             data = config_load_data(WATCHED_DSE_FILE)
-            # Преобразуем списки обратно в множества
-            watched_dse_data = {user_id: set(dse_list) for user_id, dse_list in data.items()}
+            # Преобразуем списки обратно в множества и приводим к нижнему регистру для внутренней логики
+            watched_dse_data = {user_id: {dse.strip().lower() for dse in dse_list} for user_id, dse_list in
+                                data.items()}
             print("✅ Данные отслеживаемых ДСЕ загружены.")
         except Exception as e:
             print(f"❌ Ошибка загрузки {WATCHED_DSE_FILE}: {e}")
@@ -48,17 +50,19 @@ def save_watched_dse_data():
 def add_watched_dse(user_id: str, dse_value: str):
     """Добавляет ДСЕ в список отслеживаемых для пользователя."""
     global watched_dse_data
+    dse_normalized = dse_value.strip().lower()  # Нормализуем для внутренней логики
     if user_id not in watched_dse_data:
         watched_dse_data[user_id] = set()
-    watched_dse_data[user_id].add(dse_value.strip().lower())
+    watched_dse_data[user_id].add(dse_normalized)
     save_watched_dse_data()
 
 
 def remove_watched_dse(user_id: str, dse_value: str):
     """Удаляет ДСЕ из списка отслеживаемых для пользователя."""
     global watched_dse_data
+    dse_normalized = dse_value.strip().lower()  # Нормализуем для внутренней логики
     if user_id in watched_dse_data:
-        watched_dse_data[user_id].discard(dse_value.strip().lower())
+        watched_dse_data[user_id].discard(dse_normalized)
         # Если список для пользователя опустел, можно его удалить
         if not watched_dse_data[user_id]:
             del watched_dse_data[user_id]
@@ -68,6 +72,7 @@ def remove_watched_dse(user_id: str, dse_value: str):
 def get_watched_dse_list(user_id: str) -> List[str]:
     """Возвращает список ДСЕ, отслеживаемых пользователем."""
     global watched_dse_data
+    # Возвращаем список нормализованных значений
     return list(watched_dse_data.get(user_id, set()))
 
 
@@ -83,7 +88,9 @@ def _get_record_id(record: dict, user_id: str) -> str:
     dse = record.get('dse', '')
     desc = record.get('description', '')
     # Простой способ создать ID, можно усложнить при необходимости
-    return f"{user_id}_{dse}_{hash(desc)}"
+    # ВАЖНО: используем нормализованное значение ДСЕ
+    dse_normalized = dse.strip().lower()
+    return f"{user_id}_{dse_normalized}_{hash(desc)}"
 
 
 async def check_for_new_dse_and_notify(context):
@@ -99,60 +106,92 @@ async def check_for_new_dse_and_notify(context):
     all_bot_data = config_load_data(DATA_FILE)
 
     # 2. Загружаем данные об отслеживании
-    current_watched = get_all_watched_dse()
+    current_watched = get_all_watched_dse()  # {user_id: set(dse_normalized)}
 
     if not current_watched:
         print("📭 Нет отслеживаемых ДСЕ.")
         return
 
     # 3. Для каждого отслеживаемого ДСЕ проверяем новые записи
-    for user_id, dse_set in current_watched.items():
-        for dse_value in dse_set:
-            # Найдем все записи с этим ДСЕ
-            matching_records = []
-            record_ids_in_current_check = set()
+    # Сначала соберем все отслеживаемые DSE в один набор для эффективного поиска
+    all_watched_dse_normalized = set()
+    for dse_set in current_watched.values():
+        all_watched_dse_normalized.update(dse_set)
 
-            for data_user_id, user_records in all_bot_data.items():
-                if isinstance(user_records, list):
-                    for record in user_records:
-                        if record.get('dse', '').strip().lower() == dse_value:
-                            matching_records.append((data_user_id, record))
-                            record_id = _get_record_id(record, data_user_id)
-                            record_ids_in_current_check.add(record_id)
+    if not all_watched_dse_normalized:
+        print("📭 Нет отслеживаемых ДСЕ.")
+        return
 
-            # Проверим, какие записи новые
-            previously_known_ids = last_known_records.get(dse_value, set())
-            new_record_ids = record_ids_in_current_check - previously_known_ids
+    print(f"👁️ Отслеживаемые ДСЕ: {all_watched_dse_normalized}")
 
-            if new_record_ids:
-                print(f"🔔 Найдены новые записи для ДСЕ '{dse_value}' у пользователя {user_id}")
-                # Уведомляем пользователя
-                try:
-                    notification_text = f"🔔 Новая запись по отслеживаемому ДСЕ '{dse_value.upper()}':\n"
-                    # Соберем информацию о новых записях
-                    new_records_info = []
-                    for data_user_id, record in matching_records:
+    # Теперь пройдемся по всем записям и проверим, относятся ли они к отслеживаемым ДСЕ
+    # И соберем информацию о записях для каждого отслеживаемого ДСЕ
+    records_per_dse = {dse: [] for dse in all_watched_dse_normalized}
+    record_ids_current = {dse: set() for dse in all_watched_dse_normalized}
+
+    for data_user_id, user_records in all_bot_data.items():
+        if isinstance(user_records, list):
+            for record in user_records:
+                record_dse_original = record.get('dse', '')
+                if record_dse_original:
+                    record_dse_normalized = record_dse_original.strip().lower()
+                    # Проверяем, отслеживается ли это ДСЕ
+                    if record_dse_normalized in all_watched_dse_normalized:
+                        records_per_dse[record_dse_normalized].append((data_user_id, record))
                         record_id = _get_record_id(record, data_user_id)
-                        if record_id in new_record_ids:
-                            problem = record.get('problem_type', 'Не указано')
-                            desc = record.get('description', 'Нет описания')[:50] + "..." if len(
-                                record.get('description', '')) > 50 else record.get('description', 'Нет описания')
-                            new_records_info.append(f"• Тип: {problem}\n  Описание: {desc}")
+                        record_ids_current[record_dse_normalized].add(record_id)
 
-                    if new_records_info:
-                        notification_text += "\n".join(new_records_info)
+    # Теперь проверим каждое отслеживаемое ДСЕ на наличие новых записей
+    for dse_normalized, current_record_ids in record_ids_current.items():
+        previously_known_ids = last_known_records.get(dse_normalized, set())
+        new_record_ids = current_record_ids - previously_known_ids
+
+        if new_record_ids:
+            print(f"🔔 Найдены новые записи для отслеживаемого ДСЕ '{dse_normalized}'")
+
+            # Найдем пользователей, которые отслеживают это ДСЕ
+            users_to_notify = []
+            for user_id, watched_set in current_watched.items():
+                if dse_normalized in watched_set:
+                    users_to_notify.append(user_id)
+
+            # Соберем информацию о новых записях для уведомления
+            new_records_info = []
+            for data_user_id, record in records_per_dse[dse_normalized]:
+                record_id = _get_record_id(record, data_user_id)
+                if record_id in new_record_ids:
+                    problem = record.get('problem_type', 'Не указано')
+                    desc = record.get('description', 'Нет описания')[:100] + "..." if len(
+                        record.get('description', '')) > 100 else record.get('description', 'Нет описания')
+                    from user_manager import get_users_data
+                    users_data = get_users_data()
+                    user_info = users_data.get(data_user_id, {})
+                    user_name = user_info.get('first_name', f"Пользователь {data_user_id}")
+                    new_records_info.append(f"• От: {user_name}\n  Тип: {problem}\n  Описание: {desc}\n---")
+
+            if new_records_info and users_to_notify:
+                notification_text = f"🔔 Новые записи по отслеживаемому ДСЕ '{dse_normalized.upper()}':\n\n" + "\n".join(
+                    new_records_info)
+
+                # Уведомляем всех заинтересованных пользователей
+                for user_id in users_to_notify:
+                    try:
                         await context.bot.send_message(chat_id=user_id, text=notification_text)
-                        print(f"📤 Уведомление отправлено пользователю {user_id}")
-                    else:
-                        # На случай, если произошла ошибка сопоставления ID
+                        print(f"📤 Уведомление отправлено пользователю {user_id} по ДСЕ '{dse_normalized}'")
+                    except Exception as e:
+                        print(f"❌ Ошибка уведомления пользователя {user_id} по ДСЕ '{dse_normalized}': {e}")
+            elif users_to_notify:
+                # На случай, если по какой-то причине информация о записях не собралась
+                for user_id in users_to_notify:
+                    try:
                         await context.bot.send_message(chat_id=user_id,
-                                                       text=f"🔔 Появились новые данные по отслеживаемому ДСЕ '{dse_value.upper()}'. Проверьте список ДСЕ.")
+                                                       text=f"🔔 Появились новые данные по отслеживаемому ДСЕ '{dse_normalized.upper()}'. Проверьте список ДСЕ.")
+                        print(f"📤 Уведомление (резервное) отправлено пользователю {user_id} по ДСЕ '{dse_normalized}'")
+                    except Exception as e:
+                        print(f"❌ Ошибка резервного уведомления пользователя {user_id} по ДСЕ '{dse_normalized}': {e}")
 
-                except Exception as e:
-                    print(f"❌ Ошибка уведомления пользователя {user_id}: {e}")
-
-            # Обновляем список известных записей для этого ДСЕ
-            last_known_records[dse_value] = record_ids_in_current_check
+        # Обновляем список известных записей для этого ДСЕ
+        last_known_records[dse_normalized] = current_record_ids
 
     print("✅ Проверка новых ДСЕ завершена.")
 
@@ -160,15 +199,20 @@ async def check_for_new_dse_and_notify(context):
 # Функция для запуска периодической проверки
 async def start_watcher_job(application):
     """Запускает периодическую задачу проверки ДСЕ."""
-
+    print("⏱️  Задача DSE Watcher запущена.")
     async def periodic_check():
         while True:
             try:
                 await check_for_new_dse_and_notify(application)
+            except asyncio.CancelledError:
+                # Задача была отменена, выходим из цикла
+                print("⏹️ Задача DSE Watcher остановлена.")
+                break
             except Exception as e:
+                import traceback
                 print(f"❌ Ошибка в периодической проверке DSE Watcher: {e}")
-            await asyncio.sleep(60)  # Проверяем каждую минуту
+                print(traceback.format_exc())
+            await asyncio.sleep(300) # Проверяем каждую минуту
 
     # Запускаем задачу в фоне
-    application.create_task(periodic_check())
-    print("⏱️  Задача DSE Watcher запущена (проверка каждые 60 секунд).")
+    await periodic_check() # Просто запускаем корутину, Application управляет ею

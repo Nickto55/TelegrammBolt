@@ -3,9 +3,10 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import load_data, save_data, PROBLEM_TYPES, DATA_FILE
-from dse_manager import get_all_dse_records, search_dse_records
+from config import load_data, save_data, PROBLEM_TYPES, DATA_FILE, PHOTOS_DIR
+from dse_manager import get_all_dse_records, search_dse_records, get_unique_dse_values
 from user_manager import register_user, get_user_role, has_permission, set_user_role, ROLES, get_all_users
+import os
 
 # Глобальные переменные
 user_states = {}
@@ -30,12 +31,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Проверяем права доступа
     if has_permission(user_id, 'view_main_menu'):
-        # Инициализируем данные пользователя для формы
+        # Инициализируем данные пользователя для формы, включая фото
         user_states[user_id] = {
             'application': '',  # Будет содержать "started" когда заявка начата
             'dse': '',
             'problem_type': '',
-            'description': ''
+            'description': '',
+            'photo_file_id': None  # Новое поле для фото
         }
         await show_main_menu(update, user_id)
     else:
@@ -52,22 +54,43 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def show_application_menu(update: Update, user_id: str) -> None:
     """Показать меню заполнения заявки"""
-    user_data = user_states.get(user_id, {'application': '', 'dse': '', 'problem_type': '', 'description': ''})
+    # Убедимся, что поле photo_file_id существует у уже существующих пользователей
+    if user_id not in user_states:
+        user_states[user_id] = {
+            'application': '',
+            'dse': '',
+            'problem_type': '',
+            'description': '',
+            'photo_file_id': None
+        }
+    else:
+        if 'photo_file_id' not in user_states[user_id]:
+            user_states[user_id]['photo_file_id'] = None
+
+    user_data = user_states.get(user_id, {
+        'application': '',
+        'dse': '',
+        'problem_type': '',
+        'description': '',
+        'photo_file_id': None
+    })
 
     # Создаем кнопки с индикаторами заполненности для каждого поля
     dse_text = f"ДСЕ ✅" if user_data['dse'] else "ДСЕ"
     problem_text = f"Вид проблемы ✅" if user_data['problem_type'] else "Вид проблемы"
     desc_text = f"Описание вопроса ✅" if user_data['description'] else "Описание вопроса"
+    photo_text = f"Фото ✅" if user_data['photo_file_id'] else "Фото (необязательно)"
 
     # Кнопки для заполнения полей
     keyboard = [
         [InlineKeyboardButton(dse_text, callback_data='set_dse')],
         [InlineKeyboardButton(problem_text, callback_data='set_problem')],
         [InlineKeyboardButton(desc_text, callback_data='set_description')],
+        [InlineKeyboardButton(photo_text, callback_data='set_photo')],  # Новая кнопка
     ]
 
-    # Кнопки отправки и возврата, если все поля заполнены
-    if all([user_data['dse'], user_data['problem_type'], user_data['description']]):
+    # Кнопки отправки и возврата, если основные поля заполнены
+    if user_data['dse'] and user_data['problem_type'] and user_data['description']:
         keyboard.append([InlineKeyboardButton("📤 Отправить", callback_data='send')])
         keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
 
@@ -80,9 +103,10 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     welcome_text += (
         f"• {dse_text}\n"
         f"• {problem_text}\n"
-        f"• {desc_text}\n\n"
+        f"• {desc_text}\n"
+        f"• {photo_text}\n\n"
     )
-    if all([user_data['dse'], user_data['problem_type'], user_data['description']]):
+    if user_data['dse'] and user_data['problem_type'] and user_data['description']:
         welcome_text += "После заполнения появятся кнопки отправки."
 
     if update.callback_query:
@@ -93,7 +117,23 @@ async def show_application_menu(update: Update, user_id: str) -> None:
 
 async def show_main_menu(update: Update, user_id: str) -> None:
     """Показать главное меню с кнопками"""
-    user_data = user_states.get(user_id, {'application': '', 'dse': '', 'problem_type': '', 'description': ''})
+    # Инициализируем данные пользователя для формы, включая фото
+    if user_id not in user_states:
+        user_states[user_id] = {
+            'application': '',
+            'dse': '',
+            'problem_type': '',
+            'description': '',
+            'photo_file_id': None  # Инициализируем поле для фото
+        }
+    else:
+        # Убедимся, что поле photo_file_id существует у уже существующих пользователей
+        if 'photo_file_id' not in user_states[user_id]:
+            user_states[user_id]['photo_file_id'] = None
+
+
+    user_data = user_states.get(user_id, {'application': '', 'dse': '', 'problem_type': '', 'description': '',
+                                          'photo_file_id': None})
     role = get_user_role(user_id)
 
     keyboard = []
@@ -105,10 +145,11 @@ async def show_main_menu(update: Update, user_id: str) -> None:
         dse_filled = user_data.get('dse', '')
         problem_filled = user_data.get('problem_type', '')
         desc_filled = user_data.get('description', '')
+        photo_filled = user_data.get('photo_file_id', None)
 
-        if app_status == 'started' or any([dse_filled, problem_filled, desc_filled]):
+        if app_status == 'started' or any([dse_filled, problem_filled, desc_filled, photo_filled]):
             app_text = "📝 Заявка ⚠️"  # ⚠️ если начата, но не завершена
-            if all([dse_filled, problem_filled, desc_filled]):
+            if dse_filled and problem_filled and desc_filled:
                 app_text = "📝 Заявка ✅"  # ✅ если полностью заполнена
         else:
             app_text = "📝 Заявка"
@@ -120,7 +161,7 @@ async def show_main_menu(update: Update, user_id: str) -> None:
         keyboard.append([InlineKeyboardButton("📋 Список ДСЕ", callback_data='view_dse_list')])
 
     # === КНОПКА 7: "👀 Отслеживание ДСЕ" ===
-    if has_permission(user_id, 'view_dse_list'):  # Используем то же право
+    if has_permission(user_id, 'watch_dse'):  # Используем новое право
         keyboard.append([InlineKeyboardButton("👀 Отслеживание ДСЕ", callback_data='watch_dse_menu')])
 
     # === КНОПКА 8: "💬 Чат по ДСЕ" ===
@@ -152,8 +193,8 @@ async def show_main_menu(update: Update, user_id: str) -> None:
 async def show_dse_list_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать меню просмотра ДСЕ"""
     keyboard = [
+        [InlineKeyboardButton("🔍 Поиск по ДСЕ", callback_data='dse_search_interactive')],
         [InlineKeyboardButton("📋 Все записи", callback_data='dse_view_all')],
-        [InlineKeyboardButton("🔍 Поиск по ДСЕ", callback_data='dse_search_dse')],
         [InlineKeyboardButton("🔎 Поиск по типу проблемы", callback_data='dse_search_type')],
         [InlineKeyboardButton("📊 Статистика", callback_data='dse_statistics')],
         [InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')]
@@ -188,6 +229,9 @@ async def show_all_dse_records(update: Update, context: ContextTypes.DEFAULT_TYP
         text += f"{i}. ДСЕ: {record.get('dse', 'Не указано')}\n"
         text += f"   Тип: {record.get('problem_type', 'Не указано')}\n"
         text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n"
+        # Проверяем, есть ли фото
+        if record.get('photo_file_id'):
+            text += f"   📸 Фото: Прикреплено\n"
         text += f"   Пользователь ID: {record.get('user_id', 'Неизвестно')}\n\n"
 
     # Создаем кнопки навигации
@@ -199,12 +243,177 @@ async def show_all_dse_records(update: Update, context: ContextTypes.DEFAULT_TYP
     if page < total_pages - 1:
         nav_buttons.append(InlineKeyboardButton("➡️ Далее", callback_data=f'dse_view_all_{page + 1}'))
 
+    # --- ИСПРАВЛЕННЫЙ БЛОК ---
     # Кнопка возврата в меню
-    nav_buttons.append(InlineKeyboardButton("↩️ Меню", callback_data='view_dse_list'))
-
-    keyboard = []
+    menu_button = InlineKeyboardButton("↩️ Меню", callback_data='view_dse_list')
+    # Добавляем кнопку меню к навигационным кнопкам, если они есть, или создаем новую строку
     if nav_buttons:
-        keyboard.append(nav_buttons)
+        nav_buttons.append(menu_button) # Добавляем кнопку меню в ту же строку, что и Назад/Далее
+    else:
+        nav_buttons = [menu_button] # Если Назад/Далее нет, создаем отдельную строку для меню
+
+    # Формируем итоговую клавиатуру
+    keyboard = []
+    # Добавляем кнопки записей (если есть)
+    # (предполагается, что они уже добавлены в keyboard выше в функции)
+    # Например:
+    # for record_buttons_row in record_buttons: # record_buttons - это список списков кнопок для записей
+    #     keyboard.append(record_buttons_row)
+
+    # Добавляем строку с навигационными кнопками (и кнопкой меню)
+    if nav_buttons: # Проверяем, есть ли что-то в nav_buttons
+        keyboard.append(nav_buttons) # Добавляем целую строку кнопок
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
+
+
+async def start_interactive_dse_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Начать интерактивный поиск по ДСЕ"""
+    user_id = str(update.callback_query.from_user.id)
+
+    # Инициализируем состояние поиска
+    dse_view_states[user_id] = {
+        'searching_dse': True,
+        'current_search': '',
+        'search_results': []
+    }
+
+    # Получаем все уникальные ДСЕ для начального списка
+    all_dse = get_unique_dse_values()
+    dse_view_states[user_id]['all_dse'] = all_dse
+
+    await show_dse_search_results(update, context, user_id)
+
+
+async def show_dse_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str) -> None:
+    """Показать результаты поиска ДСЕ"""
+    search_state = dse_view_states.get(user_id, {})
+    current_search = search_state.get('current_search', '')
+    all_dse = search_state.get('all_dse', [])
+
+    # Фильтруем ДСЕ по текущему поисковому запросу
+    if current_search:
+        filtered_dse = [dse for dse in all_dse if current_search.lower() in dse.lower()]
+    else:
+        filtered_dse = all_dse
+
+    # Сохраняем результаты
+    search_state['search_results'] = filtered_dse
+
+    # Создаем текст сообщения
+    if current_search:
+        text = f"🔍 Поиск по ДСЕ: '{current_search}'\n\n"
+    else:
+        text = "🔍 Поиск по ДСЕ (введите текст для фильтрации):\n\n"
+
+    if filtered_dse:
+        text += f"Найдено: {len(filtered_dse)}\n\n"
+        # Показываем первые 20 результатов
+        for i, dse in enumerate(filtered_dse[:20]):
+            text += f"{i + 1}. {dse.upper()}\n"
+
+        if len(filtered_dse) > 20:
+            text += f"\n... и еще {len(filtered_dse) - 20} записей"
+    else:
+        text += "❌ Ничего не найдено"
+
+    # Создаем кнопки
+    keyboard = []
+
+    # Кнопки для первых 10 ДСЕ (если есть результаты)
+    for i, dse in enumerate(filtered_dse[:10]):
+        callback_data = f"dse_select_{i}"
+        keyboard.append([InlineKeyboardButton(dse.upper(), callback_data=callback_data)])
+
+    # Кнопки управления
+    nav_buttons = []
+    if current_search:
+        nav_buttons.append(InlineKeyboardButton("⌫ Очистить", callback_data='dse_search_clear'))
+
+    nav_buttons.append(InlineKeyboardButton("↩️ Назад", callback_data='view_dse_list'))
+    keyboard.append(nav_buttons)
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(text=text, reply_markup=reply_markup)
+
+
+async def handle_dse_search_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработать ввод текста для поиска ДСЕ"""
+    user_id = str(update.message.from_user.id)
+    search_text = update.message.text
+
+    # Обновляем поисковый запрос
+    if user_id in dse_view_states:
+        dse_view_states[user_id]['current_search'] = search_text
+        await show_dse_search_results(update, context, user_id)
+
+
+async def select_dse_from_search(update: Update, context: ContextTypes.DEFAULT_TYPE, index: int) -> None:
+    """Выбрать ДСЕ из результатов поиска"""
+    user_id = str(update.callback_query.from_user.id)
+
+    if user_id in dse_view_states:
+        search_results = dse_view_states[user_id].get('search_results', [])
+        if 0 <= index < len(search_results):
+            selected_dse = search_results[index]
+
+            # Очищаем состояние поиска
+            del dse_view_states[user_id]
+
+            # Показываем все записи по выбранному ДСЕ
+            await show_records_for_dse(update, context, selected_dse)
+
+
+async def show_records_for_dse(update: Update, context: ContextTypes.DEFAULT_TYPE, dse_value: str) -> None:
+    """Показать все записи для конкретного ДСЕ"""
+    # Ищем все записи с этим ДСЕ
+    records = search_dse_records(dse_filter=dse_value)
+
+    if not records:
+        await update.callback_query.edit_message_text(f"❌ Нет записей для ДСЕ: {dse_value.upper()}")
+        return
+
+    # Создаем текст с деталями первой записи (или всех записей)
+    text = f"📄 Записи для ДСЕ: {dse_value.upper()}\n\n"
+
+    for i, record in enumerate(records[:5]):  # Показываем максимум 5 записей
+        text += f"Запись #{i + 1}:\n"
+        text += f"Тип проблемы: {record.get('problem_type', 'Не указано')}\n"
+        text += f"Описание: {record.get('description', 'Нет описания')}\n"
+
+        # Проверяем, есть ли фото
+        photo_file_id = record.get('photo_file_id')
+        if photo_file_id:
+            text += f"📸 Фото: Прикреплено\n"
+
+            # Отправляем фото отдельным сообщением
+            try:
+                await context.bot.send_photo(
+                    chat_id=update.callback_query.message.chat_id,
+                    photo=photo_file_id,
+                    caption=f"Фото для ДСЕ {dse_value.upper()}"
+                )
+            except Exception as e:
+                print(f"Ошибка отправки фото: {e}")
+                text += "❌ Ошибка при загрузке фото\n"
+
+        text += "\n" + "=" * 30 + "\n\n"
+
+    if len(records) > 5:
+        text += f"\n... и еще {len(records) - 5} записей"
+
+    # Кнопки управления
+    keyboard = [
+        [InlineKeyboardButton("↩️ Назад к поиску", callback_data='dse_search_interactive')],
+        [InlineKeyboardButton("📋 Все записи", callback_data='dse_view_all')],
+        [InlineKeyboardButton("⬅️ В меню", callback_data='view_dse_list')]
+    ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -245,7 +454,11 @@ async def show_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
         for i, record in enumerate(records[:10], 1):  # Ограничиваем 10 результатами
             text += f"{i}. ДСЕ: {record.get('dse', 'Не указано')}\n"
             text += f"   Тип: {record.get('problem_type', 'Не указано')}\n"
-            text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n\n"
+            text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n"
+            # Проверяем, есть ли фото
+            if record.get('photo_file_id'):
+                text += f"   📸 Фото: Прикреплено\n"
+            text += "\n"
 
         if len(records) > 10:
             text += f"... и еще {len(records) - 10} записей"
@@ -266,7 +479,11 @@ async def show_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
         for i, record in enumerate(records[:10], 1):  # Ограничиваем 10 результатами
             text += f"{i}. ДСЕ: {record.get('dse', 'Не указано')}\n"
             text += f"   Тип: {record.get('problem_type', 'Не указано')}\n"
-            text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n\n"
+            text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n"
+            # Проверяем, есть ли фото
+            if record.get('photo_file_id'):
+                text += f"   📸 Фото: Прикреплено\n"
+            text += "\n"
 
         if len(records) > 10:
             text += f"... и еще {len(records) - 10} записей"
@@ -290,16 +507,21 @@ async def show_dse_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Подсчет по типам проблем
     problem_counts = {}
+    photo_count = 0
     for record in records:
         problem_type = record.get('problem_type', 'Не указано')
         problem_counts[problem_type] = problem_counts.get(problem_type, 0) + 1
+        # Подсчет записей с фото
+        if record.get('photo_file_id'):
+            photo_count += 1
 
     # Подсчет уникальных ДСЕ
     unique_dse = len(set([r.get('dse', '') for r in records if r.get('dse', '')]))
 
     text = "📊 Статистика по ДСЕ:\n\n"
     text += f"Всего записей: {total_records}\n"
-    text += f"Уникальных ДСЕ: {unique_dse}\n\n"
+    text += f"Уникальных ДСЕ: {unique_dse}\n"
+    text += f"Записей с фото: {photo_count}\n\n"
     text += "По типам проблем:\n"
 
     # Сортируем по количеству
@@ -421,13 +643,61 @@ async def show_role_selection_menu(update: Update, context: ContextTypes.DEFAULT
 
 # === ФУНКЦИИ ОТСЛЕЖИВАНИЯ ДСЕ ===
 
+async def show_dse_selection_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, action_callback_data_prefix: str,
+                                  title: str = "Выберите ДСЕ") -> None:
+    """
+    Показывает меню выбора ДСЕ из списка кнопок.
+
+    Args:
+        update: Объект Update.
+        context: Объект Context.
+        action_callback_data_prefix: Префикс для callback_data кнопок (например, 'watch_select_dse_').
+        title: Заголовок меню.
+    """
+    dse_list = get_unique_dse_values()
+
+    if not dse_list:
+        if update.callback_query:
+            await update.callback_query.edit_message_text("📭 Нет доступных ДСЕ для выбора.")
+        elif update.message:
+            await update.message.reply_text("📭 Нет доступных ДСЕ для выбора.")
+        return
+
+    # Создаем кнопки для выбора ДСЕ
+    keyboard = []
+    for i, dse_value in enumerate(dse_list):
+        # Создаем уникальный callback_data с индексом
+        callback_data = f"{action_callback_data_prefix}{i}"
+        # Ограничиваем длину текста кнопки
+        button_text = dse_value.upper() if len(dse_value) <= 20 else dse_value[:17].upper() + "..."
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+
+    # Добавляем кнопку "Ввести вручную" и "Отмена"
+    keyboard.append([InlineKeyboardButton("✍️ Ввести вручную", callback_data=f"{action_callback_data_prefix}manual")])
+    keyboard.append(
+        [InlineKeyboardButton("⬅️ Отмена", callback_data='back_to_main')])  # Или другой общий callback для отмены
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Сохраняем список для последующего использования по индексу
+    user = update.effective_user
+    user_id = str(user.id)
+    user_states[user_id] = user_states.get(user_id, {})
+    user_states[user_id]['temp_dse_list'] = dse_list
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text=title, reply_markup=reply_markup)
+    elif update.message:
+        await update.message.reply_text(text=title, reply_markup=reply_markup)
+
+
 async def show_watched_dse_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать меню отслеживания ДСЕ."""
     user = update.effective_user
     user_id = str(user.id)
 
     # Проверяем права доступа
-    if not has_permission(user_id, 'view_dse_list'):
+    if not has_permission(user_id, 'watch_dse'):
         if update.callback_query:
             await update.callback_query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
         elif update.message:
@@ -459,11 +729,35 @@ async def start_add_watched_dse(update: Update, context: ContextTypes.DEFAULT_TY
     """Начинает процесс добавления ДСЕ в список отслеживания."""
     user_id = str(update.callback_query.from_user.id)
 
-    # Устанавливаем состояние ожидания ввода ДСЕ для добавления
-    user_states[user_id] = user_states.get(user_id, {})
-    user_states[user_id]['adding_watched_dse'] = True
+    # Вместо прямого запроса ввода, показываем меню выбора
+    await show_dse_selection_menu(
+        update,
+        context,
+        action_callback_data_prefix='watch_select_dse_',
+        title="➕ Выберите ДСЕ для отслеживания или введите вручную:"
+    )
+    # Устанавливаем состояние, если пользователь выберет "Ввести вручную"
+    user_states[user_id]['adding_watched_dse_state'] = 'selecting_or_manual'
 
-    await update.callback_query.edit_message_text("➕ Введите номер ДСЕ для отслеживания:")
+
+async def start_dse_chat_search_with_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Начинает процесс поиска чата по ДСЕ с выбором из списка."""
+    # Проверяем права доступа
+    user = update.callback_query.from_user
+    user_id = str(user.id)
+    if not has_permission(user_id, 'chat_dse'):
+        await update.callback_query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
+        return
+
+    await show_dse_selection_menu(
+        update,
+        context,
+        action_callback_data_prefix='chat_select_dse_',
+        title="🔍 Выберите ДСЕ для начала чата или введите вручную:"
+    )
+    # Устанавливаем состояние для обработки выбора
+    user_states[user_id] = user_states.get(user_id, {})
+    user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
 
 
 async def start_remove_watched_dse(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -503,7 +797,7 @@ async def show_watched_dse_list(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = str(user.id)
 
     from dse_watcher import get_watched_dse_list
-    watched_list = get_watched_dse_list(user_id)
+    watched_list = get_watched_dse_list(user_id)  # Получаем список нормализованных значений
 
     if not watched_list:
         text = "📭 Ваш список отслеживаемых ДСЕ пуст.\n\n"
@@ -511,12 +805,49 @@ async def show_watched_dse_list(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='watch_dse_menu')]]
     else:
         text = "📋 Список отслеживаемых ДСЕ:\n\n"
+        # Отображаем в верхнем регистре для удобства чтения
         for i, dse_value in enumerate(watched_list, 1):
             text += f"{i}. {dse_value.upper()}\n"
         keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='watch_dse_menu')]]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
+
+
+# === ФУНКЦИИ РАБОТЫ С ФОТО ===
+
+async def request_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Запрашивает фото у пользователя"""
+    user_id = str(update.callback_query.from_user.id)
+
+    # Устанавливаем состояние ожидания фото
+    user_states[user_id]['waiting_for_photo'] = True
+
+    # Отправляем новое сообщение, а не редактируем старое
+    # Это позволяет боту получать следующее сообщение от пользователя
+    await update.callback_query.answer()  # Отвечаем на callback, чтобы убрать "крутилку"
+    await context.bot.send_message(
+        chat_id=update.callback_query.message.chat_id,
+        text="📸 Пожалуйста, отправьте фото.\n\n"
+             "Используйте /cancel_photo для отмены.",
+        # Убираем inline кнопки, чтобы не мешали
+    )
+
+
+# === КОМАНДА ОТМЕНЫ ФОТО ===
+
+async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /cancel_photo для отмены ожидания фото"""
+    user_id = str(update.effective_user.id)
+
+    # Отменяем ожидание фото
+    if 'waiting_for_photo' in user_states.get(user_id, {}):
+        del user_states[user_id]['waiting_for_photo']
+        await update.message.reply_text("❌ Отправка фото отменена.")
+        # Возвращаемся в меню заявки
+        await show_application_menu(update, user_id)
+    else:
+        await update.message.reply_text("❌ Вы не отправляете фото.")
 
 
 # === ОСНОВНОЙ ОБРАБОТЧИК КНОПОК ===
@@ -572,15 +903,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # Загружаем существующие данные
             all_data = load_data(DATA_FILE)
 
+            # Подготавливаем запись для сохранения
+            record_to_save = {
+                'dse': user_data['dse'],
+                'problem_type': user_data['problem_type'],
+                'description': user_data['description']
+            }
+
+            # Если есть фото, добавляем его file_id
+            if user_data.get('photo_file_id'):
+                record_to_save['photo_file_id'] = user_data['photo_file_id']
+
             # Добавляем новые данные
             if user_id not in all_data:
                 all_data[user_id] = []
 
-            all_data[user_id].append({
-                'dse': user_data['dse'],
-                'problem_type': user_data['problem_type'],
-                'description': user_data['description']
-            })
+            all_data[user_id].append(record_to_save)
 
             # Сохраняем в файл
             save_data(all_data, DATA_FILE)
@@ -591,7 +929,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     'application': 'started',  # Оставляем признак начатой заявки
                     'dse': '',
                     'problem_type': '',
-                    'description': ''
+                    'description': '',
+                    'photo_file_id': None  # Очищаем фото тоже
                 }
 
             response = "✅ Данные успешно отправлены и сохранены!"
@@ -601,7 +940,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # После отправки возвращаем в главное меню
             await show_main_menu(update, user_id)
         else:
-            await query.edit_message_text(text="❌ Ошибка: не все поля заполнены!")
+            await query.edit_message_text(text="❌ Ошибка: не все обязательные поля заполнены!")
 
     # === ОБРАБОТКА КНОПОК ПРОСМОТРА ДСЕ ===
     # Обработка кнопок просмотра ДСЕ
@@ -624,6 +963,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         page = int(data.split('_')[-1])
         await show_all_dse_records(update, context, page=page)
 
+    elif data == 'dse_search_interactive':
+        if not has_permission(user_id, 'view_dse_list'):
+            await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
+            return
+        await start_interactive_dse_search(update, context)
+
+    elif data.startswith('dse_select_'):
+        if not has_permission(user_id, 'view_dse_list'):
+            await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
+            return
+        try:
+            index = int(data.split('_')[-1])
+            await select_dse_from_search(update, context, index)
+        except (ValueError, IndexError):
+            await query.edit_message_text("❌ Ошибка обработки выбора.")
+
+    elif data == 'dse_search_clear':
+        if not has_permission(user_id, 'view_dse_list'):
+            await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
+            return
+        user_id = str(query.from_user.id)
+        if user_id in dse_view_states:
+            dse_view_states[user_id]['current_search'] = ''
+        await show_dse_search_results(update, context, user_id)
+
     elif data == 'dse_search_dse':
         if not has_permission(user_id, 'view_dse_list'):
             await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
@@ -644,7 +1008,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # === ОБРАБОТКА КНОПОК ОТСЛЕЖИВАНИЯ ДСЕ ===
     elif data == 'watch_dse_menu':
-        if not has_permission(user_id, 'view_dse_list'):
+        if not has_permission(user_id, 'watch_dse'):
             await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
             return
         from dse_watcher import load_watched_dse_data  # Убедимся, что данные загружены
@@ -652,25 +1016,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_watched_dse_menu(update, context)
 
     elif data == 'watch_add_dse':
-        if not has_permission(user_id, 'view_dse_list'):
+        if not has_permission(user_id, 'watch_dse'):
             await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
             return
         await start_add_watched_dse(update, context)
 
     elif data == 'watch_remove_dse':
-        if not has_permission(user_id, 'view_dse_list'):
+        if not has_permission(user_id, 'watch_dse'):
             await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
             return
         await start_remove_watched_dse(update, context)
 
     elif data == 'watch_list_dse':
-        if not has_permission(user_id, 'view_dse_list'):
+        if not has_permission(user_id, 'watch_dse'):
             await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
             return
         await show_watched_dse_list(update, context)
 
     elif data.startswith('watch_rm_idx_'):
-        if not has_permission(user_id, 'view_dse_list'):
+        if not has_permission(user_id, 'watch_dse'):
             await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
             return
         try:
@@ -692,6 +1056,93 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await query.edit_message_text("❌ Неверный выбор. Попробуйте снова.")
         except (ValueError, IndexError):
             await query.edit_message_text("❌ Ошибка обработки выбора. Попробуйте снова.")
+
+    # === ОБРАБОТКА ВЫБОРА ДСЕ ИЗ СПИСКА ДЛЯ ОТСЛЕЖИВАНИЯ ===
+    elif data.startswith('watch_select_dse_'):
+        if not has_permission(user_id, 'watch_dse'):
+            await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
+            return
+        suffix = data[len('watch_select_dse_'):]
+
+        if suffix == 'manual':
+            # Пользователь хочет ввести вручную
+            user_states[user_id]['adding_watched_dse'] = True
+            if 'adding_watched_dse_state' in user_states[user_id]:
+                del user_states[user_id]['adding_watched_dse_state']
+            if 'temp_dse_list' in user_states[user_id]:
+                del user_states[user_id]['temp_dse_list']
+            await query.edit_message_text("➕ Введите номер ДСЕ для отслеживания:")
+        else:
+            try:
+                index = int(suffix)
+                temp_list = user_states.get(user_id, {}).get('temp_dse_list', [])
+                if 0 <= index < len(temp_list):
+                    dse_to_watch = temp_list[index]
+                    from dse_watcher import add_watched_dse
+                    add_watched_dse(user_id, dse_to_watch)
+
+                    # Очищаем временные данные
+                    temp_keys = ['temp_dse_list', 'adding_watched_dse_state']
+                    for key in temp_keys:
+                        if user_id in user_states and key in user_states[user_id]:
+                            del user_states[user_id][key]
+
+                    await query.edit_message_text(f"✅ ДСЕ '{dse_to_watch.upper()}' добавлено в список отслеживания.")
+                    # Можно сразу показать меню отслеживания
+                    await show_watched_dse_menu(update, context)
+                else:
+                    await query.edit_message_text("❌ Неверный выбор. Попробуйте снова.")
+            except (ValueError, IndexError):
+                await query.edit_message_text("❌ Ошибка обработки выбора. Попробуйте снова.")
+
+    # === ОБРАБОТКА ВЫБОРА ДСЕ ИЗ СПИСКА ДЛЯ ЧАТА ===
+    elif data.startswith('chat_select_dse_'):
+        if not has_permission(user_id, 'chat_dse'):
+            await query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
+            return
+        suffix = data[len('chat_select_dse_'):]
+
+        if suffix == 'manual':
+            # Пользователь хочет ввести вручную
+            user_states[user_id]['dse_chat_state'] = 'waiting_for_dse_input'
+            if 'temp_dse_list' in user_states[user_id]:
+                del user_states[user_id]['temp_dse_list']
+            await query.edit_message_text("🔍 Пожалуйста, введите номер ДСЕ для поиска:")
+        else:
+            try:
+                index = int(suffix)
+                temp_list = user_states.get(user_id, {}).get('temp_dse_list', [])
+                if 0 <= index < len(temp_list):
+                    dse_value = temp_list[index]
+
+                    # Очищаем временные данные
+                    temp_keys = ['temp_dse_list', 'dse_chat_state']
+                    for key in temp_keys:
+                        if user_id in user_states and key in user_states[user_id]:
+                            del user_states[user_id][key]
+
+                    # Передаем выбранное ДСЕ в chat_manager для продолжения процесса
+                    # Нам нужно имитировать ввод текста. Создадим фейковое сообщение.
+                    from chat_manager import handle_dse_input
+
+                    class FakeMessage:
+                        def __init__(self, from_user, text):
+                            self.from_user = from_user
+                            self.text = text
+
+                    class FakeUpdate:
+                        def __init__(self, from_user, message_text):
+                            self.effective_user = from_user
+                            self.message = FakeMessage(from_user, message_text)
+                            self.callback_query = None
+
+                    fake_update = FakeUpdate(user, dse_value)
+                    await handle_dse_input(fake_update, context)
+
+                else:
+                    await query.edit_message_text("❌ Неверный выбор. Попробуйте снова.")
+            except (ValueError, IndexError):
+                await query.edit_message_text("❌ Ошибка обработки выбора. Попробуйте снова.")
 
     # === ОБРАБОТКА АДМИНСКИХ КНОПОК ===
     elif data == 'admin_users':
@@ -759,6 +1210,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(text="Введите описание вопроса:")
         user_states[user_id]['current_input'] = 'description'
 
+    # === ОБРАБОТКА КНОПКИ ФОТО ===
+    elif data == 'set_photo':
+        if not has_permission(user_id, 'use_form'):
+            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
+            return
+        await request_photo(update, context)
+
+    elif data == 'cancel_photo':
+        user_id = str(query.from_user.id)
+        # Отменяем ожидание фото
+        if 'waiting_for_photo' in user_states[user_id]:
+            del user_states[user_id]['waiting_for_photo']
+        # Возвращаемся в меню заявки
+        await show_application_menu(update, user_id)
+
     elif data.startswith('problem_'):
         if not has_permission(user_id, 'use_form'):
             await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
@@ -775,24 +1241,34 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # === ОБРАБОТКА КНОПКИ ЧАТА ===
     elif data == 'chat_dse_menu':
         if not has_permission(user_id, 'chat_dse'):
+            # Отвечаем на callback и редактируем сообщение
+            await query.answer()
             await query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
             return
         # Открываем меню чата
+        # ВАЖНО: Отвечаем на callback сразу
+        await query.answer()
         from chat_manager import show_chat_menu
         await show_chat_menu(update, context)
 
     # === ОБРАБОТКА КНОПОК УПРАВЛЕНИЯ ЧАТОМ (из chat_manager) ===
     elif data in ['chat_pause', 'chat_resume', 'chat_end']:
+        # ВАЖНО: Отвечаем на callback сразу
+        await query.answer()
         from chat_manager import handle_chat_control
         await handle_chat_control(update, context)
 
     # === ОБРАБОТКА ПОДТВЕРЖДЕНИЯ ЧАТА ПО ДСЕ (из chat_manager) ===
     elif data in ['dse_chat_confirm', 'dse_chat_cancel_final']:
+        # ВАЖНО: Отвечаем на callback сразу
+        await query.answer()
         from chat_manager import handle_dse_chat_confirmation
         await handle_dse_chat_confirmation(update, context)
 
     # === ОБРАБОТКА ВЫБОРА ПОЛЬЗОВАТЕЛЯ ДЛЯ ЧАТА ПО ДСЕ (из chat_manager) ===
     elif data.startswith('dse_chat_select_'):
+        # ВАЖНО: Отвечаем на callback сразу
+        await query.answer()
         from chat_manager import handle_dse_user_selection
         await handle_dse_user_selection(update, context)
 
@@ -800,13 +1276,45 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # === ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ===
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик текстовых сообщений"""
+    """Обработчик текстовых сообщений и фото"""
 
     user = update.effective_user
     user_id = str(user.id)
-    text = update.message.text
 
-    print(f"👨 @{user.username}: {text}")
+    # Проверяем, есть ли текст в сообщении
+    text = ""
+    if update.message.text:
+        text = update.message.text
+    elif update.message.caption:  # Если это фото с подписью
+        text = update.message.caption
+
+    print(f"👨 @{user.username}: {text if text else '[ФОТО/ДРУГОЕ]'}")
+
+    # === ПРОВЕРКА НА ФОТО ===
+    # Проверяем, ожидаем ли мы фото от пользователя
+    if user_id in user_states and user_states[user_id].get('waiting_for_photo'):
+        if update.message.photo:
+            # Получаем file_id самого большого фото (последнего в массиве)
+            photo_file_id = update.message.photo[-1].file_id
+
+            # Сохраняем file_id фото в состоянии пользователя
+            user_states[user_id]['photo_file_id'] = photo_file_id
+            # Убираем флаг ожидания фото
+            del user_states[user_id]['waiting_for_photo']
+
+            await update.message.reply_text("✅ Фото сохранено!")
+            await show_application_menu(update, context)  # Возвращаем в меню заявки
+            return  # Важно: выходим
+        elif update.message.text and update.message.text.startswith('/'):
+            # Если пользователь отправил команду, не обрабатываем как фото
+            pass  # Позволим другим обработчикам команд заняться этим
+        else:
+            # Если пользователь отправил текст, а не фото
+            await update.message.reply_text(
+                "📸 Пожалуйста, отправьте фото.\n"
+                "Используйте /cancel_photo для отмены."
+            )
+            return  # Важно: выходим, чтобы не попасть в другие обработчики
 
     # === ПРОВЕРКА НА АКТИВНЫЙ ЧАТ ===
     # Проверяем, находится ли пользователь в активном чате или чате с управлением
@@ -838,7 +1346,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "❌ Пользователь с таким ID не найден. Попробуйте еще раз или нажмите /start")
         return
 
-    # Проверяем, ожидаем ли мы поисковый запрос для ДСЕ
+    # Проверяем, ожидаем ли мы поисковый запрос для ДСЕ (интерактивный поиск)
+    if user_id in dse_view_states and dse_view_states[user_id].get('searching_dse'):
+        await handle_dse_search_input(update, context)
+        return
+
+    # Проверяем, ожидаем ли мы поисковый запрос для ДСЕ (обычный поиск)
     if user_id in dse_view_states:
         if dse_view_states[user_id].get('searching_dse'):
             del dse_view_states[user_id]
@@ -869,18 +1382,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # === ПРОВЕРКА НА ВВОД ДАННЫХ ДЛЯ ОТСЛЕЖИВАНИЯ ДСЕ ===
     # Проверяем, ожидаем ли мы ввод ДСЕ для добавления в список отслеживания
-    if user_id in user_states and user_states[user_id].get('adding_watched_dse'):
+    # Обновляем условие, чтобы оно срабатывало только если явно установлен флаг ввода
+    if (user_id in user_states and
+            user_states[user_id].get('adding_watched_dse') and
+            user_states[user_id].get('adding_watched_dse_state') != 'selecting_or_manual'):
+
         dse_to_watch = text.strip()
         if dse_to_watch:
             from dse_watcher import add_watched_dse
             add_watched_dse(user_id, dse_to_watch)
-            del user_states[user_id]['adding_watched_dse']  # Очищаем состояние
+
+            # Очищаем состояние
+            if 'adding_watched_dse' in user_states[user_id]:
+                del user_states[user_id]['adding_watched_dse']
+            if 'adding_watched_dse_state' in user_states[user_id]:
+                del user_states[user_id]['adding_watched_dse_state']
+
             response = f"✅ ДСЕ '{dse_to_watch.upper()}' добавлено в список отслеживания."
             await update.message.reply_text(text=response)
             # Показываем меню отслеживания
             await show_watched_dse_menu(update, context)
         else:
             await update.message.reply_text("❌ Пожалуйста, введите корректный номер ДСЕ.")
+        return  # Важно: выходим, чтобы не попасть в следующие условия
+
+    # === ПРОВЕРКА НА ВВОД ДСЕ ДЛЯ ЧАТА ===
+    elif (user_id in user_states and
+          user_states[user_id].get('dse_chat_state') == 'waiting_for_dse_input'):
+
+        # Очищаем состояние
+        if 'dse_chat_state' in user_states[user_id]:
+            del user_states[user_id]['dse_chat_state']
+
+        # Передаем ввод в chat_manager
+        from chat_manager import handle_dse_input
+        await handle_dse_input(update, context)
         return  # Важно: выходим, чтобы не попасть в следующие условия
 
     # === ПРОВЕРКА НА ВВОД ДАННЫХ ДЛЯ ФОРМЫ ===

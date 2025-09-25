@@ -1,3 +1,4 @@
+# user_manager.py
 import json
 import os
 from config import USERS_FILE, ADMIN_IDS
@@ -83,9 +84,9 @@ def has_permission(user_id, permission):
     if role == 'admin':
         return True
 
-    # Ответчик может просматривать ДСЕ и связываться по ДСЕ
+    # Ответчик может просматривать ДСЕ, отслеживать и общаться по ДСЕ
     if role == 'responder':
-        if permission in ['chat_dse', 'view_main_menu', 'view_dse_list']:
+        if permission in ['chat_dse', 'view_main_menu', 'view_dse_list', 'watch_dse']:
             return True
 
     # Инициатор может использовать форму
@@ -97,7 +98,7 @@ def has_permission(user_id, permission):
         return False
 
     # По умолчанию для других ролей
-    return permission == 'view_main_menu'
+    return permission == 'user'
 
 
 def get_all_users():

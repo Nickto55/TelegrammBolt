@@ -1,3 +1,4 @@
+# config.py
 import json
 import logging
 import os
@@ -18,7 +19,9 @@ logging.basicConfig(
 DATA_FILE = "bot_data.json"
 USERS_FILE = "users_data.json"
 CHAT_FILE = "chat_data.json"
-WATCHED_DSE_FILE = "watched_dse.json"
+WATCHED_DSE_FILE = "watched_dse.json"  # Новый файл для отслеживания
+PHOTOS_DIR = "photos"
+os.makedirs(PHOTOS_DIR, exist_ok=True) # Создаем директорию при импорте модуля
 
 
 def load_data(filename):
@@ -27,51 +30,86 @@ def load_data(filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
+        except Exception as e:
+            # Можно добавить логирование ошибки, если нужно
+            # logging.error(f"Ошибка загрузки {filename}: {e}")
             return {}
     return {}
 
 
 def save_data(data, filename):
     """Сохранение данных в файл"""
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logging.error(f"Ошибка сохранения в {filename}: {e}")
+        raise  # Перебрасываем исключение, чтобы вызывающая функция знала об ошибке
 
 
-# Токен бота
+# --- Загрузка настроек бота из ven_bot.json ---
 def load_config_settings_bot(ven_bot: str = "ven_bot.json"):
+    """
+    Загружает настройки бота (токен, админы) из файла ven_bot.json.
+    Если файл или поля отсутствуют, создает шаблон и запрашивает ввод (в данном случае просто помечает).
+    """
     file_path = os.path.join(os.getcwd(), ven_bot)
 
+    # Шаблон данных
     ven_bot_data = {
-        "BOT_TOKEN:": "",
-        "ADMIN_IDS:": []
+        "BOT_TOKEN": "",  # Убрано двоеточие
+        "ADMIN_IDS": []  # Убрано двоеточие
     }
 
-    def update_data(chose_update):
+    def update_data(key_to_update):
+        """Обновляет указанное поле в ven_bot_data и сохраняет в файл."""
         nonlocal ven_bot_data, file_path
 
-        ven_bot_data[chose_update] = "bns"
+        # Простая "заглушка" для пометки незаполненных полей
+        if key_to_update == "":
+            if key_to_update == "BOT_TOKEN":
+                ven_bot_data[key_to_update] = "YOUR_BOT_TOKEN_HERE"
+            elif key_to_update == "ADMIN_IDS":
+                ven_bot_data[key_to_update] = ["YOUR_TELEGRAM_ID_HERE"]
+
         save_data(ven_bot_data, file_path)
 
+    # Создаем директорию, если её нет
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    # Если файл не существует, создаем его с шаблоном
     if not os.path.exists(file_path):
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(ven_bot_data, f, indent=4)
+        save_data(ven_bot_data, file_path)  # Сохраняем шаблон
+        print(f"⚠️  Создан файл настроек {file_path}. Пожалуйста, заполните его.")
 
-    ven_bot_data = load_data(ven_bot)
+    # Загружаем данные из файла
+    try:
+        loaded_data = load_data(file_path)
+        if isinstance(loaded_data, dict):
+            ven_bot_data.update(loaded_data)  # Обновляем шаблон загруженными данными
+        else:
+            print(f"⚠️  Файл {file_path} поврежден или содержит неверный формат. Используются значения по умолчанию.")
+    except Exception as e:
+        print(f"⚠️  Ошибка загрузки {file_path}: {e}. Используются значения по умолчанию.")
 
-    for i in ven_bot_data.keys():
-        if ven_bot_data.get(i, "") == "":
-            update_data(i)
+    # Проверяем, заполнены ли обязательные поля. Если нет - помечаем.
+    for key in ven_bot_data.keys():
+        if ven_bot_data.get(key, "") == "" or (isinstance(ven_bot_data[key], list) and not ven_bot_data[key]):
+            print(f"⚠️  Поле '{key}' в {file_path} не заполнено.")
+            update_data(key)  # Помечаем незаполненное поле
 
     return ven_bot_data
 
 
+# Загружаем настройки
 ven_bot_data = load_config_settings_bot()
-BOT_TOKEN = ven_bot_data.get("BOT_TOKEN:")
-ADMIN_IDS = ven_bot_data.get("ADMIN_IDS:")
 
-
+# Экспортируем настройки для использования в других модулях
+BOT_TOKEN = ven_bot_data.get("BOT_TOKEN", "")
+# Убедимся, что ADMIN_IDS всегда список
+ADMIN_IDS = ven_bot_data.get("ADMIN_IDS", [])
+if not isinstance(ADMIN_IDS, list):
+    ADMIN_IDS = [ADMIN_IDS] if ADMIN_IDS else []
 
 # Список типов проблем
 PROBLEM_TYPES = [
@@ -87,3 +125,10 @@ PROBLEM_TYPES = [
     "Другое"
 ]
 
+# --- Дополнительные проверки ---
+if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+    print("❌ Критическая ошибка: BOT_TOKEN не установлен или не заполнен в ven_bot.json!")
+    # Можно вызвать sys.exit(1) здесь, если хотите, чтобы бот не запускался без токена
+
+if not ADMIN_IDS or (len(ADMIN_IDS) == 1 and ADMIN_IDS[0] == "YOUR_TELEGRAM_ID_HERE"):
+    print("⚠️  Предупреждение: ADMIN_IDS не заполнен или содержит шаблонный ID в ven_bot.json.")

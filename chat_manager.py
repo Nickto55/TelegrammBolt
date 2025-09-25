@@ -1,3 +1,5 @@
+# chat_manager.py
+
 import json
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -5,7 +7,8 @@ from telegram.ext import ContextTypes
 from config import load_data, DATA_FILE, USERS_FILE
 
 # Глобальные переменные для управления состоянием чата по ДСЕ
-dse_chat_states = {}  # {admin_user_id: {'state': 'waiting_for_dse'/'waiting_for_user_selection', 'dse': '...', 'candidates': [...], 'selected_candidate': {...}}}
+# {admin_user_id: {'state': 'waiting_for_dse'/'waiting_for_user_selection'/'waiting_for_confirmation', 'dse': '...', 'candidates': [], 'selected_candidate': {...}}}
+dse_chat_states = {}
 # active_chats теперь будет словарем словарей для хранения дополнительной информации
 # {user1_id: {'partner_id': user2_id, 'status': 'active'/'paused'}, user2_id: {'partner_id': user1_id, 'status': 'active'/'paused'}}
 active_chats = {}
@@ -113,6 +116,7 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         candidate_name = candidate_user_info.get('first_name', f"Пользователь {candidate_user_id}")
 
         # Создаем уникальный callback_data для каждой кнопки
+        # Используем префикс 'dse_chat_select_' как в button_handler
         callback_data = f"dse_chat_select_{i}"
         button_text = f"{candidate_name} (ID: {candidate_user_id})"
         keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
@@ -142,6 +146,8 @@ async def handle_dse_user_selection(update: Update, context: ContextTypes.DEFAUL
     if (selecting_user_id not in dse_chat_states or
             dse_chat_states[selecting_user_id]['state'] != 'waiting_for_user_selection'):
         await query.edit_message_text("❌ Ошибка состояния. Пожалуйста, начните процесс заново.")
+        print(
+            f"❌ {selecting_user.first_name} ошибка состояния в handle_dse_user_selection. Текущее состояние: {dse_chat_states.get(selecting_user_id, {}).get('state', 'None')}")
         return
 
     if callback_data == "dse_chat_cancel":
@@ -152,20 +158,37 @@ async def handle_dse_user_selection(update: Update, context: ContextTypes.DEFAUL
 
     # Извлекаем индекс выбранного кандидата
     try:
-        _, _, _, index_str = callback_data.split('_')
-        index = int(index_str)
-    except (ValueError, IndexError):
+        # callback_data = 'dse_chat_select_{index}'
+        parts = callback_data.split('_')
+        if len(parts) >= 4 and parts[0] == 'dse' and parts[1] == 'chat' and parts[2] == 'select':
+            index_str = parts[3]
+            index = int(index_str)
+        else:
+            raise ValueError("Invalid callback_data format")
+    except (ValueError, IndexError) as e:
+        print(f"❌ Ошибка парсинга callback_data '{callback_data}': {e}")
         await query.edit_message_text("❌ Ошибка при обработке выбора. Пожалуйста, попробуйте снова.")
         return
 
+    # Проверяем, существует ли запись о кандидатах и корректен ли индекс
+    if (selecting_user_id not in dse_chat_states or
+            'candidates' not in dse_chat_states[selecting_user_id]):
+        await query.edit_message_text("❌ Ошибка данных. Пожалуйста, начните поиск чата по ДСЕ заново.")
+        print(f"❌ {selecting_user.first_name} ошибка данных: нет кандидатов в состоянии.")
+        return
+
     candidates = dse_chat_states[selecting_user_id]['candidates']
+    print(f"🔍 {selecting_user.first_name} выбрал индекс {index}. Доступно кандидатов: {len(candidates)}")
+
     if index < 0 or index >= len(candidates):
         await query.edit_message_text("❌ Неверный выбор. Пожалуйста, попробуйте снова.")
+        print(f"❌ {selecting_user.first_name} неверный индекс {index} для {len(candidates)} кандидатов.")
         return
 
     selected_record = candidates[index]
     # Сохраняем выбранного кандидата в состоянии
     dse_chat_states[selecting_user_id]['selected_candidate'] = selected_record
+    # Устанавливаем правильное следующее состояние
     dse_chat_states[selecting_user_id]['state'] = 'waiting_for_confirmation'
 
     target_user_id = selected_record['user_id']
@@ -199,6 +222,7 @@ async def handle_dse_chat_confirmation(update: Update, context: ContextTypes.DEF
     callback_data = query.data
 
     # Проверяем, находится ли пользователь в нужном состоянии
+    # Проверяем 'waiting_for_confirmation'
     if (selecting_user_id not in dse_chat_states or
             dse_chat_states[selecting_user_id]['state'] != 'waiting_for_confirmation'):
         if selecting_user_id in active_chats:
@@ -206,6 +230,8 @@ async def handle_dse_chat_confirmation(update: Update, context: ContextTypes.DEF
             await handle_chat_control(update, context)
             return
         await query.edit_message_text("❌ Ошибка состояния. Пожалуйста, начните процесс заново.")
+        print(
+            f"❌ {selecting_user.first_name} ошибка состояния в handle_dse_chat_confirmation. Текущее состояние: {dse_chat_states.get(selecting_user_id, {}).get('state', 'None')}")
         return
 
     if callback_data == "dse_chat_cancel_final":
@@ -215,6 +241,12 @@ async def handle_dse_chat_confirmation(update: Update, context: ContextTypes.DEF
         return
 
     if callback_data == "dse_chat_confirm":
+        # Проверяем, есть ли выбранный кандидат
+        if ('selected_candidate' not in dse_chat_states[selecting_user_id]):
+            await query.edit_message_text("❌ Ошибка данных. Пожалуйста, начните процесс заново.")
+            print(f"❌ {selecting_user.first_name} ошибка данных: нет selected_candidate.")
+            return
+
         selected_record = dse_chat_states[selecting_user_id]['selected_candidate']
         target_user_id = selected_record['user_id']
         dse_value = selected_record['dse']
@@ -228,7 +260,7 @@ async def handle_dse_chat_confirmation(update: Update, context: ContextTypes.DEF
 
         if target_user_id in active_chats and active_chats[target_user_id].get('status') == 'active':
             del dse_chat_states[selecting_user_id]
-            await query.edit_message_text("❌ Выбранный пользователь уже находится в активном чате.")
+            await query.edit_message_text("❌ Выбранный пользователь уже находится в чате.")
             return
 
         # Устанавливаем активный чат со статусом 'active'
