@@ -2,12 +2,13 @@
 
 import json
 import os
+from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from config import load_data, DATA_FILE, USERS_FILE
 
 # Глобальные переменные для управления состоянием чата по ДСЕ
-# {admin_user_id: {'state': 'waiting_for_dse'/'waiting_for_user_selection'/'waiting_for_confirmation', 'dse': '...', 'candidates': [], 'selected_candidate': {...}}}
+# {initiator_user_id: {'state': 'waiting_for_dse_input'/'waiting_for_target_selection'/'waiting_for_initiator_confirmation', 'dse': '...', 'target_user_id': '...', 'target_candidates': {'user_id': {'records': [...], 'name': '...'}}}}
 dse_chat_states = {}
 # active_chats теперь будет словарем словарей для хранения дополнительной информации
 # {user1_id: {'partner_id': user2_id, 'status': 'active'/'paused'}, user2_id: {'partner_id': user1_id, 'status': 'active'/'paused'}}
@@ -54,7 +55,8 @@ async def initiate_dse_chat_search(update: Update, context: ContextTypes.DEFAULT
     user_id = str(user.id)
 
     # Инициализируем состояние пользователя для процесса чата по ДСЕ
-    dse_chat_states[user_id] = {'state': 'waiting_for_dse', 'dse': None, 'candidates': []}
+    dse_chat_states[user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
+                                'target_candidates': {}}
 
     # Отправляем запрос на ввод ДСЕ
     # Проверяем, откуда пришел запрос (из callback_query или обычного сообщения)
@@ -73,13 +75,16 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     dse_value = update.message.text.strip()
 
     # Проверяем, находится ли пользователь в процессе поиска ДСЕ
-    if user_id not in dse_chat_states or dse_chat_states[user_id]['state'] != 'waiting_for_dse':
-        # Если нет, проверяем, не в активном ли он чате
-        if user_id in active_chats and active_chats[user_id].get('status') == 'active':
-            await handle_chat_message(update, context)
-        return
+    # if user_id not in dse_chat_states or dse_chat_states[user_id]['state'] != 'waiting_for_dse_input':
+    #     # Если нет, проверяем, не в активном ли он чате
+    #     if user_id in active_chats and active_chats[user_id].get('status') == 'active':
+    #         await handle_chat_message(update, context)
+    #     return
 
     # Сохраняем введённый ДСЕ
+    dse_chat_states[user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
+                                'target_candidates': {}}
+
     dse_chat_states[user_id]['dse'] = dse_value
     dse_chat_states[user_id]['state'] = 'processing'
 
@@ -92,33 +97,63 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         print(f"💬 Для {user.first_name} ничего не найдено по ДСЕ '{dse_value}'.")
         return
 
-    # Фильтруем, чтобы не предлагать чат с самим собой
-    candidate_records = [r for r in records if r['user_id'] != user_id]
+    # # Фильтруем, чтобы не предлагать чат с самим собой
+    # candidate_records = [r for r in records if r['user_id'] != user_id]
+    #
+    # if not candidate_records:
+    #     del dse_chat_states[user_id]  # Очищаем состояние
+    #     await update.message.reply_text(f"❌ По ДСЕ '{dse_value}' найдены только ваши собственные записи.")
+    #     print(f"💬 Для {user.first_name} по ДСЕ '{dse_value}' найдены только свои записи.")
+    #     return
+    candidate_records = [r for r in records]
+    # Группируем записи по пользователям
+    users_data = get_users_data()
+    grouped_records = defaultdict(list)
+    for record in candidate_records:
+        grouped_records[record['user_id']].append(record)
 
-    if not candidate_records:
-        del dse_chat_states[user_id]  # Очищаем состояние
-        await update.message.reply_text(f"❌ По ДСЕ '{dse_value}' найдены только ваши собственные записи.")
-        print(f"💬 Для {user.first_name} по ДСЕ '{dse_value}' найдены только свои записи.")
-        return
+    # Создаем кандидатов с именами пользователей
+    target_candidates = {}
+    for target_user_id, user_records in grouped_records.items():
+        target_user_info = users_data.get(target_user_id, {})
+        target_name = target_user_info.get('first_name', f"Пользователь {target_user_id}")
+        target_candidates[target_user_id] = {
+            'records': user_records,
+            'name': target_name
+        }
 
     # Сохраняем кандидатов
-    dse_chat_states[user_id]['candidates'] = candidate_records
-    dse_chat_states[user_id]['state'] = 'waiting_for_user_selection'
+    dse_chat_states[user_id]['target_candidates'] = target_candidates
 
-    # Получаем данные пользователей для отображения имен
-    users_data = get_users_data()
+    # Проверяем количество кандидатов
+    if len(target_candidates) == 1:
+        # Только один пользователь, пропускаем выбор
+        single_target_user_id = list(target_candidates.keys())[0]
+        dse_chat_states[user_id]['target_user_id'] = single_target_user_id
+        dse_chat_states[user_id]['state'] = 'waiting_for_initiator_confirmation'
+        await request_initiator_confirmation(update, context, user_id, single_target_user_id)
+    else:
+        # Несколько пользователей, предлагаем выбор
+        dse_chat_states[user_id]['state'] = 'waiting_for_target_selection'
+        await show_target_selection_menu(update, context, user_id)
+
+
+async def show_target_selection_menu(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                     initiator_user_id: str) -> None:
+    """Показывает меню выбора пользователя для чата."""
+    user = update.effective_user if update.effective_user else context.bot
+    user_id = str(user.id) if user else initiator_user_id
+
+    target_candidates = dse_chat_states[initiator_user_id]['target_candidates']
+    dse_value = dse_chat_states[initiator_user_id]['dse']
 
     # Создаем кнопки для выбора пользователя
     keyboard = []
-    for i, record in enumerate(candidate_records):
-        candidate_user_id = record['user_id']
-        candidate_user_info = users_data.get(candidate_user_id, {})
-        candidate_name = candidate_user_info.get('first_name', f"Пользователь {candidate_user_id}")
-
+    for target_user_id, candidate_info in target_candidates.items():
+        candidate_name = candidate_info['name']
         # Создаем уникальный callback_data для каждой кнопки
-        # Используем префикс 'dse_chat_select_' как в button_handler
-        callback_data = f"dse_chat_select_{i}"
-        button_text = f"{candidate_name} (ID: {candidate_user_id})"
+        callback_data = f"dse_chat_select_target_{target_user_id}"
+        button_text = f"{candidate_name} (ID: {target_user_id})"
         keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
 
     # Добавляем кнопку отмены
@@ -127,13 +162,13 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        f"✅ Найдено {len(candidate_records)} записей по ДСЕ '{dse_value}'.\nПожалуйста, выберите пользователя для связи:",
+        f"✅ Найдено {len(target_candidates)} записей по ДСЕ '{dse_value}' от разных пользователей.\nПожалуйста, выберите пользователя для связи:",
         reply_markup=reply_markup
     )
-    print(f"💬 Для {user.first_name} найдено {len(candidate_records)} кандидатов по ДСЕ '{dse_value}'.")
+    print(f"💬 Для {user.first_name} найдено {len(target_candidates)} кандидатов по ДСЕ '{dse_value}'.")
 
 
-async def handle_dse_user_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_target_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает выбор пользователя из списка кандидатов."""
     query = update.callback_query
     await query.answer()  # Подтверждаем нажатие кнопки
@@ -144,10 +179,8 @@ async def handle_dse_user_selection(update: Update, context: ContextTypes.DEFAUL
 
     # Проверяем, находится ли пользователь в нужном состоянии
     if (selecting_user_id not in dse_chat_states or
-            dse_chat_states[selecting_user_id]['state'] != 'waiting_for_user_selection'):
+            dse_chat_states[selecting_user_id]['state'] != 'waiting_for_target_selection'):
         await query.edit_message_text("❌ Ошибка состояния. Пожалуйста, начните процесс заново.")
-        print(
-            f"❌ {selecting_user.first_name} ошибка состояния в handle_dse_user_selection. Текущее состояние: {dse_chat_states.get(selecting_user_id, {}).get('state', 'None')}")
         return
 
     if callback_data == "dse_chat_cancel":
@@ -156,141 +189,254 @@ async def handle_dse_user_selection(update: Update, context: ContextTypes.DEFAUL
         print(f"💬 {selecting_user.first_name} отменил выбор пользователя.")
         return
 
-    # Извлекаем индекс выбранного кандидата
+    # Извлекаем ID выбранного пользователя
     try:
-        # callback_data = 'dse_chat_select_{index}'
-        parts = callback_data.split('_')
-        if len(parts) >= 4 and parts[0] == 'dse' and parts[1] == 'chat' and parts[2] == 'select':
-            index_str = parts[3]
-            index = int(index_str)
-        else:
-            raise ValueError("Invalid callback_data format")
-    except (ValueError, IndexError) as e:
-        print(f"❌ Ошибка парсинга callback_data '{callback_data}': {e}")
+        _, _, _, _, target_user_id = callback_data.split('_')
+    except (ValueError, IndexError):
         await query.edit_message_text("❌ Ошибка при обработке выбора. Пожалуйста, попробуйте снова.")
         return
 
-    # Проверяем, существует ли запись о кандидатах и корректен ли индекс
-    if (selecting_user_id not in dse_chat_states or
-            'candidates' not in dse_chat_states[selecting_user_id]):
-        await query.edit_message_text("❌ Ошибка данных. Пожалуйста, начните поиск чата по ДСЕ заново.")
-        print(f"❌ {selecting_user.first_name} ошибка данных: нет кандидатов в состоянии.")
-        return
-
-    candidates = dse_chat_states[selecting_user_id]['candidates']
-    print(f"🔍 {selecting_user.first_name} выбрал индекс {index}. Доступно кандидатов: {len(candidates)}")
-
-    if index < 0 or index >= len(candidates):
+    if target_user_id not in dse_chat_states[selecting_user_id]['target_candidates']:
         await query.edit_message_text("❌ Неверный выбор. Пожалуйста, попробуйте снова.")
-        print(f"❌ {selecting_user.first_name} неверный индекс {index} для {len(candidates)} кандидатов.")
         return
 
-    selected_record = candidates[index]
-    # Сохраняем выбранного кандидата в состоянии
-    dse_chat_states[selecting_user_id]['selected_candidate'] = selected_record
-    # Устанавливаем правильное следующее состояние
-    dse_chat_states[selecting_user_id]['state'] = 'waiting_for_confirmation'
+    # Сохраняем выбранного пользователя
+    dse_chat_states[selecting_user_id]['target_user_id'] = target_user_id
+    dse_chat_states[selecting_user_id]['state'] = 'waiting_for_initiator_confirmation'
 
-    target_user_id = selected_record['user_id']
-    dse_value = selected_record['dse']
+    # Запрашиваем подтверждение у инициатора
+    await request_initiator_confirmation(update, context, selecting_user_id, target_user_id)
 
-    # Получаем имя инициатора для отображения
-    users_data = get_users_data()
-    target_user_info = users_data.get(target_user_id, {})
-    target_name = target_user_info.get('first_name', f"Пользователь {target_user_id}")
 
-    # Создаем кнопки подтверждения
+async def request_initiator_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE, initiator_user_id: str,
+                                         target_user_id: str) -> None:
+    """Запрашивает подтверждение начала чата у инициатора."""
+    dse_value = dse_chat_states[initiator_user_id]['dse']
+    target_candidates = dse_chat_states[initiator_user_id]['target_candidates']
+    target_name = target_candidates[target_user_id]['name']
+
+    # Создаем кнопки подтверждения для инициатора
     keyboard = [
-        [InlineKeyboardButton("✅ Подтвердить", callback_data="dse_chat_confirm")],
-        [InlineKeyboardButton("❌ Отмена", callback_data="dse_chat_cancel_final")]
+        [InlineKeyboardButton("✅ Подтвердить", callback_data="dse_chat_confirm_initiator")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="dse_chat_cancel_initiator")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await query.edit_message_text(
-        f"❓ Вы уверены, что хотите начать чат с {target_name} по ДСЕ '{dse_value}'?",
-        reply_markup=reply_markup
-    )
+    # Отправляем сообщение инициатору
+    try:
+        await context.bot.send_message(
+            chat_id=initiator_user_id,
+            text=f"❓ Вы уверены, что хотите начать чат с {target_name} по ДСЕ '{dse_value}'?\nПожалуйста, подтвердите.",
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        print(f"❌ Ошибка отправки запроса подтверждения инициатору {initiator_user_id}: {e}")
+        del dse_chat_states[initiator_user_id]
 
 
-async def handle_dse_chat_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обрабатывает подтверждение начала чата."""
+async def handle_initiator_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обрабатывает подтверждение начала чата от инициатора."""
     query = update.callback_query
-    await query.answer()
+    # await query.answer() # Уже вызван в button_handler
 
-    selecting_user = query.from_user
-    selecting_user_id = str(selecting_user.id)
+    print(f"🔍 handle_initiator_confirmation: Called with data '{query.data}'")
+
+    initiator_user = query.from_user
+    initiator_user_id = str(initiator_user.id)
     callback_data = query.data
 
     # Проверяем, находится ли пользователь в нужном состоянии
-    # Проверяем 'waiting_for_confirmation'
-    if (selecting_user_id not in dse_chat_states or
-            dse_chat_states[selecting_user_id]['state'] != 'waiting_for_confirmation'):
-        if selecting_user_id in active_chats:
+    print(f"🔍 handle_initiator_confirmation: Checking state for {initiator_user_id}")
+    if (initiator_user_id not in dse_chat_states or
+            dse_chat_states[initiator_user_id]['state'] != 'waiting_for_initiator_confirmation'):
+        print(f"❌ handle_initiator_confirmation: State mismatch for {initiator_user_id}")
+        print(f"   Expected: 'waiting_for_initiator_confirmation'")
+        print(f"   Actual state: {dse_chat_states.get(initiator_user_id, {}).get('state', 'NOT_FOUND')}")
+        print(f"   Full state: {dse_chat_states.get(initiator_user_id, 'NOT_FOUND')}")
+
+        # Проверим, может быть пользователь уже в чате?
+        if initiator_user_id in active_chats:
+            print(f"   User {initiator_user_id} is already in active_chats.")
             # Возможно, пользователь уже в чате, обработаем как команду чата
-            await handle_chat_control(update, context)
+            # await handle_chat_control(update, context) # Осторожно, может вызвать рекурсию
+            # Лучше просто сообщить об ошибке
+            await query.edit_message_text("❌ Вы уже находитесь в активном чате.")
             return
+
         await query.edit_message_text("❌ Ошибка состояния. Пожалуйста, начните процесс заново.")
-        print(
-            f"❌ {selecting_user.first_name} ошибка состояния в handle_dse_chat_confirmation. Текущее состояние: {dse_chat_states.get(selecting_user_id, {}).get('state', 'None')}")
         return
 
-    if callback_data == "dse_chat_cancel_final":
-        del dse_chat_states[selecting_user_id]
+    print(f"🔍 handle_initiator_confirmation: Processing {callback_data} for {initiator_user_id}")
+
+    if callback_data == "dse_chat_cancel_initiator":
+        print(f"↩️ handle_initiator_confirmation: User {initiator_user_id} cancelled chat initiation.")
+        if initiator_user_id in dse_chat_states:
+            del dse_chat_states[initiator_user_id]
         await query.edit_message_text("↩️ Начало чата отменено.")
-        print(f"💬 {selecting_user.first_name} отменил начало чата.")
+        print(f"💬 {initiator_user.first_name} отменил начало чата.")
         return
 
-    if callback_data == "dse_chat_confirm":
-        # Проверяем, есть ли выбранный кандидат
-        if ('selected_candidate' not in dse_chat_states[selecting_user_id]):
+    if callback_data == "dse_chat_confirm_initiator":
+        print(f"✅ handle_initiator_confirmation: User {initiator_user_id} confirmed chat initiation.")
+
+        # Добавим проверку наличия необходимых ключей
+        user_state = dse_chat_states.get(initiator_user_id, {})
+        target_user_id = user_state.get('target_user_id')
+        dse_value = user_state.get('dse')
+
+        if not target_user_id or not dse_value:
+            print(f"❌ handle_initiator_confirmation: Missing target_user_id or dse_value for {initiator_user_id}")
+            print(f"   target_user_id: {target_user_id}")
+            print(f"   dse_value: {dse_value}")
+            if initiator_user_id in dse_chat_states:
+                del dse_chat_states[initiator_user_id]
             await query.edit_message_text("❌ Ошибка данных. Пожалуйста, начните процесс заново.")
-            print(f"❌ {selecting_user.first_name} ошибка данных: нет selected_candidate.")
             return
 
-        selected_record = dse_chat_states[selecting_user_id]['selected_candidate']
-        target_user_id = selected_record['user_id']
-        dse_value = selected_record['dse']
+        print(f"🔍 handle_initiator_confirmation: Target user is {target_user_id}, DSE is '{dse_value}'")
 
         # Проверка, не находится ли уже один из пользователей в активном чате
         # Для простоты, разрешаем только один активный чат на пользователя
-        if selecting_user_id in active_chats and active_chats[selecting_user_id].get('status') == 'active':
-            del dse_chat_states[selecting_user_id]
+        if initiator_user_id in active_chats and active_chats[initiator_user_id].get('status') == 'active':
+            print(f"❌ handle_initiator_confirmation: Initiator {initiator_user_id} already in active chat.")
+            if initiator_user_id in dse_chat_states:
+                del dse_chat_states[initiator_user_id]
             await query.edit_message_text("❌ Вы уже находитесь в активном чате.")
             return
 
         if target_user_id in active_chats and active_chats[target_user_id].get('status') == 'active':
-            del dse_chat_states[selecting_user_id]
+            print(f"❌ handle_initiator_confirmation: Target {target_user_id} already in active chat.")
+            if initiator_user_id in dse_chat_states:
+                del dse_chat_states[initiator_user_id]
             await query.edit_message_text("❌ Выбранный пользователь уже находится в чате.")
             return
 
+        # Запрашиваем подтверждение у ответчика
+        # Меняем состояние ИНИЦИАТОРА на ожидание ответа от ответчика
+        dse_chat_states[initiator_user_id]['state'] = 'waiting_for_responder_confirmation'
+        print(
+            f"🔍 handle_initiator_confirmation: State changed to 'waiting_for_responder_confirmation' for {initiator_user_id}")
+
+        await request_responder_confirmation(context, initiator_user_id, target_user_id, dse_value)
+        # Сообщение инициатору обновляется внутри request_responder_confirmation или позже
+        await query.edit_message_text(f"⏳ Ожидаем подтверждения от {target_user_id}...")
+
+
+async def request_responder_confirmation(context: ContextTypes.DEFAULT_TYPE, initiator_user_id: str,
+                                         target_user_id: str, dse_value: str) -> None:
+    """Запрашивает подтверждение начала чата у ответчика."""
+    print(
+        f"🔍 request_responder_confirmation: Called for initiator {initiator_user_id}, target {target_user_id}, DSE '{dse_value}'")
+
+    initiator_user_info = get_users_data().get(initiator_user_id, {})
+    initiator_name = initiator_user_info.get('first_name', f"Пользователь {initiator_user_id}")
+
+    print(f"🔍 request_responder_confirmation: Initiator name is '{initiator_name}'")
+
+    # Создаем кнопки подтверждения для ответчика
+    # ВАЖНО: callback_data должен содержать initiator_user_id, чтобы ответчик мог его идентифицировать
+    keyboard = [
+        [InlineKeyboardButton("✅ Подтвердить", callback_data=f"dse_chat_confirm_responder_{initiator_user_id}")],
+        [InlineKeyboardButton("❌ Отмена", callback_data=f"dse_chat_cancel_responder_{initiator_user_id}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    print(f"🔍 request_responder_confirmation: Sending confirmation request to {target_user_id}")
+
+    # Отправляем сообщение ответчику
+    try:
+        sent_message = await context.bot.send_message(
+            chat_id=target_user_id,
+            text=f"💬 С вами хочет связаться пользователь {initiator_name} по ДСЕ '{dse_value}'.\nПожалуйста, подтвердите начало чата.",
+            reply_markup=reply_markup
+        )
+        print(
+            f"🔔 request_responder_confirmation: Confirmation request sent to {target_user_id} (message_id: {sent_message.message_id}).")
+
+        # Также обновляем сообщение инициатора
+        # Найдем последнее сообщение инициатора или отправим новое
+        # Проще всего просто отправить новое сообщение инициатору
+        try:
+            await context.bot.send_message(
+                chat_id=initiator_user_id,
+                text=f"⏳ Запрос на подтверждение чата отправлен пользователю {target_user_id}. Ожидаем ответ..."
+            )
+            print(f"🔔 request_responder_confirmation: Notification sent to initiator {initiator_user_id}.")
+        except Exception as e:
+            print(f"⚠️ request_responder_confirmation: Could not notify initiator {initiator_user_id}: {e}")
+
+    except Exception as e:
+        # Если не удалось уведомить ответчика, отменяем чат
+        print(f"❌ request_responder_confirmation: Failed to notify responder {target_user_id}: {e}")
+        if initiator_user_id in dse_chat_states:
+            del dse_chat_states[initiator_user_id]
+        try:
+            await context.bot.send_message(
+                chat_id=initiator_user_id,
+                text="❌ Не удалось связаться с пользователем. Возможно, он заблокировал бота."
+            )
+        except Exception as e2:
+            print(f"❌ request_responder_confirmation: Also failed to notify initiator {initiator_user_id}: {e2}")
+        print(f"❌ Ошибка уведомления ответчика {target_user_id}: {e}")
+
+
+
+async def handle_responder_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обрабатывает подтверждение начала чата от ответчика."""
+    query = update.callback_query
+    await query.answer()
+
+    responder_user = query.from_user
+    responder_user_id = str(responder_user.id)
+    callback_data = query.data
+    print("kjodsjdjsiljksdjhkfjkjkdsjkasdjjhashjdsfj")
+
+    # Извлекаем ID инициатора из callback_data
+    try:
+        _, _, _, _, initiator_user_id = callback_data.split('_')
+    except (ValueError, IndexError):
+        await query.edit_message_text("❌ Ошибка при обработке подтверждения.")
+        return
+
+    # Проверяем, находится ли инициатор в нужном состоянии
+    if (initiator_user_id not in dse_chat_states or
+            dse_chat_states[initiator_user_id]['state'] != 'waiting_for_responder_confirmation' or
+            dse_chat_states[initiator_user_id]['target_user_id'] != responder_user_id):
+        await query.edit_message_text("❌ Ошибка состояния.")
+        return
+
+    if callback_data.endswith("cancel_responder_" + initiator_user_id):
+        del dse_chat_states[initiator_user_id]
+        await query.edit_message_text("↩️ Начало чата отклонено.")
+        # Уведомляем инициатора
+        try:
+            await context.bot.send_message(
+                chat_id=initiator_user_id,
+                text="❌ Пользователь отклонил запрос на начало чата."
+            )
+        except:
+            pass
+        print(f"💬 {responder_user.first_name} отклонил чат с {initiator_user_id}.")
+        return
+
+    if callback_data.endswith("confirm_responder_" + initiator_user_id):
+        target_user_id = responder_user_id
+        initiator_user_id = dse_chat_states[initiator_user_id][
+            'target_user_id']  # Это должно быть равно responder_user_id
+
+        dse_chat_states[initiator_user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
+                                    'target_candidates': {}}
+
+        dse_value = dse_chat_states[initiator_user_id]['dse']
+
         # Устанавливаем активный чат со статусом 'active'
-        active_chats[selecting_user_id] = {'partner_id': target_user_id, 'status': 'active'}
-        active_chats[target_user_id] = {'partner_id': selecting_user_id, 'status': 'active'}
+        active_chats[initiator_user_id] = {'partner_id': target_user_id, 'status': 'active'}
+        active_chats[target_user_id] = {'partner_id': initiator_user_id, 'status': 'active'}
 
         # Очищаем временное состояние поиска
-        del dse_chat_states[selecting_user_id]
+        del dse_chat_states[initiator_user_id]
 
-        # Уведомляем инициатора (target_user)
-        try:
-            # Создаем кнопки управления для инициатора
-            initiator_keyboard = get_chat_control_keyboard()
-            initiator_reply_markup = InlineKeyboardMarkup(initiator_keyboard)
-
-            await context.bot.send_message(
-                chat_id=target_user_id,
-                text=f"💬 С вами хочет связаться пользователь {selecting_user.first_name} по ДСЕ '{dse_value}'.\nВы можете отвечать на сообщения прямо здесь.",
-                reply_markup=initiator_reply_markup
-            )
-            print(f"🔔 Уведомление отправлено инициатору {target_user_id} по ДСЕ '{dse_value}'.")
-        except Exception as e:
-            # Если не удалось уведомить инициатора, отменяем чат
-            active_chats.pop(selecting_user_id, None)
-            active_chats.pop(target_user_id, None)
-            await query.edit_message_text("❌ Не удалось связаться с пользователем. Возможно, он заблокировал бота.")
-            print(f"❌ Ошибка уведомления инициатора {target_user_id}: {e}")
-            return
-
-        # Уведомляем ответчика (selecting_user), что чат установлен, с кнопками управления
+        # Уведомляем ответчика, что чат установлен
         responder_keyboard = get_chat_control_keyboard()
         responder_reply_markup = InlineKeyboardMarkup(responder_keyboard)
 
@@ -298,7 +444,21 @@ async def handle_dse_chat_confirmation(update: Update, context: ContextTypes.DEF
             f"✅ Чат с пользователем по ДСЕ '{dse_value}' установлен!\nМожете начинать писать сообщения.",
             reply_markup=responder_reply_markup
         )
-        print(f"💬 Чат установлен между {selecting_user.first_name} и {target_user_id} по ДСЕ '{dse_value}'.")
+
+        # Уведомляем инициатора, что чат установлен
+        initiator_keyboard = get_chat_control_keyboard()
+        initiator_reply_markup = InlineKeyboardMarkup(initiator_keyboard)
+
+        try:
+            await context.bot.send_message(
+                chat_id=initiator_user_id,
+                text=f"✅ Чат с пользователем по ДСЕ '{dse_value}' установлен!\nМожете начинать писать сообщения.",
+                reply_markup=initiator_reply_markup
+            )
+        except Exception as e:
+            print(f"❌ Ошибка уведомления инициатора {initiator_user_id}: {e}")
+
+        print(f"💬 Чат установлен между {initiator_user_id} и {target_user_id} по ДСЕ '{dse_value}'.")
 
 
 def get_chat_control_keyboard():

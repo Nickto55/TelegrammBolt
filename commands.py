@@ -1,5 +1,8 @@
 # commands.py
+import time
+from datetime import datetime as dt
 
+import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -745,9 +748,9 @@ async def start_dse_chat_search_with_selection(update: Update, context: ContextT
     # Проверяем права доступа
     user = update.callback_query.from_user
     user_id = str(user.id)
-    if not has_permission(user_id, 'chat_dse'):
-        await update.callback_query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
-        return
+    # if has_permission(user_id, 'chat_dse'):
+    #     await update.callback_query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
+    #     return
 
     await show_dse_selection_menu(
         update,
@@ -852,10 +855,13 @@ async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # === ОСНОВНОЙ ОБРАБОТЧИК КНОПОК ===
 
+# commands.py (обновлённый и проверенный фрагмент button_handler)
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик нажатий кнопок"""
 
     query = update.callback_query
+    # ВАЖНО: Отвечаем на callback сразу же, чтобы избежать ошибки "Query is too old"
     await query.answer()
 
     user = query.from_user
@@ -866,7 +872,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Проверяем права доступа
     if not has_permission(user_id, 'view_main_menu'):
-        await query.edit_message_text("❌ У вас нет прав для использования этой функции.")
+        # Так как query.answer() уже был вызван, редактируем сообщение напрямую
+        try:
+            await query.edit_message_text("❌ У вас нет прав для использования этой функции.")
+        except telegram.error.BadRequest:
+            # Если сообщение уже нельзя редактировать, отправляем новое
+            await context.bot.send_message(chat_id=query.message.chat_id,
+                                           text="❌ У вас нет прав для использования этой функции.")
         return
 
     # === ОБРАБОТКА КНОПОК ЗАЯВКИ ===
@@ -895,7 +907,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Обработка кнопки отправки в меню заявки
     elif data == 'send':
-        if not has_permission(user_id, 'use_form'):
+        if not has_permission(user_id, 'initiator'):
             await query.edit_message_text("❌ У вас нет прав для отправки формы.")
             return
         user_data = user_states.get(user_id, {})
@@ -1095,11 +1107,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             except (ValueError, IndexError):
                 await query.edit_message_text("❌ Ошибка обработки выбора. Попробуйте снова.")
 
+    # === ОБРАБОТКА ПОДТВЕРЖДЕНИЯ/ОТМЕНЫ ОТ ИНИЦИАТОРА ЧАТА ПО ДСЕ ===
+    elif data in ['dse_chat_confirm_initiator', 'dse_chat_cancel_initiator']:
+        # ВАЖНО: Отвечаем на callback сразу
+        # await query.answer() # Уже вызван в самом начале button_handler
+        print(f"🔍 Button handler: Received '{data}' from {user.first_name} ({user_id})")
+        from chat_manager import handle_initiator_confirmation
+        # Передаём управление в chat_manager
+        await handle_initiator_confirmation(update, context)
+        print(f"🔍 Button handler: Finished handling '{data}' for {user.first_name} ({user_id})")
+
     # === ОБРАБОТКА ВЫБОРА ДСЕ ИЗ СПИСКА ДЛЯ ЧАТА ===
     elif data.startswith('chat_select_dse_'):
-        if not has_permission(user_id, 'chat_dse'):
-            await query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
-            return
+        # if  has_permission(user_id, 'initiator'):
+        #     await query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
+        #     return
         suffix = data[len('chat_select_dse_'):]
 
         if suffix == 'manual':
@@ -1238,39 +1260,45 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_application_menu(update, user_id)
         print(f"💾 Сохранен вид проблемы: {selected_problem}")
 
+
     # === ОБРАБОТКА КНОПКИ ЧАТА ===
     elif data == 'chat_dse_menu':
         if not has_permission(user_id, 'chat_dse'):
-            # Отвечаем на callback и редактируем сообщение
-            await query.answer()
             await query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
             return
-        # Открываем меню чата
-        # ВАЖНО: Отвечаем на callback сразу
-        await query.answer()
-        from chat_manager import show_chat_menu
-        await show_chat_menu(update, context)
+        # Открываем меню чата С ВЫБОРОМ ИЗ СПИСКА
+        await start_dse_chat_search_with_selection(update, context)
 
-    # === ОБРАБОТКА КНОПОК УПРАВЛЕНИЯ ЧАТОМ (из chat_manager) ===
+        # === ОБРАБОТКА КНОПОК УПРАВЛЕНИЯ ЧАТОМ (из chat_manager) ===
     elif data in ['chat_pause', 'chat_resume', 'chat_end']:
-        # ВАЖНО: Отвечаем на callback сразу
-        await query.answer()
         from chat_manager import handle_chat_control
         await handle_chat_control(update, context)
 
-    # === ОБРАБОТКА ПОДТВЕРЖДЕНИЯ ЧАТА ПО ДСЕ (из chat_manager) ===
+        # === ОБРАБОТКА ПОДТВЕРЖДЕНИЯ ЧАТА ПО ДСЕ (из chat_manager) ===
     elif data in ['dse_chat_confirm', 'dse_chat_cancel_final']:
-        # ВАЖНО: Отвечаем на callback сразу
-        await query.answer()
         from chat_manager import handle_dse_chat_confirmation
         await handle_dse_chat_confirmation(update, context)
 
-    # === ОБРАБОТКА ВЫБОРА ПОЛЬЗОВАТЕЛЯ ДЛЯ ЧАТА ПО ДСЕ (из chat_manager) ===
+        # === ОБРАБОТКА ВЫБОРА ПОЛЬЗОВАТЕЛЯ ДЛЯ ЧАТА ПО ДСЕ (из chat_manager) ===
     elif data.startswith('dse_chat_select_'):
-        # ВАЖНО: Отвечаем на callback сразу
-        await query.answer()
         from chat_manager import handle_dse_user_selection
         await handle_dse_user_selection(update, context)
+
+        # === НОВАЯ ОБРАБОТКА: ПОДТВЕРЖДЕНИЕ/ОТМЕНА ОТ ИНИЦИАТОРА ===
+    elif data in ['dse_chat_confirm_initiator', 'dse_chat_cancel_initiator']:
+        # callback_data для инициатора
+        from chat_manager import handle_initiator_confirmation
+        await handle_initiator_confirmation(update, context)
+
+        # === НОВАЯ ОБРАБОТКА: ПОДТВЕРЖДЕНИЕ/ОТМЕНА ОТ ОТВЕТЧИКА ===
+        # Предполагаем, что callback_data имеет формат:
+        # 'dse_chat_confirm_responder_INITIATOR_ID' или 'dse_chat_cancel_responder_INITIATOR_ID'
+    elif '_responder_' in data:
+        # callback_data для ответчика
+        from chat_manager import handle_responder_confirmation
+        await handle_responder_confirmation(update, context)
+
+
 
 
 # === ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ===
@@ -1443,4 +1471,5 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         # Обычный ответ на сообщение
         response = "Нажмите /start для начала работы с ботом"
+        # response = f"{user_states[user_id].get('dse_chat_state')} {'waiting_for_dse_input'}"
         await update.message.reply_text(text=response)
