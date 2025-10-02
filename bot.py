@@ -1,79 +1,99 @@
 # bot.py
 import asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from config import BOT_TOKEN
-from commands import start, button_handler, handle_message,cancel_photo_command
+import logging
+from typing import Optional
 
-# Импортируем функции из dse_watcher
+from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from config import BOT_TOKEN
+from commands import start, button_handler, handle_message, cancel_photo_command
 from dse_watcher import load_watched_dse_data, start_watcher_job
+
+logger = logging.getLogger(__name__)
 
 
 async def chat_command(update, context):
     """Команда /chat"""
     from chat_manager import show_chat_menu
-    from user_manager import has_permission
-    user_id = str(update.effective_user.id)
 
-    if has_permission(user_id, 'chat_dse'):
+    if await _check_permission(update, 'chat_dse'):
         await show_chat_menu(update, context)
-    else:
-        await update.message.reply_text("❌ У вас нет прав для использования чата.")
 
 
 async def end_chat_command(update, context):
     """Команда /endchat"""
     from chat_manager import end_chat_command
-    from user_manager import has_permission
-    user_id = str(update.effective_user.id)
 
-    if has_permission(user_id, 'chat_dse'):
+    if await _check_permission(update, 'chat_dse'):
         await end_chat_command(update, context)
-    else:
-        await update.message.reply_text("❌ У вас нет прав для завершения чата.")
 
 
-async def post_init(application) -> None:
+async def _check_permission(update, permission: str) -> bool:
+    """Проверяет права пользователя и отправляет сообщение об ошибке при необходимости"""
+    from user_manager import has_permission
+    
+    user_id = str(update.effective_user.id)
+    if has_permission(user_id, permission):
+        return True
+    
+    await update.message.reply_text("❌ У вас нет прав для использования этой команды.")
+    return False
+
+
+async def post_init(application: Application) -> None:
     """Функция, вызываемая после инициализации приложения."""
-    print("🚀 Бот инициализирован. Запуск дополнительных сервисов...")
+    logger.info("🚀 Бот инициализирован. Запуск дополнительных сервисов...")
 
-    # 1. Загружаем данные отслеживаемых ДСЕ
-    load_watched_dse_data()
-
-    # 2. Запускаем задачу отслеживания
-    # Используем asyncio.create_task напрямую в цикле событий приложения
-    # Это устраняет предупреждение PTBUserWarning о запуске до run_polling
     try:
+        # Загружаем данные отслеживаемых ДСЕ
+        load_watched_dse_data()
+        logger.info("📊 Данные отслеживаемых ДСЕ загружены")
+
+        # Запускаем задачу отслеживания в текущем цикле событий
         loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # Если цикл не запущен (маловероятно на этом этапе, но на всякий случай)
-        loop = asyncio.get_event_loop()
+        loop.create_task(start_watcher_job(application))
+        logger.info("⏱️  Задача DSE Watcher запланирована")
 
-    # Планируем задачу watcher в цикле событий приложения
-    loop.create_task(start_watcher_job(application))
-    print("⏱️  Задача DSE Watcher запланирована (ожидает запуска цикла событий).")
-
-    print("✅ Дополнительные сервисы инициализированы.")
+        logger.info("✅ Дополнительные сервисы инициализированы")
+    except Exception as e:
+        logger.error(f"❌ Ошибка инициализации дополнительных сервисов: {e}")
+        raise
 
 
-def main():
+def _register_handlers(app: Application) -> None:
+    """Регистрирует все обработчики команд и сообщений"""
+    handlers = [
+        CommandHandler("start", start),
+        CommandHandler("chat", chat_command),
+        CommandHandler("endchat", end_chat_command),
+        CommandHandler("cancel_photo", cancel_photo_command),
+        CallbackQueryHandler(button_handler),
+        MessageHandler(filters.TEXT | filters.PHOTO | filters.CAPTION, handle_message),
+    ]
+    
+    for handler in handlers:
+        app.add_handler(handler)
+    
+    logger.info(f"📋 Зарегистрировано {len(handlers)} обработчиков")
+
+
+def main() -> None:
     """Основная функция запуска бота"""
-    # Создаем приложение
-    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
+    try:
+        # Создаем приложение
+        app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
-    # Добавляем обработчики
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("chat", chat_command))
-    app.add_handler(CommandHandler("endchat", end_chat_command))
-    app.add_handler(CommandHandler("cancel_photo", cancel_photo_command)) # <<< НОВАЯ КОМАНДА
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO | filters.CAPTION, handle_message))
-    # filters.PHOTO добавлен, чтобы handle_message получал фото
+        # Регистрируем обработчики
+        _register_handlers(app)
 
-    print("🚀 Бот запущен! Нажмите Ctrl+C для остановки")
-    print("=" * 50)
+        logger.info("🚀 Бот запущен! Нажмите Ctrl+C для остановки")
+        logger.info("=" * 50)
 
-    # Запускаем бота
-    app.run_polling()
+        # Запускаем бота
+        app.run_polling()
+        
+    except Exception as e:
+        logger.error(f"❌ Критическая ошибка при запуске бота: {e}")
+        raise
 
 
 if __name__ == "__main__":
