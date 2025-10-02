@@ -1,5 +1,3 @@
-# chat_manager.py
-
 import json
 import os
 from collections import defaultdict
@@ -7,11 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from config import load_data, DATA_FILE, USERS_FILE
 
-# Глобальные переменные для управления состоянием чата по ДСЕ
-# {initiator_user_id: {'state': 'waiting_for_dse_input'/'waiting_for_target_selection'/'waiting_for_initiator_confirmation', 'dse': '...', 'target_user_id': '...', 'target_candidates': {'user_id': {'records': [...], 'name': '...'}}}}
 dse_chat_states = {}
-# active_chats теперь будет словарем словарей для хранения дополнительной информации
-# {user1_id: {'partner_id': user2_id, 'status': 'active'/'paused'}, user2_id: {'partner_id': user1_id, 'status': 'active'/'paused'}}
 active_chats = {}
 
 
@@ -36,14 +30,13 @@ def get_dse_records_by_dse_value(dse_value: str):
     all_bot_data = load_data(DATA_FILE)
     matching_records = []
 
-    # all_bot_data - это словарь {user_id: [record1, record2, ...]}
     for user_id, user_records in all_bot_data.items():
         if isinstance(user_records, list):
             for record in user_records:
-                # Сравниваем, игнорируя регистр и пробелы по краям
+
                 if record.get('dse', '').strip().lower() == dse_value.strip().lower():
                     record_copy = record.copy()
-                    record_copy['user_id'] = user_id  # Добавляем ID пользователя в запись
+                    record_copy['user_id'] = user_id
                     matching_records.append(record_copy)
 
     return matching_records
@@ -54,12 +47,10 @@ async def initiate_dse_chat_search(update: Update, context: ContextTypes.DEFAULT
     user = update.effective_user
     user_id = str(user.id)
 
-    # Инициализируем состояние пользователя для процесса чата по ДСЕ
     dse_chat_states[user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
                                 'target_candidates': {}}
 
-    # Отправляем запрос на ввод ДСЕ
-    # Проверяем, откуда пришел запрос (из callback_query или обычного сообщения)
+
     if update.callback_query:
         await update.callback_query.edit_message_text("🔍 Пожалуйста, введите номер ДСЕ для поиска:")
     elif update.message:
@@ -74,45 +65,26 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     user_id = str(user.id)
     dse_value = update.message.text.strip()
 
-    # Проверяем, находится ли пользователь в процессе поиска ДСЕ
-    # if user_id not in dse_chat_states or dse_chat_states[user_id]['state'] != 'waiting_for_dse_input':
-    #     # Если нет, проверяем, не в активном ли он чате
-    #     if user_id in active_chats and active_chats[user_id].get('status') == 'active':
-    #         await handle_chat_message(update, context)
-    #     return
-
-    # Сохраняем введённый ДСЕ
     dse_chat_states[user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
                                 'target_candidates': {}}
 
     dse_chat_states[user_id]['dse'] = dse_value
     dse_chat_states[user_id]['state'] = 'processing'
 
-    # Ищем записи с этим ДСЕ
     records = get_dse_records_by_dse_value(dse_value)
 
     if not records:
-        del dse_chat_states[user_id]  # Очищаем состояние
+        del dse_chat_states[user_id]
         await update.message.reply_text(f"❌ По запросу ДСЕ '{dse_value}' ничего не найдено.")
         print(f"💬 Для {user.first_name} ничего не найдено по ДСЕ '{dse_value}'.")
         return
 
-    # # Фильтруем, чтобы не предлагать чат с самим собой
-    # candidate_records = [r for r in records if r['user_id'] != user_id]
-    #
-    # if not candidate_records:
-    #     del dse_chat_states[user_id]  # Очищаем состояние
-    #     await update.message.reply_text(f"❌ По ДСЕ '{dse_value}' найдены только ваши собственные записи.")
-    #     print(f"💬 Для {user.first_name} по ДСЕ '{dse_value}' найдены только свои записи.")
-    #     return
     candidate_records = [r for r in records]
-    # Группируем записи по пользователям
     users_data = get_users_data()
     grouped_records = defaultdict(list)
     for record in candidate_records:
         grouped_records[record['user_id']].append(record)
 
-    # Создаем кандидатов с именами пользователей
     target_candidates = {}
     for target_user_id, user_records in grouped_records.items():
         target_user_info = users_data.get(target_user_id, {})
@@ -122,18 +94,14 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             'name': target_name
         }
 
-    # Сохраняем кандидатов
     dse_chat_states[user_id]['target_candidates'] = target_candidates
 
-    # Проверяем количество кандидатов
     if len(target_candidates) == 1:
-        # Только один пользователь, пропускаем выбор
         single_target_user_id = list(target_candidates.keys())[0]
         dse_chat_states[user_id]['target_user_id'] = single_target_user_id
         dse_chat_states[user_id]['state'] = 'waiting_for_initiator_confirmation'
         await request_initiator_confirmation(update, context, user_id, single_target_user_id)
     else:
-        # Несколько пользователей, предлагаем выбор
         dse_chat_states[user_id]['state'] = 'waiting_for_target_selection'
         await show_target_selection_menu(update, context, user_id)
 
@@ -147,11 +115,10 @@ async def show_target_selection_menu(update: Update, context: ContextTypes.DEFAU
     target_candidates = dse_chat_states[initiator_user_id]['target_candidates']
     dse_value = dse_chat_states[initiator_user_id]['dse']
 
-    # Создаем кнопки для выбора пользователя
     keyboard = []
     for target_user_id, candidate_info in target_candidates.items():
         candidate_name = candidate_info['name']
-        # Создаем уникальный callback_data для каждой кнопки
+
         callback_data = f"dse_chat_select_target_{target_user_id}"
         button_text = f"{candidate_name} (ID: {target_user_id})"
         keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
