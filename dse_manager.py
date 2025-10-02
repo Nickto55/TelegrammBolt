@@ -6,7 +6,6 @@ def get_all_dse_records():
     all_data = load_data(DATA_FILE)
     records = []
 
-    # Собираем все записи из всех пользователей
     for user_id, user_records in all_data.items():
         if isinstance(user_records, list):
             for record in user_records:

@@ -1,12 +1,12 @@
-# bot.py
 import asyncio
 import logging
 from typing import Optional
 
+
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from config import BOT_TOKEN
 from commands import start, button_handler, handle_message, cancel_photo_command
-from dse_watcher import load_watched_dse_data, start_watcher_job
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ async def _check_permission(update, permission: str) -> bool:
     
     await update.message.reply_text("❌ У вас нет прав для использования этой команды.")
     return False
+
 
 
 async def post_init(application: Application) -> None:
@@ -85,15 +86,24 @@ def main() -> None:
         # Регистрируем обработчики
         _register_handlers(app)
 
-        logger.info("🚀 Бот запущен! Нажмите Ctrl+C для остановки")
-        logger.info("=" * 50)
 
-        # Запускаем бота
-        app.run_polling()
-        
-    except Exception as e:
-        logger.error(f"❌ Критическая ошибка при запуске бота: {e}")
-        raise
+"""wsl.exe -d Ubuntu"""
+def main():
+    """Основная функция запуска бота"""
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("chat", chat_command))
+    app.add_handler(CommandHandler("endchat", end_chat_command))
+    app.add_handler(CommandHandler("cancel_photo", cancel_photo_command))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO | filters.CAPTION, handle_message))
+
+    print("🚀 Бот запущен! Нажмите Ctrl+C для остановки")
+    print("=" * 50)
+
+
+    app.run_polling()
 
 
 if __name__ == "__main__":
