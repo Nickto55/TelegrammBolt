@@ -1,9 +1,11 @@
 import asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+import logging
+from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from config import BOT_TOKEN
-from commands import start, button_handler, handle_message,cancel_photo_command
-
+from commands import start, button_handler, handle_message, cancel_photo_command
 from dse_watcher import load_watched_dse_data, start_watcher_job
+
+logger = logging.getLogger(__name__)
 
 
 async def chat_command(update, context):
@@ -38,31 +40,45 @@ async def post_init(application) -> None:
 
     try:
         loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.get_event_loop()
+        loop.create_task(start_watcher_job(application))
+        logger.info("⏱️  Задача DSE Watcher запланирована")
+
+        logger.info("✅ Дополнительные сервисы инициализированы")
+    except Exception as e:
+        logger.error(f"❌ Ошибка инициализации дополнительных сервисов: {e}")
+        raise
 
 
-    loop.create_task(start_watcher_job(application))
-    print("⏱️  Задача DSE Watcher запланирована (ожидает запуска цикла событий).")
+def _register_handlers(app: Application) -> None:
+    """Регистрирует все обработчики команд и сообщений"""
+    handlers = [
+        CommandHandler("start", start),
+        CommandHandler("chat", chat_command),
+        CommandHandler("endchat", end_chat_command),
+        CommandHandler("cancel_photo", cancel_photo_command),
+        CallbackQueryHandler(button_handler),
+        MessageHandler(filters.TEXT | filters.PHOTO | filters.CAPTION, handle_message),
+    ]
+    
+    for handler in handlers:
+        app.add_handler(handler)
+    
+    logger.info(f"📋 Зарегистрировано {len(handlers)} обработчиков")
 
-    print("✅ Дополнительные сервисы инициализированы.")
 
-"""wsl.exe -d Ubuntu"""
-def main():
+def main() -> None:
     """Основная функция запуска бота"""
+
+    # Создаем приложение
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("chat", chat_command))
-    app.add_handler(CommandHandler("endchat", end_chat_command))
-    app.add_handler(CommandHandler("cancel_photo", cancel_photo_command))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO | filters.CAPTION, handle_message))
-
+    # Регистрируем обработчики
+    _register_handlers(app)
+    
     print("🚀 Бот запущен! Нажмите Ctrl+C для остановки")
     print("=" * 50)
 
-
+    # Запускаем бота
     app.run_polling()
 
 
