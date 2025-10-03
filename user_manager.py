@@ -84,9 +84,9 @@ def has_permission(user_id, permission):
     if role == 'admin':
         return True
 
-    # Ответчик может просматривать ДСЕ, отслеживать и общаться по ДСЕ
+    # Ответчик может просматривать ДСЕ, отслеживать, общаться по ДСЕ и создавать PDF отчеты
     if role == 'responder':
-        if permission in ['chat_dse', 'view_main_menu', 'view_dse_list', 'watch_dse']:
+        if permission in ['chat_dse', 'view_main_menu', 'view_dse_list', 'watch_dse', 'pdf_export']:
             return True
 
     # Инициатор может использовать форму
@@ -110,3 +110,79 @@ def get_users_by_role(role):
     """Получить пользователей по роли"""
     users_data = get_users_data()
     return {uid: user for uid, user in users_data.items() if user.get('role') == role}
+
+
+# === ФУНКЦИИ РАБОТЫ С КЛИЧКАМИ ===
+
+def set_user_nickname(user_id, nickname):
+    """Установить кличку пользователю"""
+    users_data = get_users_data()
+    
+    if str(user_id) in users_data:
+        users_data[str(user_id)]['nickname'] = nickname
+        save_users_data(users_data)
+        return True
+    return False
+
+
+def remove_user_nickname(user_id):
+    """Удалить кличку пользователя"""
+    users_data = get_users_data()
+    
+    if str(user_id) in users_data and 'nickname' in users_data[str(user_id)]:
+        del users_data[str(user_id)]['nickname']
+        save_users_data(users_data)
+        return True
+    return False
+
+
+def get_user_nickname(user_id):
+    """Получить кличку пользователя"""
+    users_data = get_users_data()
+    user = users_data.get(str(user_id), {})
+    return user.get('nickname', None)
+
+
+def get_user_display_name(user_id):
+    """Получить отображаемое имя пользователя (кличка или имя)"""
+    users_data = get_users_data()
+    user = users_data.get(str(user_id), {})
+    
+    # Если есть кличка, возвращаем её
+    nickname = user.get('nickname')
+    if nickname:
+        return nickname
+    
+    # Иначе возвращаем имя или username
+    first_name = user.get('first_name', '')
+    username = user.get('username', '')
+    
+    if first_name:
+        return first_name
+    elif username:
+        return f"@{username}"
+    else:
+        return f"ID:{user_id}"
+
+
+def check_nickname_exists(nickname):
+    """Проверить, существует ли уже такая кличка"""
+    users_data = get_users_data()
+    
+    for user_id, user_data in users_data.items():
+        if user_data.get('nickname', '').lower() == nickname.lower():
+            return True
+    return False
+
+
+def get_all_nicknames():
+    """Получить все существующие клички"""
+    users_data = get_users_data()
+    nicknames = {}
+    
+    for user_id, user_data in users_data.items():
+        nickname = user_data.get('nickname')
+        if nickname:
+            nicknames[user_id] = nickname
+    
+    return nicknames

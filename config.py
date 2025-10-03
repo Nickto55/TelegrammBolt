@@ -125,6 +125,14 @@ PROBLEM_TYPES = [
     "Другое"
 ]
 
+# Список рабочих центров
+RC_TYPES = [
+    "11102",
+    "11402", 
+    "11403",
+    "11404"
+]
+
 # --- Дополнительные проверки ---
 if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
     print("❌ Критическая ошибка: BOT_TOKEN не установлен или не заполнен в ven_bot.json!")
@@ -132,3 +140,56 @@ if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
 
 if not ADMIN_IDS or (len(ADMIN_IDS) == 1 and ADMIN_IDS[0] == "YOUR_TELEGRAM_ID_HERE"):
     print("⚠️  Предупреждение: ADMIN_IDS не заполнен или содержит шаблонный ID в ven_bot.json.")
+
+# === НАСТРОЙКИ SMTP ДЛЯ ОТПРАВКИ EMAIL ===
+# Эти настройки можно вынести в ven_bot.json или создать отдельный файл для них
+SMTP_SETTINGS = {
+    "SMTP_SERVER": "smtp.gmail.com",  # Для Gmail
+    "SMTP_PORT": 587,
+    "SMTP_USER": "",  # Ваш email для отправки
+    "SMTP_PASSWORD": "",  # Пароль приложения для Gmail или обычный пароль
+    "FROM_NAME": "Бот учета ДСЕ"  # Имя отправителя
+}
+
+# Функция для загрузки настроек SMTP из отдельного файла (опционально)
+def load_smtp_config():
+    """Загружает настройки SMTP из отдельного файла (опционально)"""
+    smtp_file = "smtp_config.json"
+    
+    if os.path.exists(smtp_file):
+        try:
+            smtp_data = load_data(smtp_file)
+            if smtp_data:
+                SMTP_SETTINGS.update(smtp_data)
+                return True
+        except Exception as e:
+            print(f"⚠️  Ошибка загрузки SMTP настроек: {e}")
+    
+    return False
+
+# Попытка загрузки SMTP настроек из файла
+if not load_smtp_config():
+    # Если файл не существует, создаем шаблон
+    smtp_template = {
+        "SMTP_SERVER": "smtp.gmail.com",
+        "SMTP_PORT": 587,
+        "SMTP_USER": "your_email@gmail.com",
+        "SMTP_PASSWORD": "your_app_password",
+        "FROM_NAME": "Бот учета ДСЕ"
+    }
+    
+    smtp_file = "smtp_config.json"
+    if not os.path.exists(smtp_file):
+        try:
+            save_data(smtp_template, smtp_file)
+            print(f"⚠️  Создан файл настроек SMTP: {smtp_file}")
+            print("📧 Для отправки файлов по email настройте параметры в smtp_config.json")
+        except Exception as e:
+            print(f"⚠️  Не удалось создать файл SMTP настроек: {e}")
+
+# Проверка заполненности SMTP настроек
+def is_smtp_configured():
+    """Проверяет, настроена ли отправка email"""
+    return (SMTP_SETTINGS.get("SMTP_USER") and 
+            SMTP_SETTINGS.get("SMTP_PASSWORD") and
+            SMTP_SETTINGS["SMTP_USER"] != "your_email@gmail.com")
