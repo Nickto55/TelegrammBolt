@@ -1,0 +1,36 @@
+[Unit]
+Description=TelegrammBolt Telegram Bot Service
+Documentation=https://github.com/Nickto55/TelegrammBolt
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telegrambot
+Group=telegrambot
+WorkingDirectory=/opt/telegrambot
+Environment=PATH=/opt/telegrambot/.venv/bin
+ExecStart=/opt/telegrambot/.venv/bin/python bot.py
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=telegrambot
+
+# Настройки безопасности
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/telegrambot
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
