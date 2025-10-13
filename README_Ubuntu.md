@@ -39,6 +39,23 @@ TelegrammBolt - это Telegram бот для учета и управления
 
 ## Установка на Ubuntu/Debian
 
+> 💡 **Примечание:** Если вы работаете с веткой `web`, см. [INSTALL_FROM_WEB_BRANCH.md](INSTALL_FROM_WEB_BRANCH.md)
+
+### Установка из ветки web (с веб-интерфейсом)
+
+```bash
+# Быстрая установка из ветки web
+curl -fsSL https://raw.githubusercontent.com/Nickto55/TelegrammBolt/web/setup.sh | bash
+
+# Или вручную:
+git clone -b web --single-branch https://github.com/Nickto55/TelegrammBolt.git /opt/telegrambot
+cd /opt/telegrambot
+chmod +x setup.sh
+./setup.sh
+```
+
+Подробнее: [INSTALL_FROM_WEB_BRANCH.md](INSTALL_FROM_WEB_BRANCH.md)
+
 ### Автоматическая установка (рекомендуется)
 
 1. **Скачайте и запустите установочный скрипт:**
