@@ -25,6 +25,13 @@ TelegrammBolt - это Telegram бот для учета и управления
    chmod +x setup.sh
    ./setup.sh
    ```
+   
+   **Для старых версий Debian (если возникает ошибка с пакетами):**
+   ```bash
+   wget https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/setup_minimal.sh
+   chmod +x setup_minimal.sh
+   sudo ./setup_minimal.sh
+   ```
 
 2. **Настройте конфигурацию бота:**
    ```bash

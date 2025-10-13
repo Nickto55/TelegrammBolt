@@ -63,7 +63,6 @@ update_system() {
         curl \
         wget \
         unzip \
-        software-properties-common \
         build-essential
 }
 

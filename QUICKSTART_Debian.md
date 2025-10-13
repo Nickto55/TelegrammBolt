@@ -4,10 +4,18 @@
 
 ### Шаг 1: Скачайте и запустите установщик
 
+**Стандартная установка:**
 ```bash
 wget https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/setup.sh
 chmod +x setup.sh
 ./setup.sh
+```
+
+**Альтернатива для старых версий Debian (если возникает ошибка с пакетами):**
+```bash
+wget https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/setup_minimal.sh
+chmod +x setup_minimal.sh
+sudo ./setup_minimal.sh
 ```
 
 ### Шаг 2: Получите токен бота
@@ -92,6 +100,17 @@ sudo nano /opt/telegrambot/smtp_config.json
 > 💡 Для Gmail используйте [App Password](https://support.google.com/accounts/answer/185833)
 
 ## Возможные проблемы
+
+### Unable to locate package software-properties-common
+
+Эта ошибка возникает на старых версиях Debian. Решение:
+
+```bash
+# Используйте минимальную версию установщика
+wget https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/setup_minimal.sh
+chmod +x setup_minimal.sh
+sudo ./setup_minimal.sh
+```
 
 ### Бот не отвечает
 
