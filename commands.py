@@ -364,7 +364,7 @@ async def show_dse_search_results(update: Update, context: ContextTypes.DEFAULT_
     if current_search:
         nav_buttons.append(InlineKeyboardButton("⌫ Очистить", callback_data='dse_search_clear'))
 
-    nav_buttons.append(InlineKeyboardButton("↩️ Назад", callback_data='view_dse_list'))
+    nav_buttons.append(InlineKeyboardButton("↩️ Назад   ", callback_data='view_dse_list'))
     keyboard.append(nav_buttons)
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -450,8 +450,8 @@ async def show_records_for_dse(update: Update, context: ContextTypes.DEFAULT_TYP
     # Кнопки управления
     keyboard = [
         [InlineKeyboardButton("↩️ Назад к поиску", callback_data='dse_search_interactive')],
-        [InlineKeyboardButton("📋 Все записи", callback_data='dse_view_all')],
-        [InlineKeyboardButton("⬅️ В меню", callback_data='view_dse_list')]
+        [InlineKeyboardButton("📋 Все записи    ", callback_data='dse_view_all')],
+        [InlineKeyboardButton("⬅️ В меню        ", callback_data='view_dse_list')]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -624,12 +624,12 @@ async def show_rc_types(update: Update, user_id: str) -> None:
 async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать админское меню"""
     keyboard = [
-        [InlineKeyboardButton("👥 Список пользователей", callback_data='admin_list_users')],
+        [InlineKeyboardButton("👥 Список пользователей      ", callback_data='admin_list_users')],
         [InlineKeyboardButton("✏️ Изменить роль пользователя", callback_data='admin_change_role_start')],
-        [InlineKeyboardButton("🏷️ Управление кличками", callback_data='admin_manage_nicknames')],
-        [InlineKeyboardButton("📊 Выгрузить данные", callback_data='admin_export_data')],
-        [InlineKeyboardButton("📧 Тест SMTP", callback_data='admin_test_smtp')],
-        [InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')]
+        [InlineKeyboardButton("🏷️ Управление кличками       ", callback_data='admin_manage_nicknames')],
+        [InlineKeyboardButton("📊 Выгрузить данные          ", callback_data='admin_export_data')],
+        [InlineKeyboardButton("📧 Тест SMTP                 ", callback_data='admin_test_smtp')],
+        [InlineKeyboardButton("⬅️ Назад                     ", callback_data='back_to_main')]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -939,15 +939,14 @@ async def show_export_delivery_options(update: Update, context: ContextTypes.DEF
     """Показать варианты доставки экспортированного файла"""
     keyboard = [
         [InlineKeyboardButton("💬 Отправить в чат", callback_data='export_send_chat')],
-        [InlineKeyboardButton("📧 Отправить по почте", callback_data='export_send_email')],
+        [InlineKeyboardButton("📧 Отправить Excel по почте", callback_data='export_send_email_excel')],
+        [InlineKeyboardButton("📧 Отправить текстом по почте", callback_data='export_send_email_text')],
         [InlineKeyboardButton("⬅️ Отмена", callback_data='admin_users')]
     ]
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await update.callback_query.edit_message_text(
         "✅ Файл с данными успешно создан!\n\n"
-        "Выберите способ получения файла:",
+        "Выберите способ получения отчёта:",
         reply_markup=reply_markup
     )
 
@@ -985,13 +984,10 @@ async def send_file_to_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             admin_states[user_id].pop('export_file', None)
 
 
-async def request_email_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Запросить email адрес для отправки файла"""
+async def request_email_address(update: Update, context: ContextTypes.DEFAULT_TYPE, format_type: str = "excel") -> None:
+    """Запросить email адрес для отправки отчёта в выбранном формате"""
     user_id = str(update.callback_query.from_user.id)
-    
-    # Сначала проверим SMTP настройки
     from config import SMTP_SETTINGS, is_smtp_configured
-    
     if not is_smtp_configured():
         await update.callback_query.edit_message_text(
             "❌ SMTP не настроен!\n\n"
@@ -1004,26 +1000,24 @@ async def request_email_address(update: Update, context: ContextTypes.DEFAULT_TY
             f"• Email: {SMTP_SETTINGS.get('SMTP_USER', 'не указан')}"
         )
         return
-    
-    # Устанавливаем состояние ожидания email
+    # Устанавливаем состояние ожидания email и формат
     admin_states[user_id]['waiting_for_email'] = True
-    
+    admin_states[user_id]['email_format'] = format_type
     await update.callback_query.edit_message_text(
-        "📧 Введите email адрес для отправки файла:\n\n"
+        f"📧 Введите email адрес для отправки отчёта (формат: {format_type}):\n\n"
         "Пример: user@example.com\n\n"
         f"ℹ️ Настроен отправитель: {SMTP_SETTINGS['SMTP_USER']}"
     )
 
 
 async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE, email: str) -> None:
-    """Отправить файл по электронной почте"""
+    """Отправить отчёт по электронной почте в выбранном формате"""
     user_id = str(update.effective_user.id)
     server = None
-    
+    user_id = str(update.effective_user.id)
+    server = None
+    from config import SMTP_SETTINGS, is_smtp_configured
     try:
-        from config import SMTP_SETTINGS, is_smtp_configured
-        
-        # Проверяем, настроен ли SMTP
         if not is_smtp_configured():
             await update.message.reply_text(
                 "❌ SMTP не настроен!\n\n"
@@ -1032,136 +1026,68 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 "2. Указать корректный email и пароль приложения"
             )
             return
-        
         file_path = admin_states.get(user_id, {}).get('export_file', 'RezultBot.xlsx')
-        
-        if not os.path.exists(file_path):
-            await update.message.reply_text("❌ Файл не найден!")
-            return
-        
-        # Получаем размер файла для диагностики
-        file_size = os.path.getsize(file_path) / 1024 / 1024  # в MB
-        
-        # Настройки SMTP из конфигурации
+        format_type = admin_states.get(user_id, {}).get('email_format', 'excel')
         smtp_server = SMTP_SETTINGS["SMTP_SERVER"]
         smtp_port = SMTP_SETTINGS["SMTP_PORT"]
         smtp_user = SMTP_SETTINGS["SMTP_USER"]
         smtp_password = SMTP_SETTINGS["SMTP_PASSWORD"]
-        
-        await update.message.reply_text(
-            f"📧 Подготовка email...\n"
-            f"📄 Размер файла: {file_size:.2f} MB\n"
-            f"🌐 Сервер: {smtp_server}:{smtp_port}"
-        )
-        
-        # Создаем сообщение
         msg = MIMEMultipart()
         msg['From'] = f"{SMTP_SETTINGS['FROM_NAME']} <{smtp_user}>"
         msg['To'] = email
         msg['Subject'] = f"Выгрузка данных ДСЕ - {dt.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        
-        # Добавляем тело письма
-        body = f"""Здравствуйте!
-
-Во вложении находится файл с выгрузкой данных ДСЕ.
-
-📊 Информация о выгрузке:
-• Дата создания: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}
-• Размер файла: {file_size:.2f} MB
-• Формат файла: Excel (.xlsx)
-
-С уважением,
-{SMTP_SETTINGS['FROM_NAME']}"""
-        
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        
-        # Добавляем файл во вложение
-        await update.message.reply_text("📎 Подготовка вложения...")
-        
-        with open(file_path, "rb") as attachment:
-            part = MIMEBase('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            part.set_payload(attachment.read())
-            
-        encoders.encode_base64(part)
-        filename = f"Выгрузка_данных_ДСЕ_{dt.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        part.add_header(
-            'Content-Disposition',
-            f'attachment; filename="{filename}"'
-        )
-        msg.attach(part)
-        
-        # Отправляем email с подробной диагностикой
-        await update.message.reply_text("� Подключение к серверу...")
-        
+        if format_type == "excel":
+            if not os.path.exists(file_path):
+                await update.message.reply_text("❌ Файл не найден!")
+                return
+            file_size = os.path.getsize(file_path) / 1024 / 1024
+            body = f"Здравствуйте!\n\nВо вложении находится файл с выгрузкой данных ДСЕ.\n\n📊 Информация о выгрузке:\n• Дата создания: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}\n• Размер файла: {file_size:.2f} MB\n• Формат файла: Excel (.xlsx)\n\nС уважением,\n{SMTP_SETTINGS['FROM_NAME']}"
+            msg.attach(MIMEText(body, 'plain', 'utf-8'))
+            await update.message.reply_text("📎 Подготовка вложения...")
+            with open(file_path, "rb") as attachment:
+                part = MIMEBase('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            filename = f"Выгрузка_данных_ДСЕ_{dt.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            part.add_header('Content-Disposition', f'attachment; filename=\"{filename}\"')
+            msg.attach(part)
+        elif format_type == "text":
+            report_text = await generate_text_report()
+            body = f"Здравствуйте!\n\nВыгрузка данных ДСЕ в виде текста:\n\n{report_text}\n\nС уважением,\n{SMTP_SETTINGS['FROM_NAME']}"
+            msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        else:
+            await update.message.reply_text("❌ Неизвестный формат отчёта!")
+            return
+        await update.message.reply_text("📧 Подключение к серверу...")
         server = smtplib.SMTP(smtp_server, smtp_port)
-        server.set_debuglevel(0)  # Отключаем отладку для пользователя
-        
+        server.set_debuglevel(0)
         await update.message.reply_text("🔒 Установка защищенного соединения...")
         server.starttls()
-        
         await update.message.reply_text("👤 Авторизация...")
         server.login(smtp_user, smtp_password)
-        
         await update.message.reply_text("📤 Отправка письма...")
         text = msg.as_string()
         server.sendmail(smtp_user, email, text)
-        
-        await update.message.reply_text(f"✅ Файл успешно отправлен на {email}!")
-        
-    except smtplib.SMTPAuthenticationError as e:
-        await update.message.reply_text(
-            f"❌ Ошибка аутентификации SMTP!\n\n"
-            f"Детали: {str(e)}\n\n"
-            "Проверьте:\n"
-            "• Правильность email и пароля\n"
-            "• Включена ли двухфакторная аутентификация\n"
-            "• Используете ли пароль приложения (для Gmail)\n"
-            "• Включен ли доступ для менее безопасных приложений"
-        )
-    except smtplib.SMTPRecipientsRefused as e:
-        await update.message.reply_text(
-            f"❌ Ошибка получателя!\n\n"
-            f"Email '{email}' отклонен сервером.\n"
-            f"Детали: {str(e)}\n\n"
-            "Проверьте правильность email адреса."
-        )
-    except smtplib.SMTPDataError as e:
-        await update.message.reply_text(
-            f"❌ Ошибка данных SMTP!\n\n"
-            f"Детали: {str(e)}\n\n"
-            "Возможно файл слишком большой или проблема с форматом."
-        )
-    except smtplib.SMTPConnectError as e:
-        await update.message.reply_text(
-            f"❌ Не удается подключиться к SMTP серверу!\n\n"
-            f"Детали: {str(e)}\n\n"
-            "Проверьте:\n"
-            f"• Сервер: {SMTP_SETTINGS.get('SMTP_SERVER', 'не указан')}\n"
-            f"• Порт: {SMTP_SETTINGS.get('SMTP_PORT', 'не указан')}\n"
-            "• Подключение к интернету"
-        )
+        await update.message.reply_text(f"✅ Отчёт успешно отправлен на {email}!")
     except Exception as e:
         await update.message.reply_text(
-            f"❌ Неожиданная ошибка отправки email!\n\n"
+            f"❌ Ошибка отправки email!\n\n"
             f"Тип ошибки: {type(e).__name__}\n"
             f"Детали: {str(e)}\n\n"
             "Проверьте настройки SMTP в файле smtp_config.json"
         )
-    
     finally:
-        # Закрываем SMTP соединение если оно было открыто
         if server:
             try:
                 server.quit()
-            except:
+            except Exception:
                 pass
-        
-        # Очищаем состояние
         if user_id in admin_states:
             admin_states[user_id].pop('exporting_data', None)
             admin_states[user_id].pop('export_completed', None)
             admin_states[user_id].pop('export_file', None)
             admin_states[user_id].pop('waiting_for_email', None)
+            admin_states[user_id].pop('email_format', None)
 
 
 async def test_smtp_connection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1355,1075 +1281,492 @@ async def show_nicknames_list(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
 
 
-# === ФУНКЦИИ РАБОТЫ С ФОТО ===
-
-async def request_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Запрашивает фото у пользователя"""
-    user_id = str(update.callback_query.from_user.id)
-
-    # Устанавливаем состояние ожидания фото
-    user_states[user_id]['waiting_for_photo'] = True
-
-    # Отправляем новое сообщение, а не редактируем старое
-    # Это позволяет боту получать следующее сообщение от пользователя
-    await update.callback_query.answer()  # Отвечаем на callback, чтобы убрать "крутилку"
-    await context.bot.send_message(
-        chat_id=update.callback_query.message.chat_id,
-        text="📸 Пожалуйста, отправьте фото.\n\n"
-             "Используйте /cancel_photo для отмены.",
-        # Убираем inline кнопки, чтобы не мешали
-    )
-
-
-# === КОМАНДА ОТМЕНЫ ФОТО ===
-
-async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Команда /cancel_photo для отмены ожидания фото"""
-    user_id = str(update.effective_user.id)
-
-    # Отменяем ожидание фото
-    if 'waiting_for_photo' in user_states.get(user_id, {}):
-        del user_states[user_id]['waiting_for_photo']
-        await update.message.reply_text("❌ Отправка фото отменена.")
-        # Возвращаемся в меню заявки
-        await show_application_menu(update, user_id)
-    else:
-        await update.message.reply_text("❌ Вы не отправляете фото.")
+# === ГЕНЕРАЦИЯ ТЕКСТОВОГО ОТЧЁТА ===
+async def generate_text_report():
+    """Генерирует текстовый отчёт по данным из RezultBot.xlsx"""
+    import pandas as pd
+    try:
+        df = pd.read_excel('RezultBot.xlsx')
+        lines = []
+        for idx, row in df.iterrows():
+            line = (
+                f"{row.get('Деталь','')} | "
+                f"{row.get('РЦ','')} | "
+                f"{row.get('Тип проблемы','')} | "
+                f"{row.get('Описание','')} | "
+                f"{row.get('Дата','')} | "
+                f"{row.get('Время','')} | "
+                f"{row.get('Пользователь','')}"
+            )
+            lines.append(line)
+        return '\n'.join(lines)
+    except Exception as e:
+        return f"Ошибка генерации текстового отчёта: {e}"
 
 
-# === ОСНОВНОЙ ОБРАБОТЧИК КНОПОК ===
-
-# commands.py (обновлённый и проверенный фрагмент button_handler)
+# === ОБРАБОТЧИКИ КНОПОК И СООБЩЕНИЙ ===
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик нажатий кнопок"""
-
+    """Обработчик всех нажатий на кнопки"""
     query = update.callback_query
-    # ВАЖНО: Отвечаем на callback сразу же, чтобы избежать ошибки "Query is too old"
     await query.answer()
-
+    
+    data = query.data
     user = query.from_user
     user_id = str(user.id)
-    data = query.data
-
-    print(f"🖱️ {user.first_name}: нажал кнопку '{data}'")
-
-    # Проверяем права доступа
-    if not has_permission(user_id, 'view_main_menu'):
-        # Так как query.answer() уже был вызван, редактируем сообщение напрямую
-        try:
-            await query.edit_message_text("❌ У вас нет прав для использования этой функции.")
-        except telegram.error.BadRequest:
-            # Если сообщение уже нельзя редактировать, отправляем новое
-            await context.bot.send_message(chat_id=query.message.chat_id,
-                                           text="❌ У вас нет прав для использования этой функции.")
-        return
-
-    # === ОБРАБОТКА КНОПОК ЗАЯВКИ ===
-    # Обработка новой кнопки "Заявка"
-    if data == 'open_application':
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        # Отмечаем, что заявка начата
-        if user_id in user_states:
-            user_states[user_id]['application'] = 'started'
-        await show_application_menu(update, user_id)
-
-    # Обработка кнопки возврата из меню заявки
-    elif data == 'back_to_main':
+    
+    # === ГЛАВНОЕ МЕНЮ ===
+    if data == 'back_to_main':
         await show_main_menu(update, user_id)
-
-    # Обработка кнопки "Назад" из меню выбора проблемы
+    
+    elif data == 'open_application':
+        user_states[user_id]['application'] = 'started'
+        await show_application_menu(update, user_id)
+    
+    # === ЗАПОЛНЕНИЕ ЗАЯВКИ ===
     elif data == 'back_to_application':
         await show_application_menu(update, user_id)
-
-    # Обработка кнопки "Изменить" в меню заявки
-    elif data == 'edit_application':
-        # В данном случае просто возвращаем к меню заявки для повторного редактирования
-        await show_application_menu(update, user_id)
-
-    # Обработка кнопки отправки в меню заявки
-    elif data == 'send':
-        if not has_permission(user_id, 'initiator'):
-            await query.edit_message_text("❌ У вас нет прав для отправки формы.")
-            return
-        user_data = user_states.get(user_id, {})
-        if all([user_data.get('dse'), user_data.get('problem_type'), user_data.get('rc'), user_data.get('description')]):
-            # Загружаем существующие данные
-            all_data = load_data(DATA_FILE)
-
-            # Подготавливаем запись для сохранения
-            record_to_save = {
-                'dse': user_data['dse'],
-                'problem_type': user_data['problem_type'],
-                'rc': user_data['rc'],
-                'description': user_data['description'],
-                'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'user_id': user_id
-            }
-
-            # Если есть фото, добавляем его file_id
-            if user_data.get('photo_file_id'):
-                record_to_save['photo_file_id'] = user_data['photo_file_id']
-
-            # Добавляем новые данные
-            if user_id not in all_data:
-                all_data[user_id] = []
-
-            all_data[user_id].append(record_to_save)
-
-            # Сохраняем в файл
-            save_data(all_data, DATA_FILE)
-
-            # Очищаем временные данные ЗАЯВКИ, но оставляем application = 'started'
-            if user_id in user_states:
-                user_states[user_id] = {
-                    'application': 'started',  # Оставляем признак начатой заявки
-                    'dse': '',
-                    'problem_type': '',
-                    'description': '',
-                    'rc': '',
-                    'photo_file_id': None  # Очищаем фото тоже
-                }
-
-            response = f"✅ Данные успешно отправлены и сохранены!\n📅 Дата отправки: {record_to_save['datetime']}"
-            await query.edit_message_text(text=response)
-            print(f"📤 Бот: {response}")
-
-            # После отправки возвращаем в главное меню
-            await show_main_menu(update, user_id)
-        else:
-            await query.edit_message_text(text="❌ Ошибка: не все обязательные поля заполнены! Требуется: ДСЕ, Тип проблемы, РЦ и Описание.")
-
-    # === ОБРАБОТКА КНОПОК ПРОСМОТРА ДСЕ ===
-    # Обработка кнопок просмотра ДСЕ
-    elif data == 'view_dse_list':
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для просмотра списка ДСЕ.")
-            return
-        await show_dse_list_menu(update, context)
-
-    elif data == 'dse_view_all':
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для просмотра списка ДСЕ.")
-            return
-        await show_all_dse_records(update, context, page=0)
-
-    elif data.startswith('dse_view_all_'):
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для просмотра списка ДСЕ.")
-            return
-        page = int(data.split('_')[-1])
-        await show_all_dse_records(update, context, page=page)
-
-    elif data == 'dse_search_interactive':
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
-            return
-        await start_interactive_dse_search(update, context)
-
-    elif data.startswith('dse_select_'):
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
-            return
-        try:
-            index = int(data.split('_')[-1])
-            await select_dse_from_search(update, context, index)
-        except (ValueError, IndexError):
-            await query.edit_message_text("❌ Ошибка обработки выбора.")
-
-    elif data == 'dse_search_clear':
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
-            return
-        user_id = str(query.from_user.id)
-        if user_id in dse_view_states:
-            dse_view_states[user_id]['current_search'] = ''
-        await show_dse_search_results(update, context, user_id)
-
-    elif data == 'dse_search_dse':
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для поиска по ДСЕ.")
-            return
-        await start_dse_search(update, context, 'dse')
-
-    elif data == 'dse_search_type':
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для поиска по типу проблемы.")
-            return
-        await start_dse_search(update, context, 'type')
-
-    elif data == 'dse_statistics':
-        if not has_permission(user_id, 'view_dse_list'):
-            await query.edit_message_text("❌ У вас нет прав для просмотра статистики.")
-            return
-        await show_dse_statistics(update, context)
-
-    # === ОБРАБОТКА КНОПОК ОТСЛЕЖИВАНИЯ ДСЕ ===
-    elif data == 'watch_dse_menu':
-        if not has_permission(user_id, 'watch_dse'):
-            await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
-            return
-        from dse_watcher import load_watched_dse_data  # Убедимся, что данные загружены
-        load_watched_dse_data()
-        await show_watched_dse_menu(update, context)
-
-    elif data == 'watch_add_dse':
-        if not has_permission(user_id, 'watch_dse'):
-            await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
-            return
-        await start_add_watched_dse(update, context)
-
-    elif data == 'watch_remove_dse':
-        if not has_permission(user_id, 'watch_dse'):
-            await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
-            return
-        await start_remove_watched_dse(update, context)
-
-    elif data == 'watch_list_dse':
-        if not has_permission(user_id, 'watch_dse'):
-            await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
-            return
-        await show_watched_dse_list(update, context)
-
-    elif data.startswith('watch_rm_idx_'):
-        if not has_permission(user_id, 'watch_dse'):
-            await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
-            return
-        try:
-            index = int(data.split('_')[-1])
-            temp_list = user_states.get(user_id, {}).get('temp_watched_list', [])
-            if 0 <= index < len(temp_list):
-                dse_to_remove = temp_list[index]
-                from dse_watcher import remove_watched_dse
-                remove_watched_dse(user_id, dse_to_remove)
-
-                # Очищаем временные данные
-                if user_id in user_states and 'temp_watched_list' in user_states[user_id]:
-                    del user_states[user_id]['temp_watched_list']
-
-                await query.edit_message_text(f"✅ ДСЕ '{dse_to_remove.upper()}' удалено из списка отслеживания.")
-                # Можно сразу показать обновленный список или вернуть в меню
-                # await show_watched_dse_menu(update, context)
-            else:
-                await query.edit_message_text("❌ Неверный выбор. Попробуйте снова.")
-        except (ValueError, IndexError):
-            await query.edit_message_text("❌ Ошибка обработки выбора. Попробуйте снова.")
-
-    # === ОБРАБОТКА ВЫБОРА ДСЕ ИЗ СПИСКА ДЛЯ ОТСЛЕЖИВАНИЯ ===
-    elif data.startswith('watch_select_dse_'):
-        if not has_permission(user_id, 'watch_dse'):
-            await query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
-            return
-        suffix = data[len('watch_select_dse_'):]
-
-        if suffix == 'manual':
-            # Пользователь хочет ввести вручную
-            user_states[user_id]['adding_watched_dse'] = True
-            if 'adding_watched_dse_state' in user_states[user_id]:
-                del user_states[user_id]['adding_watched_dse_state']
-            if 'temp_dse_list' in user_states[user_id]:
-                del user_states[user_id]['temp_dse_list']
-            await query.edit_message_text("➕ Введите номер ДСЕ для отслеживания:")
-        else:
-            try:
-                index = int(suffix)
-                temp_list = user_states.get(user_id, {}).get('temp_dse_list', [])
-                if 0 <= index < len(temp_list):
-                    dse_to_watch = temp_list[index]
-                    from dse_watcher import add_watched_dse
-                    add_watched_dse(user_id, dse_to_watch)
-
-                    # Очищаем временные данные
-                    temp_keys = ['temp_dse_list', 'adding_watched_dse_state']
-                    for key in temp_keys:
-                        if user_id in user_states and key in user_states[user_id]:
-                            del user_states[user_id][key]
-
-                    await query.edit_message_text(f"✅ ДСЕ '{dse_to_watch.upper()}' добавлено в список отслеживания.")
-                    # Можно сразу показать меню отслеживания
-                    await show_watched_dse_menu(update, context)
-                else:
-                    await query.edit_message_text("❌ Неверный выбор. Попробуйте снова.")
-            except (ValueError, IndexError):
-                await query.edit_message_text("❌ Ошибка обработки выбора. Попробуйте снова.")
-
-    # === ОБРАБОТКА ПОДТВЕРЖДЕНИЯ/ОТМЕНЫ ОТ ИНИЦИАТОРА ЧАТА ПО ДСЕ ===
-    elif data in ['dse_chat_confirm_initiator', 'dse_chat_cancel_initiator']:
-        # ВАЖНО: Отвечаем на callback сразу
-        # await query.answer() # Уже вызван в самом начале button_handler
-        print(f"🔍 Button handler: Received '{data}' from {user.first_name} ({user_id})")
-        from chat_manager import handle_initiator_confirmation
-        # Передаём управление в chat_manager
-        await handle_initiator_confirmation(update, context)
-        print(f"🔍 Button handler: Finished handling '{data}' for {user.first_name} ({user_id})")
-
-    # === ОБРАБОТКА ВЫБОРА ДСЕ ИЗ СПИСКА ДЛЯ ЧАТА ===
-    elif data.startswith('chat_select_dse_'):
-        # if  has_permission(user_id, 'initiator'):
-        #     await query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
-        #     return
-        suffix = data[len('chat_select_dse_'):]
-
-        if suffix == 'manual':
-            # Пользователь хочет ввести вручную
-            user_states[user_id]['dse_chat_state'] = 'waiting_for_dse_input'
-            if 'temp_dse_list' in user_states[user_id]:
-                del user_states[user_id]['temp_dse_list']
-            await query.edit_message_text("🔍 Пожалуйста, введите номер ДСЕ для поиска:")
-        else:
-            try:
-                index = int(suffix)
-                temp_list = user_states.get(user_id, {}).get('temp_dse_list', [])
-                if 0 <= index < len(temp_list):
-                    dse_value = temp_list[index]
-
-                    # Очищаем временные данные
-                    temp_keys = ['temp_dse_list', 'dse_chat_state']
-                    for key in temp_keys:
-                        if user_id in user_states and key in user_states[user_id]:
-                            del user_states[user_id][key]
-
-                    # Передаем выбранное ДСЕ в chat_manager для продолжения процесса
-                    # Нам нужно имитировать ввод текста. Создадим фейковое сообщение.
-                    from chat_manager import handle_dse_input
-
-                    class FakeMessage:
-                        def __init__(self, from_user, text):
-                            self.from_user = from_user
-                            self.text = text
-
-                    class FakeUpdate:
-                        def __init__(self, from_user, message_text):
-                            self.effective_user = from_user
-                            self.message = FakeMessage(from_user, message_text)
-                            self.callback_query = None
-
-                    fake_update = FakeUpdate(user, dse_value)
-                    await handle_dse_input(fake_update, context)
-
-                else:
-                    await query.edit_message_text("❌ Неверный выбор. Попробуйте снова.")
-            except (ValueError, IndexError):
-                await query.edit_message_text("❌ Ошибка обработки выбора. Попробуйте снова.")
-
-    # === ОБРАБОТКА PDF КНОПОК ===
-    elif data == 'pdf_export_menu':
-        if not has_permission(user_id, 'pdf_export'):
-            await query.edit_message_text("❌ У вас нет прав для создания PDF отчетов.")
-            return
-        await show_pdf_export_menu(update, context)
-
-    elif data == 'pdf_search_dse':
-        if not has_permission(user_id, 'pdf_export'):
-            await query.edit_message_text("❌ У вас нет прав для создания PDF отчетов.")
-            return
-        await start_pdf_dse_search(update, context)
-
-    elif data == 'pdf_recent_records':
-        if not has_permission(user_id, 'pdf_export'):
-            await query.edit_message_text("❌ У вас нет прав для создания PDF отчетов.")
-            return
-        await show_recent_records_for_pdf(update, context)
-
-    elif data.startswith('pdf_select_'):
-        if not has_permission(user_id, 'pdf_export'):
-            await query.edit_message_text("❌ У вас нет прав для создания PDF отчетов.")
-            return
-        try:
-            index = int(data.split('_')[-1])
-            records = pdf_session_records.get(user_id, [])
-            if 0 <= index < len(records):
-                record = records[index]
-                await show_pdf_confirm_record(update, context, record, index)
-            else:
-                await query.edit_message_text("❌ Запись не найдена.")
-        except (ValueError, IndexError):
-            await query.edit_message_text("❌ Ошибка обработки выбора.")
-
-    elif data.startswith('pdf_generate_'):
-        if not has_permission(user_id, 'pdf_export'):
-            await query.edit_message_text("❌ У вас нет прав для создания PDF отчетов.")
-            return
-        try:
-            index = int(data.split('_')[-1])
-            records = pdf_session_records.get(user_id, [])
-            if 0 <= index < len(records):
-                record = records[index]
-                await generate_pdf_report(update, context, record)
-            else:
-                await query.edit_message_text("❌ Запись не найдена.")
-        except (ValueError, IndexError):
-            await query.edit_message_text("❌ Ошибка генерации PDF.")
-
-    # === ОБРАБОТКА АДМИНСКИХ КНОПОК ===
-    elif data == 'admin_users':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await show_admin_menu(update, context)
-
-    elif data == 'admin_list_users':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await show_users_list(update, context)
-
-    elif data == 'admin_change_role_start':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await start_change_role_process(update, context, user_id)
-
-    elif data.startswith('set_role_'):
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        # Формат: set_role_USERID_ROLE
-        parts = data.split('_')
-        if len(parts) >= 4:
-            target_user_id = parts[2]
-            new_role = parts[3]
-
-            if set_user_role(target_user_id, new_role):
-                users = get_all_users()
-                target_user = users.get(target_user_id, {})
-                user_name = target_user.get('first_name', 'Пользователь')
-                role_name = ROLES.get(new_role, new_role)
-                await query.edit_message_text(f"✅ Роль пользователя {user_name} изменена на {role_name}")
-                print(f"🔧 Админ {user.first_name} изменил роль {user_name} на {new_role}")
-            else:
-                await query.edit_message_text("❌ Ошибка при изменении роли")
-        else:
-            await query.edit_message_text("❌ Ошибка в данных")
-
-    # === ОБРАБОТКА КНОПОК ЭКСПОРТА ДАННЫХ ===
-    elif data == 'admin_export_data':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await start_data_export(update, context)
-
-    elif data == 'export_send_chat':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await send_file_to_chat(update, context)
-
-    elif data == 'export_send_email':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await request_email_address(update, context)
-
-    elif data == 'admin_test_smtp':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await test_smtp_connection(update, context)
-
-    # === ОБРАБОТКА КНОПОК УПРАВЛЕНИЯ КЛИЧКАМИ ===
-    elif data == 'admin_manage_nicknames':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await show_nicknames_menu(update, context)
-
-    elif data == 'nickname_set':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await show_users_for_nickname(update, context, 'set')
-
-    elif data == 'nickname_remove':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await show_users_for_nickname(update, context, 'remove')
-
-    elif data == 'nickname_list':
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        await show_nicknames_list(update, context)
-
-    elif data.startswith('nickname_set_user_'):
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        target_user_id = data.split('_')[-1]
-        await start_nickname_input(update, context, target_user_id)
-
-    elif data.startswith('nickname_remove_user_'):
-        if get_user_role(user_id) != 'admin':
-            await query.edit_message_text("❌ Только администраторы могут использовать эту функцию.")
-            return
-        target_user_id = data.split('_')[-1]
-        await remove_nickname_confirm(update, context, target_user_id)
-
-    # === ОБРАБОТКА КНОПОК ЗАПОЛНЕНИЯ ФОРМЫ ===
-    # Обычные кнопки для заполнения полей (в меню заявки)
+    
     elif data == 'set_dse':
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        # Запрашиваем ДСЕ
-        await query.edit_message_text(text="Введите ДСЕ:")
-        user_states[user_id]['current_input'] = 'dse'
-
+        user_states[user_id]['waiting_for'] = 'dse'
+        await query.edit_message_text("Введите номер ДСЕ:")
+    
     elif data == 'set_problem':
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        # Показываем список типов проблем
         await show_problem_types(update, user_id)
-
-    elif data == 'set_rc':
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        # Показываем список рабочих центров
-        await show_rc_types(update, user_id)
-
-    elif data == 'set_description':
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        # Запрашиваем описание
-        await query.edit_message_text(text="Введите описание вопроса:")
-        user_states[user_id]['current_input'] = 'description'
-
-    # === ОБРАБОТКА КНОПКИ ФОТО ===
-    elif data == 'set_photo':
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        await request_photo(update, context)
-
-    elif data == 'cancel_photo':
-        user_id = str(query.from_user.id)
-        # Отменяем ожидание фото
-        if 'waiting_for_photo' in user_states[user_id]:
-            del user_states[user_id]['waiting_for_photo']
-        # Возвращаемся в меню заявки
-        await show_application_menu(update, user_id)
-
+    
     elif data.startswith('problem_'):
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        # Сохраняем выбранный тип проблемы
-        problem_index = int(data.split('_')[1])
-        selected_problem = PROBLEM_TYPES[problem_index]
-        user_states[user_id]['problem_type'] = selected_problem
-
-        # Возвращаемся к меню заявки
+        idx = int(data.split('_')[1])
+        user_states[user_id]['problem_type'] = PROBLEM_TYPES[idx]
         await show_application_menu(update, user_id)
-        print(f"💾 Сохранен вид проблемы: {selected_problem}")
-
+    
+    elif data == 'set_rc':
+        await show_rc_types(update, user_id)
+    
     elif data.startswith('rc_'):
-        if not has_permission(user_id, 'use_form'):
-            await query.edit_message_text("❌ У вас нет прав для заполнения формы.")
-            return
-        # Сохраняем выбранный рабочий центр
-        rc_index = int(data.split('_')[1])
-        selected_rc = RC_TYPES[rc_index]
-        user_states[user_id]['rc'] = selected_rc
-
-        # Возвращаемся к меню заявки
+        idx = int(data.split('_')[1])
+        user_states[user_id]['rc'] = RC_TYPES[idx]
         await show_application_menu(update, user_id)
-        print(f"💾 Сохранен рабочий центр (РЦ): {selected_rc}")
-
-
-    # === ОБРАБОТКА КНОПКИ ЧАТА ===
+    
+    elif data == 'set_description':
+        user_states[user_id]['waiting_for'] = 'description'
+        await query.edit_message_text("Введите описание проблемы:")
+    
+    elif data == 'set_photo':
+        user_states[user_id]['waiting_for'] = 'photo'
+        await query.edit_message_text(
+            "📸 Отправьте фото или используйте /cancel_photo для пропуска.\n\n"
+            "Вы можете отправить одно фото."
+        )
+    
+    elif data == 'send':
+        # Отправка заявки
+        user_data = user_states[user_id]
+        record = {
+            'dse': user_data['dse'],
+            'problem_type': user_data['problem_type'],
+            'rc': user_data['rc'],
+            'description': user_data['description'],
+            'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'user_id': user_id,
+            'photo_file_id': user_data.get('photo_file_id')
+        }
+        
+        data_list = load_data()
+        data_list.append(record)
+        save_data(data_list)
+        
+        # Очищаем данные пользователя
+        user_states[user_id] = {
+            'application': '',
+            'dse': '',
+            'problem_type': '',
+            'description': '',
+            'rc': '',
+            'photo_file_id': None
+        }
+        
+        await query.edit_message_text(
+            "✅ Заявка успешно отправлена!\n\n"
+            f"ДСЕ: {record['dse']}\n"
+            f"Тип проблемы: {record['problem_type']}\n"
+            f"РЦ: {record['rc']}\n"
+            f"Описание: {record['description']}\n"
+            f"📅 Дата: {record['datetime']}"
+        )
+        await show_main_menu(update, user_id)
+    
+    elif data == 'edit_application':
+        await show_application_menu(update, user_id)
+    
+    # === ПРОСМОТР ДСЕ ===
+    elif data == 'view_dse_list':
+        if has_permission(user_id, 'view_dse_list'):
+            await show_dse_list_menu(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав для просмотра списка ДСЕ.")
+    
+    elif data == 'view_all_dse':
+        await show_all_dse_records(update, context, page=0)
+    
+    elif data.startswith('page_'):
+        page = int(data.split('_')[1])
+        await show_all_dse_records(update, context, page=page)
+    
+    elif data == 'interactive_dse_search':
+        await start_interactive_dse_search(update, context)
+    
+    elif data.startswith('dse_search_select_'):
+        idx = int(data.split('_')[-1])
+        await select_dse_from_search(update, context, idx)
+    
+    elif data == 'search_dse':
+        await start_dse_search(update, context, 'dse')
+    
+    elif data == 'search_type':
+        await start_dse_search(update, context, 'type')
+    
+    elif data == 'dse_statistics':
+        await show_dse_statistics(update, context)
+    
+    # === АДМИН МЕНЮ ===
+    elif data == 'admin_users':
+        if get_user_role(user_id) == 'admin':
+            await show_admin_menu(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'admin_list_users':
+        if get_user_role(user_id) == 'admin':
+            await show_users_list(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'admin_change_role_start':
+        if get_user_role(user_id) == 'admin':
+            await start_change_role_process(update, context, user_id)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data.startswith('role_'):
+        if get_user_role(user_id) == 'admin':
+            role_name = data.split('_', 1)[1]
+            if user_id in admin_states and 'changing_role_for' in admin_states[user_id]:
+                target_user_id = admin_states[user_id]['changing_role_for']
+                set_user_role(target_user_id, role_name)
+                admin_states[user_id].pop('changing_role_for', None)
+                admin_states[user_id].pop('changing_role', None)
+                await query.edit_message_text(f"✅ Роль изменена на: {ROLES[role_name]}")
+                await show_admin_menu(update, context)
+    
+    elif data == 'admin_export_data':
+        if get_user_role(user_id) == 'admin':
+            await start_data_export(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    # === ОБРАБОТЧИКИ ЭКСПОРТА ===
+    elif data == 'export_send_chat':
+        if get_user_role(user_id) == 'admin':
+            await send_file_to_chat(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'export_send_email_excel':
+        if get_user_role(user_id) == 'admin':
+            await request_email_address(update, context, format_type="excel")
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'export_send_email_text':
+        if get_user_role(user_id) == 'admin':
+            await request_email_address(update, context, format_type="text")
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'admin_test_smtp':
+        if get_user_role(user_id) == 'admin':
+            await test_smtp_connection(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'admin_manage_nicknames':
+        if get_user_role(user_id) == 'admin':
+            await show_nicknames_menu(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'nickname_set':
+        if get_user_role(user_id) == 'admin':
+            await show_users_for_nickname(update, context, 'set')
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'nickname_remove':
+        if get_user_role(user_id) == 'admin':
+            await show_users_for_nickname(update, context, 'remove')
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data == 'nickname_list':
+        if get_user_role(user_id) == 'admin':
+            await show_nicknames_list(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data.startswith('nickname_set_user_'):
+        if get_user_role(user_id) == 'admin':
+            target_user_id = data.split('_')[-1]
+            await start_nickname_input(update, context, target_user_id)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    elif data.startswith('nickname_remove_user_'):
+        if get_user_role(user_id) == 'admin':
+            target_user_id = data.split('_')[-1]
+            await remove_nickname_confirm(update, context, target_user_id)
+        else:
+            await query.edit_message_text("❌ У вас нет прав администратора.")
+    
+    # === ОТСЛЕЖИВАНИЕ ДСЕ ===
+    elif data == 'watch_dse_menu':
+        await show_watched_dse_menu(update, context)
+    
+    elif data == 'watch_add_dse':
+        await start_add_watched_dse(update, context)
+    
+    elif data == 'watch_remove_dse':
+        await start_remove_watched_dse(update, context)
+    
+    elif data.startswith('watch_rm_idx_'):
+        idx = int(data.split('_')[-1])
+        from dse_watcher import get_watched_dse_list, remove_watched_dse
+        watched_list = get_watched_dse_list(user_id)
+        if 0 <= idx < len(watched_list):
+            dse_to_remove = watched_list[idx]
+            remove_watched_dse(user_id, dse_to_remove)
+            await query.edit_message_text(f"✅ ДСЕ {dse_to_remove} удалён из отслеживания.")
+            await show_watched_dse_menu(update, context)
+    
+    elif data == 'watch_list':
+        await show_watched_dse_list(update, context)
+    
+    elif data.startswith('watch_select_dse_'):
+        idx_str = data.split('_')[-1]
+        if idx_str == 'manual':
+            user_states[user_id] = user_states.get(user_id, {})
+            user_states[user_id]['watch_dse_state'] = 'awaiting_manual_input'
+            await query.edit_message_text("📝 Введите номер ДСЕ для отслеживания:")
+        else:
+            from dse_watcher import add_watched_dse
+            dse_list = get_unique_dse_values()
+            idx = int(idx_str)
+            if 0 <= idx < len(dse_list):
+                dse_value = dse_list[idx]
+                add_watched_dse(user_id, dse_value)
+                await query.edit_message_text(f"✅ ДСЕ {dse_value} добавлен в отслеживание!")
+                await show_watched_dse_menu(update, context)
+    
+    # === ЧАТ ПО ДСЕ ===
     elif data == 'chat_dse_menu':
-        if not has_permission(user_id, 'chat_dse'):
-            await query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
-            return
-        # Открываем меню чата С ВЫБОРОМ ИЗ СПИСКА
+        from chat_manager import show_chat_menu
+        await show_chat_menu(update, context)
+    
+    elif data == 'chat_start_search':
         await start_dse_chat_search_with_selection(update, context)
-
-        # === ОБРАБОТКА КНОПОК УПРАВЛЕНИЯ ЧАТОМ (из chat_manager) ===
-    elif data in ['chat_pause', 'chat_resume', 'chat_end']:
-        from chat_manager import handle_chat_control
-        await handle_chat_control(update, context)
-
-        # === ОБРАБОТКА ПОДТВЕРЖДЕНИЯ ЧАТА ПО ДСЕ (из chat_manager) ===
-    elif data in ['dse_chat_confirm', 'dse_chat_cancel_final']:
-        from chat_manager import handle_dse_chat_confirmation
-        await handle_dse_chat_confirmation(update, context)
-
-        # === ОБРАБОТКА ВЫБОРА ПОЛЬЗОВАТЕЛЯ ДЛЯ ЧАТА ПО ДСЕ (из chat_manager) ===
-    elif data.startswith('dse_chat_select_'):
-        from chat_manager import handle_dse_user_selection
-        await handle_dse_user_selection(update, context)
-
-        # === НОВАЯ ОБРАБОТКА: ПОДТВЕРЖДЕНИЕ/ОТМЕНА ОТ ИНИЦИАТОРА ===
-    elif data in ['dse_chat_confirm_initiator', 'dse_chat_cancel_initiator']:
-        # callback_data для инициатора
+    
+    elif data.startswith('chat_select_dse_'):
+        idx_str = data.split('_')[-1]
+        if idx_str == 'manual':
+            user_states[user_id] = user_states.get(user_id, {})
+            user_states[user_id]['dse_chat_state'] = 'awaiting_manual_input'
+            await query.edit_message_text("📝 Введите номер ДСЕ для начала чата:")
+        else:
+            from chat_manager import handle_dse_input
+            dse_list = get_unique_dse_values()
+            idx = int(idx_str)
+            if 0 <= idx < len(dse_list):
+                dse_value = dse_list[idx]
+                # Имитируем текстовое сообщение
+                user_states[user_id] = user_states.get(user_id, {})
+                user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
+                # Вызываем handle_dse_input с выбранным ДСЕ
+                from chat_manager import initiate_dse_chat_search
+                user_states[user_id]['dse_chat_dse_value'] = dse_value
+                await handle_dse_input(update, context)
+    
+    # === ОБРАБОТЧИКИ ЧАТА (из chat_manager) ===
+    elif data.startswith('chat_confirm_target_') or data.startswith('chat_decline_target_'):
         from chat_manager import handle_initiator_confirmation
         await handle_initiator_confirmation(update, context)
-
-        # === НОВАЯ ОБРАБОТКА: ПОДТВЕРЖДЕНИЕ/ОТМЕНА ОТ ОТВЕТЧИКА ===
-        # Предполагаем, что callback_data имеет формат:
-        # 'dse_chat_confirm_responder_INITIATOR_ID' или 'dse_chat_cancel_responder_INITIATOR_ID'
-    elif '_responder_' in data:
-        # callback_data для ответчика
+    
+    elif data.startswith('chat_accept_') or data.startswith('chat_decline_'):
         from chat_manager import handle_responder_confirmation
         await handle_responder_confirmation(update, context)
+    
+    elif data in ['chat_end', 'chat_back']:
+        from chat_manager import handle_chat_control
+        await handle_chat_control(update, context)
+    
+    # === PDF ЭКСПОРТ ===
+    elif data == 'pdf_export_menu':
+        if has_permission(user_id, 'pdf_export'):
+            from pdf_generator import show_pdf_export_menu
+            await show_pdf_export_menu(update, context)
+        else:
+            await query.edit_message_text("❌ У вас нет прав для экспорта PDF.")
 
-
-
-
-# === ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ===
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик текстовых сообщений и фото"""
-
     user = update.effective_user
     user_id = str(user.id)
-
-    # Проверяем, есть ли текст в сообщении
-    text = ""
-    if update.message.text:
-        text = update.message.text
-    elif update.message.caption:  # Если это фото с подписью
-        text = update.message.caption
-
-    print(f"👨 @{user.username}: {text if text else '[ФОТО/ДРУГОЕ]'}")
-
-    # === ПРОВЕРКА НА ФОТО ===
-    # Проверяем, ожидаем ли мы фото от пользователя
-    if user_id in user_states and user_states[user_id].get('waiting_for_photo'):
+    
+    # Проверяем, ожидается ли ввод данных
+    if user_id in user_states:
+        user_data = user_states[user_id]
+        
+        # Обработка фото
         if update.message.photo:
-            # Получаем file_id самого большого фото (последнего в массиве)
-            photo_file_id = update.message.photo[-1].file_id
-
-            # Сохраняем file_id фото в состоянии пользователя
-            user_states[user_id]['photo_file_id'] = photo_file_id
-            # Убираем флаг ожидания фото
-            del user_states[user_id]['waiting_for_photo']
-
-            await update.message.reply_text("✅ Фото сохранено!")
-            await show_application_menu(update, context)  # Возвращаем в меню заявки
-            return  # Важно: выходим
-        elif update.message.text and update.message.text.startswith('/'):
-            # Если пользователь отправил команду, не обрабатываем как фото
-            pass  # Позволим другим обработчикам команд заняться этим
-        else:
-            # Если пользователь отправил текст, а не фото
-            await update.message.reply_text(
-                "📸 Пожалуйста, отправьте фото.\n"
-                "Используйте /cancel_photo для отмены."
-            )
-            return  # Важно: выходим, чтобы не попасть в другие обработчики
-
-    # === ПРОВЕРКА НА АКТИВНЫЙ ЧАТ ===
-    # Проверяем, находится ли пользователь в активном чате или чате с управлением
-    from chat_manager import active_chats, handle_chat_message
-    if user_id in active_chats and active_chats[user_id].get('status') in ['active', 'paused']:
-        await handle_chat_message(update, context)
-        return
-
-    # === ПРОВЕРКА НА АДМИНСКИЕ И ПОИСКОВЫЕ СОСТОЯНИЯ ===
-    # Проверяем, ожидаем ли мы ID пользователя для изменения роли (админ)
-    if user_id in admin_states and admin_states[user_id].get('changing_role'):
-        target_user_id = text.strip()
-        users = get_all_users()
-
-        if target_user_id in users:
-            del admin_states[user_id]  # Очищаем состояние
-
-            # Создаем фейковый update для корректной работы
-            class FakeUpdate:
-                def __init__(self, message):
-                    self.message = message
-                    self.callback_query = None
-                    self.effective_user = message.from_user
-
-            fake_update = FakeUpdate(update.message)
-            await show_role_selection_menu(fake_update, context, target_user_id)
-        else:
-            await update.message.reply_text(
-                "❌ Пользователь с таким ID не найден. Попробуйте еще раз или нажмите /start")
-        return
-
-    # Проверяем, ожидаем ли мы email для отправки файла экспорта (админ)
-    if user_id in admin_states and admin_states[user_id].get('waiting_for_email'):
-        email = text.strip()
-        
-        # Простая проверка формата email
-        if '@' in email and '.' in email:
-            # Очищаем флаг ожидания email
-            admin_states[user_id].pop('waiting_for_email', None)
-            await send_file_by_email(update, context, email)
-        else:
-            await update.message.reply_text(
-                "❌ Неверный формат email. Пожалуйста, введите корректный email адрес.\n"
-                "Пример: user@example.com"
-            )
-        return
-
-    # Проверяем, ожидаем ли мы ввод клички (админ)
-    if user_id in admin_states and admin_states[user_id].get('setting_nickname'):
-        nickname = text.strip()
-        target_user_id = admin_states[user_id].get('setting_nickname_for')
-        
-        # Проверяем длину клички
-        if len(nickname) > 20:
-            await update.message.reply_text("❌ Кличка слишком длинная (максимум 20 символов).")
-            return
-        
-        # Проверяем, что кличка не пустая
-        if not nickname:
-            await update.message.reply_text("❌ Кличка не может быть пустой.")
-            return
-        
-        # Проверяем, что такой клички нет у другого пользователя
-        if check_nickname_exists(nickname):
-            current_owner_id = None
-            for uid, udata in get_all_users().items():
-                if udata.get('nickname', '').lower() == nickname.lower():
-                    current_owner_id = uid
-                    break
-            
-            if current_owner_id != target_user_id:
-                await update.message.reply_text(f"❌ Кличка '{nickname}' уже занята другим пользователем.")
+            if user_data.get('waiting_for') == 'photo':
+                # Сохраняем file_id самого большого фото
+                photo_file_id = update.message.photo[-1].file_id
+                user_states[user_id]['photo_file_id'] = photo_file_id
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text("✅ Фото сохранено!")
+                await show_application_menu(update, user_id)
+                return
+            # Обработка сообщений в чате
+            elif 'dse_chat_state' in user_data:
+                from chat_manager import handle_chat_message
+                await handle_chat_message(update, context)
                 return
         
-        # Устанавливаем кличку
-        if set_user_nickname(target_user_id, nickname):
-            users = get_all_users()
-            target_user = users.get(target_user_id, {})
-            user_name = target_user.get('first_name', 'Пользователь')
+        # Обработка текстовых сообщений
+        if update.message.text:
+            text = update.message.text.strip()
             
-            await update.message.reply_text(f"✅ Кличка '{nickname}' установлена пользователю {user_name}.")
-        else:
-            await update.message.reply_text("❌ Ошибка при установке клички.")
-        
-        # Очищаем состояние
-        admin_states[user_id].pop('setting_nickname', None)
-        admin_states[user_id].pop('setting_nickname_for', None)
-        return
-
-    # Проверяем, ожидаем ли мы поисковый запрос для ДСЕ (интерактивный поиск)
-    if user_id in dse_view_states and dse_view_states[user_id].get('searching_dse'):
-        await handle_dse_search_input(update, context)
-        return
-
-    # Проверяем, ожидаем ли мы поисковый запрос для ДСЕ (обычный поиск)
-    if user_id in dse_view_states:
-        if dse_view_states[user_id].get('searching_dse'):
-            del dse_view_states[user_id]
-
-            # Создаем фейковый update для корректной работы
-            class FakeUpdate:
-                def __init__(self, message):
-                    self.message = message
-                    self.callback_query = None
-                    self.effective_user = message.from_user
-
-            fake_update = FakeUpdate(update.message)
-            await show_search_results(fake_update, context, text, 'dse')
-            return
-        elif dse_view_states[user_id].get('searching_type'):
-            del dse_view_states[user_id]
-
-            # Создаем фейковый update для корректной работы
-            class FakeUpdate:
-                def __init__(self, message):
-                    self.message = message
-                    self.callback_query = None
-                    self.effective_user = message.from_user
-
-            fake_update = FakeUpdate(update.message)
-            await show_search_results(fake_update, context, text, 'type')
-            return
-
-    # === ПРОВЕРКА НА ВВОД ДАННЫХ ДЛЯ ОТСЛЕЖИВАНИЯ ДСЕ ===
-    # Проверяем, ожидаем ли мы ввод ДСЕ для добавления в список отслеживания
-    # Обновляем условие, чтобы оно срабатывало только если явно установлен флаг ввода
-    if (user_id in user_states and
-            user_states[user_id].get('adding_watched_dse') and
-            user_states[user_id].get('adding_watched_dse_state') != 'selecting_or_manual'):
-
-        dse_to_watch = text.strip()
-        if dse_to_watch:
-            from dse_watcher import add_watched_dse
-            add_watched_dse(user_id, dse_to_watch)
-
-            # Очищаем состояние
-            if 'adding_watched_dse' in user_states[user_id]:
-                del user_states[user_id]['adding_watched_dse']
-            if 'adding_watched_dse_state' in user_states[user_id]:
-                del user_states[user_id]['adding_watched_dse_state']
-
-            response = f"✅ ДСЕ '{dse_to_watch.upper()}' добавлено в список отслеживания."
-            await update.message.reply_text(text=response)
-            # Показываем меню отслеживания
-            await show_watched_dse_menu(update, context)
-        else:
-            await update.message.reply_text("❌ Пожалуйста, введите корректный номер ДСЕ.")
-        return  # Важно: выходим, чтобы не попасть в следующие условия
-
-    # === ПРОВЕРКА НА ВВОД ДСЕ ДЛЯ ЧАТА ===
-    elif (user_id in user_states and
-          user_states[user_id].get('dse_chat_state') == 'waiting_for_dse_input'):
-
-        # Очищаем состояние
-        if 'dse_chat_state' in user_states[user_id]:
-            del user_states[user_id]['dse_chat_state']
-
-        # Передаем ввод в chat_manager
-        from chat_manager import handle_dse_input
-        await handle_dse_input(update, context)
-        return  # Важно: выходим, чтобы не попасть в следующие условия
-
-    # === ПРОВЕРКА НА ВВОД ДАННЫХ ДЛЯ ФОРМЫ ===
-    # Проверяем, ожидаем ли мы ввод от пользователя (для формы)
-    if user_id in user_states and 'current_input' in user_states[user_id]:
-        current_input = user_states[user_id]['current_input']
-
-        if current_input == 'dse':
-            user_states[user_id]['dse'] = text
-            print(f"💾 Сохранено ДСЕ: {text}")
-        elif current_input == 'description':
-            user_states[user_id]['description'] = text
-            print(f"💾 Сохранено описание: {text}")
-
-        # Удаляем флаг ожидания ввода
-        del user_states[user_id]['current_input']
-
-        # Показываем меню заявки снова
-        response = f"✅ Сохранено: {text}"
-        await update.message.reply_text(text=response)
-        await show_application_menu(update, user_id)  # Возвращаем в меню заявки
-        return  # Важно: выходим, чтобы не попасть в "Обычный ответ"
-
-    # Обработка поиска ДСЕ для PDF
-    elif user_states.get(user_id, {}).get('pdf_search_dse'):
-        user_states[user_id]['pdf_search_dse'] = False
-        await handle_pdf_dse_search(update, context)
-        return
-
-    else:
-        # Обычный ответ на сообщение
-        response = "Нажмите /start для начала работы с ботом"
-        # response = f"{user_states[user_id].get('dse_chat_state')} {'waiting_for_dse_input'}"
-        await update.message.reply_text(text=response)
-
-
-# === PDF EXPORT FUNCTIONS ===
-
-async def show_pdf_export_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показать меню экспорта в PDF"""
-    keyboard = [
-        [InlineKeyboardButton("🔍 Поиск по ДСЕ", callback_data='pdf_search_dse')],
-        [InlineKeyboardButton("📋 Последние заявки", callback_data='pdf_recent_records')],
-        [InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+            # === ЗАПОЛНЕНИЕ ЗАЯВКИ ===
+            if user_data.get('waiting_for') == 'dse':
+                user_states[user_id]['dse'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ ДСЕ сохранён: {text}")
+                await show_application_menu(update, user_id)
+                return
+            
+            elif user_data.get('waiting_for') == 'description':
+                user_states[user_id]['description'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ Описание сохранено")
+                await show_application_menu(update, user_id)
+                return
+            
+            # === ПОИСК ДСЕ ===
+            elif user_id in dse_view_states:
+                dse_state = dse_view_states[user_id]
+                if dse_state.get('searching_dse'):
+                    await show_search_results(update, context, text, 'dse')
+                    dse_view_states[user_id].pop('searching_dse', None)
+                    return
+                elif dse_state.get('searching_type'):
+                    await show_search_results(update, context, text, 'type')
+                    dse_view_states[user_id].pop('searching_type', None)
+                    return
+                elif dse_state.get('interactive_search'):
+                    await handle_dse_search_input(update, context)
+                    return
+            
+            # === ОТСЛЕЖИВАНИЕ ДСЕ ===
+            elif user_data.get('watch_dse_state') == 'awaiting_manual_input':
+                from dse_watcher import add_watched_dse
+                dse_value = text.strip().upper()
+                add_watched_dse(user_id, dse_value)
+                user_states[user_id].pop('watch_dse_state', None)
+                await update.message.reply_text(f"✅ ДСЕ {dse_value} добавлен в отслеживание!")
+                await show_watched_dse_menu(update, context)
+                return
+            
+            # === ЧАТ ПО ДСЕ ===
+            elif user_data.get('dse_chat_state') == 'awaiting_manual_input':
+                from chat_manager import handle_dse_input
+                user_states[user_id]['dse_chat_dse_value'] = text.strip().upper()
+                user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
+                await handle_dse_input(update, context)
+                return
+            elif user_data.get('dse_chat_state') in ['waiting_for_initiator_confirmation', 'in_chat']:
+                from chat_manager import handle_chat_message
+                await handle_chat_message(update, context)
+                return
+            
+            # === АДМИН: ИЗМЕНЕНИЕ РОЛИ ===
+            elif user_id in admin_states and admin_states[user_id].get('changing_role'):
+                target_user_id = text.strip()
+                users = get_all_users()
+                if target_user_id in users:
+                    admin_states[user_id]['changing_role_for'] = target_user_id
+                    admin_states[user_id].pop('changing_role', None)
+                    await show_role_selection_menu(update, context, target_user_id)
+                else:
+                    await update.message.reply_text(
+                        f"❌ Пользователь с ID {target_user_id} не найден.\n\n"
+                        "Введите корректный ID:"
+                    )
+                return
+            
+            # === АДМИН: УСТАНОВКА КЛИЧКИ ===
+            elif user_id in admin_states and admin_states[user_id].get('setting_nickname'):
+                nickname = text.strip()
+                if len(nickname) > 20:
+                    await update.message.reply_text("❌ Кличка слишком длинная (максимум 20 символов).\n\nВведите другую кличку:")
+                    return
+                
+                if check_nickname_exists(nickname):
+                    await update.message.reply_text(f"❌ Кличка '{nickname}' уже используется.\n\nВведите другую кличку:")
+                    return
+                
+                target_user_id = admin_states[user_id].get('setting_nickname_for')
+                if target_user_id:
+                    set_user_nickname(target_user_id, nickname)
+                    admin_states[user_id].pop('setting_nickname', None)
+                    admin_states[user_id].pop('setting_nickname_for', None)
+                    
+                    users = get_all_users()
+                    user_name = users.get(target_user_id, {}).get('first_name', 'Неизвестно')
+                    await update.message.reply_text(f"✅ Кличка '{nickname}' установлена для {user_name}")
+                    await show_nicknames_menu(update, context)
+                return
+            
+            # === АДМИН: EMAIL АДРЕС ===
+            elif user_id in admin_states and admin_states[user_id].get('waiting_for_email'):
+                email = text.strip()
+                # Простая проверка email
+                if '@' in email and '.' in email:
+                    admin_states[user_id].pop('waiting_for_email', None)
+                    await send_file_by_email(update, context, email)
+                else:
+                    await update.message.reply_text(
+                        "❌ Некорректный email адрес.\n\n"
+                        "Введите корректный email:"
+                    )
+                return
     
-    text = "📄 PDF Экспорт заявки\n\n"
-    text += "Выберите способ поиска заявки:"
-    
-    await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
-
-
-async def show_recent_records_for_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показать последние записи для выбора PDF экспорта"""
-    data = load_data(DATA_FILE)
-    
-    # Собираем все записи в один список
-    all_records = []
-    for user_id, user_records in data.items():
-        for record in user_records:
-            record['user_id'] = user_id  # Добавляем ID пользователя к записи
-            all_records.append(record)
-    
-    # Сортируем по дате (новые сначала)
-    all_records.sort(key=lambda x: x.get('datetime', ''), reverse=True)
-    
-    # Берем последние 10 записей
-    recent_records = all_records[:10]
-    
-    if not recent_records:
-        await update.callback_query.edit_message_text(
-            "❌ Нет записей для экспорта в PDF",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]])
-        )
-        return
-    
-    # Сохраняем записи в сессию
-    user_id = str(update.callback_query.from_user.id)
-    pdf_session_records[user_id] = recent_records
-    
-    # Создаем кнопки
-    keyboard = []
-    for i, record in enumerate(recent_records):
-        dse = record.get('dse', 'Нет ДСЕ')
-        problem_type = record.get('problem_type', 'Нет типа')[:20]
-        datetime_str = record.get('datetime', 'Нет даты')[:10]
-        
-        button_text = f"{dse} - {problem_type} ({datetime_str})"
-        keyboard.append([InlineKeyboardButton(button_text, callback_data=f'pdf_select_{i}')])
-    
-    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    text = "📋 Выберите заявку для создания PDF:\n\n"
-    
-    await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
-
-
-# Глобальная переменная для хранения записей PDF сессии
-pdf_session_records = {}
-
-
-async def start_pdf_dse_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Начать поиск ДСЕ для PDF экспорта"""
-    user_id = str(update.callback_query.from_user.id)
-    
-    # Сохраняем состояние
-    user_states[user_id] = user_states.get(user_id, {})
-    user_states[user_id]['pdf_search_dse'] = True
-    
-    await update.callback_query.edit_message_text(
-        "🔍 Введите ДСЕ для поиска заявки:"
+    # Если ничего не обработано, просто игнорируем сообщение
+    await update.message.reply_text(
+        "Используйте /start для открытия главного меню."
     )
 
 
-async def show_pdf_confirm_record(update: Update, context: ContextTypes.DEFAULT_TYPE, record: dict, index: int) -> None:
-    """Показать подтверждение создания PDF для записи"""
-    user_display = get_user_display_name(record.get('user_id', ''))
+async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /cancel_photo - отменить загрузку фото"""
+    user_id = str(update.effective_user.id)
     
-    text = f"📄 Создать PDF для заявки?\n\n"
-    text += f"📋 ДСЕ: {record.get('dse', 'Не указано')}\n"
-    text += f"🔧 РЦ: {record.get('rc', 'Не указано')}\n"
-    text += f"⚠️ Тип проблемы: {record.get('problem_type', 'Не указано')}\n"
-    text += f"📝 Описание: {record.get('description', 'Не указано')[:100]}...\n"
-    text += f"📅 Дата: {record.get('datetime', 'Не указано')}\n"
-    text += f"👤 Пользователь: {user_display}\n"
+    if user_id in user_states:
+        user_data = user_states[user_id]
+        if user_data.get('waiting_for') == 'photo':
+            user_states[user_id].pop('waiting_for', None)
+            user_states[user_id]['photo_file_id'] = None
+            await update.message.reply_text("❌ Загрузка фото отменена.")
+            await show_application_menu(update, user_id)
+            return
     
-    keyboard = [
-        [InlineKeyboardButton("✅ Создать PDF", callback_data=f'pdf_generate_{index}')],
-        [InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if hasattr(update, 'callback_query') and update.callback_query:
-        await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(text=text, reply_markup=reply_markup)
+    await update.message.reply_text("Нечего отменять.")
 
-
-async def handle_pdf_dse_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработать поиск ДСЕ для PDF"""
-    user_id = str(update.message.from_user.id)
-    search_dse = update.message.text.strip().upper()
-    
-    # Ищем записи с данным ДСЕ
-    data = load_data(DATA_FILE)
-    found_records = []
-    
-    for user_id_data, user_records in data.items():
-        for i, record in enumerate(user_records):
-            if record.get('dse', '').upper() == search_dse:
-                record['user_id'] = user_id_data
-                record['record_index'] = f"{user_id_data}_{i}"
-                found_records.append(record)
-    
-    if not found_records:
-        await update.message.reply_text(
-            f"❌ Заявки с ДСЕ '{search_dse}' не найдены.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]])
-        )
-        return
-    
-    # Сохраняем найденные записи
-    pdf_session_records[user_id] = found_records
-    
-    if len(found_records) == 1:
-        # Если только одна запись, сразу предлагаем создать PDF
-        record = found_records[0]
-        await show_pdf_confirm_record(update, context, record, 0)
-    else:
-        # Если несколько записей, показываем выбор
-        await show_pdf_search_results(update, context, found_records)
-
-
-async def show_pdf_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE, records: list) -> None:
-    """Показать результаты поиска для выбора PDF"""
-    keyboard = []
-    
-    for i, record in enumerate(records):
-        problem_type = record.get('problem_type', 'Нет типа')[:25]
-        datetime_str = record.get('datetime', 'Нет даты')[:16]
-        user_display = get_user_display_name(record.get('user_id', ''))
-        
-        button_text = f"{problem_type} - {datetime_str} ({user_display})"
-        keyboard.append([InlineKeyboardButton(button_text, callback_data=f'pdf_select_{i}')])
-    
-    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    text = f"🔍 Найдено {len(records)} заявок с ДСЕ '{records[0].get('dse', '')}':\n\n"
-    text += "Выберите заявку для создания PDF:"
-    
-    await update.message.reply_text(text=text, reply_markup=reply_markup)
-
-
-async def generate_pdf_report(update: Update, context: ContextTypes.DEFAULT_TYPE, record: dict) -> None:
-    """Генерировать PDF отчет для заявки"""
-    await update.callback_query.edit_message_text("📄 Создание PDF отчета...")
-    
-    try:
-        # Импортируем наш PDF генератор
-        from pdf_generator import create_dse_pdf_report
-        
-        # Подготавливаем данные для PDF
-        pdf_data = {
-            'dse': record.get('dse', 'Не указано'),
-            'rc': record.get('rc', 'Не указано'),
-            'problem_type': record.get('problem_type', 'Не указано'),
-            'description': record.get('description', 'Не указано'),
-            'datetime': record.get('datetime', 'Не указано'),
-            'user_display': get_user_display_name(record.get('user_id', ''))
-        }
-        
-        # Создаем имя файла
-        dse_safe = record.get('dse', 'unknown').replace('/', '_').replace('\\', '_')
-        date_str = record.get('datetime', 'unknown')[:10].replace('-', '') if record.get('datetime') else 'unknown'
-        pdf_filename = f"dse_report_{dse_safe}_{date_str}.pdf"
-        
-        # Генерируем PDF
-        created_filename = create_dse_pdf_report(pdf_data, pdf_filename)
-        
-        if created_filename and os.path.exists(created_filename):
-            # Отправляем файл пользователю
-            with open(created_filename, 'rb') as f:
-                await context.bot.send_document(
-                    chat_id=update.callback_query.from_user.id,
-                    document=f,
-                    filename=created_filename,
-                    caption=f"📄 PDF отчет для ДСЕ: {record.get('dse', 'unknown')}"
-                )
-            
-            # Удаляем временный файл
-            os.remove(created_filename)
-            
-            await update.callback_query.edit_message_text(
-                f"✅ PDF отчет успешно создан и отправлен!\n\n"
-                f"📋 ДСЕ: {record.get('dse', 'Не указано')}\n"
-                f"📄 Файл: {created_filename}",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ В главное меню", callback_data='back_to_main')]])
-            )
-        else:
-            raise Exception("Не удалось создать PDF файл")
-        
-    except Exception as e:
-        await update.callback_query.edit_message_text(
-            f"❌ Ошибка при создании PDF отчета: {str(e)}",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]])
-        )

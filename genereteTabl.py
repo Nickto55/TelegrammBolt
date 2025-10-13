@@ -11,7 +11,6 @@ from openpyxl.utils import get_column_letter
 import config
 from user_manager import get_user_display_name
 
-
 class MainGen:
     def __init__(self):
         self.DATA_FILE = config.DATA_FILE
