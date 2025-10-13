@@ -7,6 +7,37 @@ set -e
 echo "🚀 TelegrammBolt - Минимальная установка"
 echo "============================================================"
 
+# Проверка версии Python
+echo "🔍 Проверка версии Python..."
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python 3 не найден!"
+    exit 1
+fi
+
+PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+
+echo "✅ Обнаружена версия Python: $PYTHON_VERSION"
+
+if [[ $PYTHON_MAJOR -lt 3 ]] || [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -lt 9 ]]; then
+    echo "❌ Требуется Python 3.9 или выше. Обнаружено: $PYTHON_VERSION"
+    exit 1
+fi
+
+if [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -ge 13 ]]; then
+    echo "⚠️  ВНИМАНИЕ: Обнаружен Python 3.13+!"
+    echo "⚠️  Для максимальной совместимости рекомендуется Python 3.11 или 3.12."
+    echo "⚠️  Если возникнут ошибки с python-telegram-bot, установите Python 3.11 или 3.12."
+    echo
+    read -p "Продолжить с Python $PYTHON_VERSION? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Установка отменена."
+        exit 1
+    fi
+fi
+
 # Обновление системы
 echo "📦 Обновление системы..."
 apt-get update

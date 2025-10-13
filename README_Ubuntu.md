@@ -15,6 +15,17 @@ TelegrammBolt - это Telegram бот для учета и управления
 - ⏰ Мониторинг и уведомления
 - 🔄 Автоматический перезапуск при сбоях
 
+## Системные требования
+
+- **ОС:** Ubuntu 18.04+, Debian 9+, или совместимые
+- **Python:** 3.9-3.12 (рекомендуется 3.11 или 3.12)
+  - ⚠️ Python 3.13+ поддерживается, но требует обновленную версию python-telegram-bot
+- **Память:** Минимум 512 MB RAM
+- **Диск:** Минимум 500 MB свободного места
+- **Сеть:** Доступ к Telegram API
+
+> 📌 **Примечание:** Если у вас Python 3.13, см. [PYTHON_VERSION_FIX.md](PYTHON_VERSION_FIX.md)
+
 ## Установка на Ubuntu/Debian
 
 ### Автоматическая установка (рекомендуется)
@@ -338,6 +349,51 @@ sudo -u telegrambot .venv/bin/python bot.py
 ```bash
 cd /opt/telegrambot
 sudo -u telegrambot PYTHONUNBUFFERED=1 .venv/bin/python bot.py
+```
+
+## 📚 Документация
+
+### Основная документация
+- **[QUICKSTART_Debian.md](QUICKSTART_Debian.md)** - Быстрый старт (5 минут до запуска)
+- **[README_Ubuntu.md](README_Ubuntu.md)** - Этот файл, полная инструкция
+- **[SMTP_SETUP_INSTRUCTIONS.md](SMTP_SETUP_INSTRUCTIONS.md)** - Настройка email
+
+### Устранение проблем
+- **[QUICK_FIX.md](QUICK_FIX.md)** ⚡ - Быстрые команды для частых проблем
+- **[PYTHON_VERSION_FIX.md](PYTHON_VERSION_FIX.md)** - Проблемы с Python 3.13
+- **[DOCKER_PYTHON_FIX.md](DOCKER_PYTHON_FIX.md)** - Решения для Docker
+- **[NO_SYSTEMD.md](NO_SYSTEMD.md)** - Запуск без systemd (Docker, WSL1)
+
+### Changelog и история
+- **[CHANGELOG.md](CHANGELOG.md)** - История изменений проекта
+
+### Скрипты установки
+- **setup.sh** - Основной установщик (автоопределение systemd/init.d)
+- **setup_minimal.sh** - Минимальная установка для старых систем
+- **check_installation.sh** - Проверка корректности установки
+
+## Частые проблемы и решения
+
+### Python 3.13: AttributeError с Updater
+```bash
+cd /opt/telegrambot
+sudo -u telegrambot .venv/bin/pip install --upgrade python-telegram-bot
+sudo systemctl restart telegrambot
+```
+Подробно: [PYTHON_VERSION_FIX.md](PYTHON_VERSION_FIX.md)
+
+### systemctl: command not found
+Система без systemd (Docker, WSL1). Используйте:
+```bash
+sudo service telegrambot start
+```
+Подробно: [NO_SYSTEMD.md](NO_SYSTEMD.md)
+
+### Unable to locate package software-properties-common
+Старый Debian. Используйте:
+```bash
+wget https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/setup_minimal.sh
+sudo bash setup_minimal.sh
 ```
 
 ## Поддержка

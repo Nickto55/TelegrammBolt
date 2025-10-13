@@ -49,6 +49,38 @@ check_system() {
     fi
 }
 
+# Проверка версии Python
+check_python_version() {
+    log "Проверка версии Python..."
+    
+    if ! command -v python3 &> /dev/null; then
+        error "Python 3 не найден. Установите Python 3."
+    fi
+    
+    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+    PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+    
+    log "Обнаружена версия Python: $PYTHON_VERSION"
+    
+    if [[ $PYTHON_MAJOR -lt 3 ]] || [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -lt 9 ]]; then
+        error "Требуется Python 3.9 или выше. Обнаружено: $PYTHON_VERSION"
+    fi
+    
+    if [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -ge 13 ]]; then
+        warn "⚠️  Обнаружен Python 3.13+. Для максимальной совместимости рекомендуется Python 3.11 или 3.12."
+        warn "Если возникнут ошибки с python-telegram-bot, установите Python 3.11 или 3.12."
+        echo
+        read -p "Продолжить с Python $PYTHON_VERSION? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            error "Установка отменена. Установите Python 3.11 или 3.12 и запустите скрипт снова."
+        fi
+    fi
+    
+    success "Версия Python совместима"
+}
+
 # Обновление пакетов системы
 update_system() {
     log "Обновление списка пакетов..."
@@ -344,6 +376,7 @@ main() {
     echo
     
     check_system
+    check_python_version
     update_system
     create_bot_user
     clone_repository

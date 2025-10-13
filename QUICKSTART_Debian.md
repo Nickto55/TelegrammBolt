@@ -139,6 +139,35 @@ chmod +x setup_minimal.sh
 sudo ./setup_minimal.sh
 ```
 
+### AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'
+
+Эта ошибка возникает при использовании Python 3.13. Решение:
+
+**Вариант 1 (быстрое решение):**
+```bash
+cd /opt/telegrambot
+sudo -u telegrambot .venv/bin/pip install --upgrade python-telegram-bot
+sudo systemctl restart telegrambot
+```
+
+**Вариант 2 (для Ubuntu):**
+```bash
+# Установить Python 3.12
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt-get update
+sudo apt-get install -y python3.12 python3.12-venv
+
+# Пересоздать окружение
+cd /opt/telegrambot
+sudo rm -rf .venv
+sudo -u telegrambot python3.12 -m venv .venv
+sudo -u telegrambot .venv/bin/pip install --upgrade pip
+sudo -u telegrambot .venv/bin/pip install -r requirements.txt
+sudo systemctl restart telegrambot
+```
+
+**Подробная документация:** [PYTHON_VERSION_FIX.md](PYTHON_VERSION_FIX.md)
+
 ### Бот не отвечает
 
 ```bash
