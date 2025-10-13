@@ -29,13 +29,6 @@ success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-# Проверка на root
-check_root() {
-    if [[ $EUID -eq 0 ]]; then
-        error "Не запускайте этот скрипт от имени root! Используйте обычного пользователя."
-    fi
-}
-
 # Проверка системы
 check_system() {
     log "Проверка операционной системы..."
@@ -79,7 +72,6 @@ create_bot_user() {
     if ! id "telegrambot" &>/dev/null; then
         log "Создание пользователя telegrambot..."
         sudo useradd --system --shell /bin/bash --home /opt/telegrambot --create-home telegrambot
-        sudo usermod -aG sudo telegrambot
         success "Пользователь telegrambot создан"
     else
         log "Пользователь telegrambot уже существует"
@@ -120,9 +112,12 @@ setup_python_env() {
         sudo -u telegrambot python3 -m venv .venv
     fi
     
-    # Активация окружения и установка зависимостей
+    # Установка зависимостей напрямую через pip из виртуального окружения
+    log "Обновление pip..."
+    sudo -u telegrambot .venv/bin/pip install --upgrade pip
+    
     log "Установка Python зависимостей..."
-    sudo -u telegrambot bash -c "source .venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
+    sudo -u telegrambot .venv/bin/pip install -r requirements.txt
     
     success "Python окружение настроено"
 }
@@ -194,7 +189,7 @@ EOF'
 # Показать инструкции по настройке
 show_final_instructions() {
     echo
-    echo "=" * 60
+    echo "============================================================"
     success "🎉 Установка TelegrammBolt завершена успешно!"
     echo
     echo -e "${YELLOW}📋 Дальнейшие шаги:${NC}"
@@ -219,17 +214,22 @@ show_final_instructions() {
     echo -e "${YELLOW}🔧 Полезные команды:${NC}"
     echo "   - Перезапуск бота:    sudo systemctl restart telegrambot"
     echo "   - Остановка бота:     sudo systemctl stop telegrambot"
-    echo "   - Ручной запуск:      cd /opt/telegrambot && ./start_bot.sh"
+    echo "   - Отключение автозапуска: sudo systemctl disable telegrambot"
+    echo "   - Ручной запуск:      cd /opt/telegrambot && sudo -u telegrambot .venv/bin/python bot.py"
     echo
-    echo "=" * 60
+    echo -e "${YELLOW}📚 Получение токена и ID:${NC}"
+    echo "   - Токен бота: https://t.me/BotFather (команда /newbot)"
+    echo "   - Ваш Telegram ID: https://t.me/userinfobot (команда /start)"
+    echo
+    echo "============================================================"
 }
 
 # Основная функция
 main() {
     echo "🚀 TelegrammBolt - Установка на Ubuntu/Debian"
-    echo "=" * 50
+    echo "============================================================"
+    echo
     
-    check_root
     check_system
     update_system
     create_bot_user

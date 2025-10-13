@@ -80,6 +80,7 @@ TelegrammBolt - это Telegram бот для учета и управления
    ```bash
    cd /opt/telegrambot
    sudo -u telegrambot python3 -m venv .venv
+   sudo -u telegrambot .venv/bin/pip install --upgrade pip
    sudo -u telegrambot .venv/bin/pip install -r requirements.txt
    ```
 
@@ -163,6 +164,11 @@ sudo journalctl -u telegrambot --since "1 hour ago"
 
 ```bash
 cd /opt/telegrambot
+sudo -u telegrambot .venv/bin/python bot.py
+```
+
+Или используйте скрипт запуска:
+```bash
 sudo -u telegrambot ./start_bot.sh
 ```
 
@@ -317,7 +323,14 @@ OnFailure=notify-failure.service
 
 ```bash
 cd /opt/telegrambot
-sudo -u telegrambot .venv/bin/python bot.py --debug
+sudo -u telegrambot .venv/bin/python bot.py
+```
+
+Или с переменными окружения для дополнительной отладки:
+
+```bash
+cd /opt/telegrambot
+sudo -u telegrambot PYTHONUNBUFFERED=1 .venv/bin/python bot.py
 ```
 
 ## Поддержка
