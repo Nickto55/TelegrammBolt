@@ -101,6 +101,33 @@ sudo nano /opt/telegrambot/smtp_config.json
 
 ## Возможные проблемы
 
+### sudo: systemctl: command not found
+
+Эта ошибка возникает в системах без systemd (контейнеры Docker, WSL1, старые версии).
+
+**Решение:**
+Скрипт автоматически создаст init.d службу. Используйте команды:
+
+```bash
+# Запуск
+sudo service telegrambot start
+
+# Проверка статуса
+sudo service telegrambot status
+
+# Остановка
+sudo service telegrambot stop
+
+# Перезапуск
+sudo service telegrambot restart
+```
+
+**Ручной запуск (альтернатива):**
+```bash
+cd /opt/telegrambot
+sudo -u telegrambot .venv/bin/python bot.py
+```
+
 ### Unable to locate package software-properties-common
 
 Эта ошибка возникает на старых версиях Debian. Решение:

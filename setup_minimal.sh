@@ -60,26 +60,148 @@ if [ ! -f "smtp_config.json" ]; then
 EOF'
 fi
 
-# Установка systemd службы
+# Установка службы (если systemd доступен)
 echo "🔧 Установка службы..."
-cp /opt/telegrambot/telegrambot.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable telegrambot.service
+if command -v systemctl &> /dev/null; then
+    cp /opt/telegrambot/telegrambot.service /etc/systemd/system/
+    systemctl daemon-reload
+    systemctl enable telegrambot.service
+    
+    echo
+    echo "============================================================"
+    echo "✅ Установка завершена!"
+    echo
+    echo "📋 Следующие шаги:"
+    echo "1. Настройте конфигурацию:"
+    echo "   nano /opt/telegrambot/ven_bot.json"
+    echo
+    echo "2. Запустите бота:"
+    echo "   systemctl start telegrambot"
+    echo
+    echo "3. Проверьте статус:"
+    echo "   systemctl status telegrambot"
+    echo
+    echo "4. Просмотр логов:"
+    echo "   journalctl -u telegrambot -f"
+    echo "============================================================"
+else
+    echo "⚠️  systemd не обнаружен. Создание init.d скрипта..."
+    
+    cat > /etc/init.d/telegrambot << 'INITEOF'
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          telegrambot
+# Required-Start:    $remote_fs $syslog $network
+# Required-Stop:     $remote_fs $syslog $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: TelegrammBolt Telegram Bot
+# Description:       Telegram bot for DSE management
+### END INIT INFO
 
-echo
-echo "============================================================"
-echo "✅ Установка завершена!"
-echo
-echo "📋 Следующие шаги:"
-echo "1. Настройте конфигурацию:"
-echo "   nano /opt/telegrambot/ven_bot.json"
-echo
-echo "2. Запустите бота:"
-echo "   systemctl start telegrambot"
-echo
-echo "3. Проверьте статус:"
-echo "   systemctl status telegrambot"
-echo
-echo "4. Просмотр логов:"
-echo "   journalctl -u telegrambot -f"
-echo "============================================================"
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC="TelegrammBolt Telegram Bot"
+NAME=telegrambot
+DAEMON=/opt/telegrambot/.venv/bin/python
+DAEMON_ARGS="/opt/telegrambot/bot.py"
+PIDFILE=/var/run/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+USER=telegrambot
+WORKDIR=/opt/telegrambot
+
+[ -x "$DAEMON" ] || exit 0
+
+. /lib/lsb/init-functions
+
+do_start()
+{
+    start-stop-daemon --start --quiet --pidfile $PIDFILE --chuid $USER \
+        --background --make-pidfile --chdir $WORKDIR \
+        --exec $DAEMON -- $DAEMON_ARGS \
+        || return 2
+}
+
+do_stop()
+{
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PIDFILE
+    RETVAL="$?"
+    [ "$RETVAL" = 2 ] && return 2
+    rm -f $PIDFILE
+    return "$RETVAL"
+}
+
+case "$1" in
+  start)
+    log_daemon_msg "Starting $DESC" "$NAME"
+    do_start
+    case "$?" in
+        0|1) log_end_msg 0 ;;
+        2) log_end_msg 1 ;;
+    esac
+    ;;
+  stop)
+    log_daemon_msg "Stopping $DESC" "$NAME"
+    do_stop
+    case "$?" in
+        0|1) log_end_msg 0 ;;
+        2) log_end_msg 1 ;;
+    esac
+    ;;
+  status)
+    status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+    ;;
+  restart|force-reload)
+    log_daemon_msg "Restarting $DESC" "$NAME"
+    do_stop
+    case "$?" in
+      0|1)
+        do_start
+        case "$?" in
+            0) log_end_msg 0 ;;
+            1) log_end_msg 1 ;;
+            *) log_end_msg 1 ;;
+        esac
+        ;;
+      *)
+        log_end_msg 1
+        ;;
+    esac
+    ;;
+  *)
+    echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+    exit 3
+    ;;
+esac
+
+:
+INITEOF
+
+    chmod +x /etc/init.d/telegrambot
+    
+    if command -v update-rc.d &> /dev/null; then
+        update-rc.d telegrambot defaults
+    elif command -v chkconfig &> /dev/null; then
+        chkconfig --add telegrambot
+    fi
+    
+    echo
+    echo "============================================================"
+    echo "✅ Установка завершена!"
+    echo
+    echo "📋 Следующие шаги:"
+    echo "1. Настройте конфигурацию:"
+    echo "   nano /opt/telegrambot/ven_bot.json"
+    echo
+    echo "2. Запустите бота:"
+    echo "   /etc/init.d/telegrambot start"
+    echo "   или: service telegrambot start"
+    echo
+    echo "3. Проверьте статус:"
+    echo "   /etc/init.d/telegrambot status"
+    echo "   или: service telegrambot status"
+    echo
+    echo "4. Для ручного запуска:"
+    echo "   cd /opt/telegrambot"
+    echo "   sudo -u telegrambot .venv/bin/python bot.py"
+    echo "============================================================"
+fi

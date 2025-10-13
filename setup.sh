@@ -132,23 +132,121 @@ set_permissions() {
     success "Права доступа установлены"
 }
 
-# Установка systemd службы
-setup_systemd_service() {
+# Установка службы
+setup_service() {
     local bot_dir="/opt/telegrambot"
     local service_file="/etc/systemd/system/telegrambot.service"
     
-    log "Установка systemd службы..."
+    log "Установка службы..."
     
-    # Копирование файла службы
-    sudo cp "$bot_dir/telegrambot.service" "$service_file"
-    
-    # Перезагрузка systemd
-    sudo systemctl daemon-reload
-    
-    # Включение службы
-    sudo systemctl enable telegrambot.service
-    
-    success "Systemd служба установлена и включена"
+    # Проверяем наличие systemd
+    if command -v systemctl &> /dev/null; then
+        log "Обнаружен systemd, установка systemd службы..."
+        
+        # Копирование файла службы
+        sudo cp "$bot_dir/telegrambot.service" "$service_file"
+        
+        # Перезагрузка systemd
+        sudo systemctl daemon-reload
+        
+        # Включение службы
+        sudo systemctl enable telegrambot.service
+        
+        success "Systemd служба установлена и включена"
+    else
+        warn "systemd не обнаружен, создание init.d скрипта..."
+        
+        # Создание init.d скрипта
+        sudo bash -c 'cat > /etc/init.d/telegrambot << '\''INITEOF'\''
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          telegrambot
+# Required-Start:    $remote_fs $syslog $network
+# Required-Stop:     $remote_fs $syslog $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: TelegrammBolt Telegram Bot
+### END INIT INFO
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC="TelegrammBolt"
+NAME=telegrambot
+DAEMON=/opt/telegrambot/.venv/bin/python
+DAEMON_ARGS="/opt/telegrambot/bot.py"
+PIDFILE=/var/run/$NAME.pid
+USER=telegrambot
+WORKDIR=/opt/telegrambot
+
+[ -x "$DAEMON" ] || exit 0
+
+. /lib/lsb/init-functions
+
+do_start() {
+    start-stop-daemon --start --quiet --pidfile $PIDFILE --chuid $USER \
+        --background --make-pidfile --chdir $WORKDIR \
+        --exec $DAEMON -- $DAEMON_ARGS || return 2
+}
+
+do_stop() {
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PIDFILE
+    RETVAL="$?"
+    rm -f $PIDFILE
+    return "$RETVAL"
+}
+
+case "$1" in
+  start)
+    log_daemon_msg "Starting $DESC" "$NAME"
+    do_start
+    case "$?" in
+        0|1) log_end_msg 0 ;;
+        2) log_end_msg 1 ;;
+    esac
+    ;;
+  stop)
+    log_daemon_msg "Stopping $DESC" "$NAME"
+    do_stop
+    case "$?" in
+        0|1) log_end_msg 0 ;;
+        2) log_end_msg 1 ;;
+    esac
+    ;;
+  status)
+    status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+    ;;
+  restart|force-reload)
+    log_daemon_msg "Restarting $DESC" "$NAME"
+    do_stop
+    case "$?" in
+      0|1)
+        do_start
+        case "$?" in
+            0) log_end_msg 0 ;;
+            *) log_end_msg 1 ;;
+        esac
+        ;;
+      *) log_end_msg 1 ;;
+    esac
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status|restart}" >&2
+    exit 3
+    ;;
+esac
+:
+INITEOF'
+        
+        sudo chmod +x /etc/init.d/telegrambot
+        
+        # Регистрация службы
+        if command -v update-rc.d &> /dev/null; then
+            sudo update-rc.d telegrambot defaults
+        elif command -v chkconfig &> /dev/null; then
+            sudo chkconfig --add telegrambot
+        fi
+        
+        success "Init.d служба установлена"
+    fi
 }
 
 # Создание конфигурационных файлов
@@ -201,19 +299,35 @@ show_final_instructions() {
     echo "2. (Опционально) Настройте SMTP для отправки email:"
     echo "   sudo nano /opt/telegrambot/smtp_config.json"
     echo
-    echo "3. Запустите службу бота:"
-    echo "   sudo systemctl start telegrambot"
-    echo
-    echo "4. Проверьте статус службы:"
-    echo "   sudo systemctl status telegrambot"
-    echo
-    echo "5. Просмотр логов:"
-    echo "   sudo journalctl -u telegrambot -f"
-    echo
-    echo -e "${YELLOW}🔧 Полезные команды:${NC}"
-    echo "   - Перезапуск бота:    sudo systemctl restart telegrambot"
-    echo "   - Остановка бота:     sudo systemctl stop telegrambot"
-    echo "   - Отключение автозапуска: sudo systemctl disable telegrambot"
+    
+    if command -v systemctl &> /dev/null; then
+        echo "3. Запустите службу бота:"
+        echo "   sudo systemctl start telegrambot"
+        echo
+        echo "4. Проверьте статус службы:"
+        echo "   sudo systemctl status telegrambot"
+        echo
+        echo "5. Просмотр логов:"
+        echo "   sudo journalctl -u telegrambot -f"
+        echo
+        echo -e "${YELLOW}🔧 Полезные команды:${NC}"
+        echo "   - Перезапуск бота:    sudo systemctl restart telegrambot"
+        echo "   - Остановка бота:     sudo systemctl stop telegrambot"
+        echo "   - Отключение автозапуска: sudo systemctl disable telegrambot"
+    else
+        echo "3. Запустите службу бота:"
+        echo "   sudo service telegrambot start"
+        echo "   или: sudo /etc/init.d/telegrambot start"
+        echo
+        echo "4. Проверьте статус службы:"
+        echo "   sudo service telegrambot status"
+        echo "   или: sudo /etc/init.d/telegrambot status"
+        echo
+        echo -e "${YELLOW}🔧 Полезные команды:${NC}"
+        echo "   - Перезапуск бота:    sudo service telegrambot restart"
+        echo "   - Остановка бота:     sudo service telegrambot stop"
+    fi
+    
     echo "   - Ручной запуск:      cd /opt/telegrambot && sudo -u telegrambot .venv/bin/python bot.py"
     echo
     echo -e "${YELLOW}📚 Получение токена и ID:${NC}"
@@ -235,7 +349,7 @@ main() {
     clone_repository
     setup_python_env
     set_permissions
-    setup_systemd_service
+    setup_service
     setup_config
     show_final_instructions
 }
