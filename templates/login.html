@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - TelegrammBolt{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-box">
+        <div class="text-center mb-4">
+            <i class="bi bi-robot display-1 text-primary"></i>
+            <h1 class="mt-3">TelegrammBolt</h1>
+            <p class="text-muted">Система управления ДСЕ</p>
+        </div>
+        
+        <div class="card shadow">
+            <div class="card-body p-5">
+                <h3 class="card-title text-center mb-4">Вход в систему</h3>
+                
+                <div id="alert-container"></div>
+                
+                <p class="text-center mb-4">
+                    Войдите используя ваш аккаунт Telegram
+                </p>
+                
+                <!-- Telegram Login Button -->
+                <div class="d-flex justify-content-center mb-3">
+                    <script async src="https://telegram.org/js/telegram-widget.js?22" 
+                            data-telegram-login="{{ bot_username }}" 
+                            data-size="large" 
+                            data-onauth="onTelegramAuth(user)" 
+                            data-request-access="write">
+                    </script>
+                </div>
+                
+                <hr>
+                
+                <div class="text-center">
+                    <p class="small text-muted">
+                        <i class="bi bi-info-circle"></i> 
+                        Не зарегистрированы в боте?
+                    </p>
+                    <a href="https://t.me/{{ bot_username }}" class="btn btn-outline-primary" target="_blank">
+                        <i class="bi bi-telegram"></i> Открыть бота в Telegram
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-4">
+            <p class="small text-muted">
+                При входе вы соглашаетесь с условиями использования
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .login-container {
+        width: 100%;
+        max-width: 500px;
+        padding: 20px;
+    }
+    
+    .login-box {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .card {
+        border: none;
+        border-radius: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function onTelegramAuth(user) {
+    // Отправка данных авторизации на сервер
+    fetch('/auth/telegram', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(user)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.redirect;
+        } else {
+            showAlert(data.error || 'Ошибка авторизации', 'danger');
+            if (data.message) {
+                showAlert(data.message, 'info');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Произошла ошибка при авторизации', 'danger');
+    });
+}
+
+function showAlert(message, type = 'info') {
+    const alertContainer = document.getElementById('alert-container');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    alertContainer.appendChild(alert);
+    
+    // Автоматически скрыть через 5 секунд
+    setTimeout(() => {
+        alert.classList.remove('show');
+        setTimeout(() => alert.remove(), 150);
+    }, 5000);
+}
+</script>
+{% endblock %}
