@@ -16,7 +16,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from flask_cors import CORS
 
 # Импорты из существующих модулей бота
-from config import BOT_TOKEN
+from config import BOT_TOKEN, BOT_USERNAME
 from user_manager import (
     has_permission, 
     get_users_data, 
@@ -476,9 +476,25 @@ def api_send_message():
 
 def get_bot_username():
     """Получить username бота для Telegram Login Widget"""
-    # TODO: Реализовать получение username через Bot API
-    # Временно возвращаем заглушку
-    return "YourBotUsername"
+    # Сначала проверяем конфигурацию
+    if BOT_USERNAME and BOT_USERNAME != "":
+        return BOT_USERNAME
+    
+    # Если не указан в конфиге, пытаемся получить через API
+    try:
+        from telegram import Bot
+        bot = Bot(token=BOT_TOKEN)
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        bot_info = loop.run_until_complete(bot.get_me())
+        loop.close()
+        return bot_info.username
+    except Exception as e:
+        logger.error(f"Ошибка получения username бота: {e}")
+        logger.warning("Укажите BOT_USERNAME в ven_bot.json!")
+        # Возвращаем заглушку если не удалось получить
+        return "YourBotUsername"
 
 
 def get_server_url():

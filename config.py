@@ -58,7 +58,8 @@ def load_config_settings_bot(ven_bot: str = "ven_bot.json"):
     # Шаблон данных
     ven_bot_data = {
         "BOT_TOKEN": "",  # Убрано двоеточие
-        "ADMIN_IDS": []  # Убрано двоеточие
+        "ADMIN_IDS": [],  # Убрано двоеточие
+        "BOT_USERNAME": ""  # Username бота для веб-интерфейса
     }
 
     def update_data(key_to_update):
@@ -106,6 +107,7 @@ ven_bot_data = load_config_settings_bot()
 
 # Экспортируем настройки для использования в других модулях
 BOT_TOKEN = ven_bot_data.get("BOT_TOKEN", "")
+BOT_USERNAME = ven_bot_data.get("BOT_USERNAME", "")  # Username бота
 # Убедимся, что ADMIN_IDS всегда список
 ADMIN_IDS = ven_bot_data.get("ADMIN_IDS", [])
 if not isinstance(ADMIN_IDS, list):
