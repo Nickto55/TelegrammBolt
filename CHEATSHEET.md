@@ -14,6 +14,25 @@ curl -fsSL https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/setup.s
 
 ## 📦 Управление службами
 
+### Docker (рекомендуется для контейнеров)
+```bash
+# Запуск бота в Docker
+cd /opt/telegrambot
+.venv/bin/python bot.py
+
+# В фоне
+nohup .venv/bin/python bot.py > bot.log 2>&1 &
+
+# Остановка
+pkill -f bot.py
+
+# Проверка статуса
+ps aux | grep bot.py
+
+# Логи
+tail -f bot.log
+```
+
 ### Systemd
 ```bash
 # Запуск

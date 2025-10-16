@@ -89,6 +89,10 @@ sudo systemctl enable --now telegrambot
 
 ## 🐳 Docker
 
+### ⚠️ Важно для Docker
+
+Docker контейнеры обычно **НЕ используют systemd**. Запускайте бота напрямую!
+
 ### Быстрый старт
 
 ```bash
@@ -103,10 +107,29 @@ services:
       - ./:/app
     command: sh -c "pip install -r requirements.txt && python bot.py"
     restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
 EOF
 
 # Запустить
 docker-compose up -d
+
+# Логи
+docker-compose logs -f
+```
+
+### Ручной запуск в контейнере
+
+```bash
+# Войти в контейнер
+docker exec -it <container_id> bash
+
+# Запустить бота
+cd /opt/telegrambot
+.venv/bin/python bot.py
+
+# Или в фоне
+nohup .venv/bin/python bot.py > bot.log 2>&1 &
 ```
 
 ### Dockerfile

@@ -1,5 +1,17 @@
 # 🔧 Решение проблем TelegrammBolt
 
+## ⚡ Быстрые ответы (FAQ)
+
+| Вопрос | Ответ |
+|--------|-------|
+| **systemd-analyze не найден** | Это нормально для Docker. Запускайте бота напрямую: `python bot.py` → [подробнее](#-systemd-analyze-command-not-found) |
+| **Python 3.13 предупреждение** | Это нормально! Установка продолжится автоматически → [подробнее](#-конфликт-версий-python) |
+| **Docker не запускает службу** | Docker НЕ использует systemd. Используйте `CMD ["python", "bot.py"]` → [подробнее](#️-docker-не-использует-systemd) |
+| **ImportError: show_pdf_export_menu** | Запустите `./emergency-fix.sh` → [подробнее](#-importerror-cannot-import-name-show_pdf_export_menu) |
+| **Conflict: terminated by other getUpdates** | Остановите все копии бота: `pkill -f bot.py` → [подробнее](#-ошибка-подключения-к-telegram-api) |
+
+---
+
 ## 🚨 Критические ошибки
 
 ### ❌ AttributeError: module 'telegram' has no attribute 'Bot'
@@ -141,6 +153,43 @@ python bot.py
 ---
 
 ## 🐳 Docker проблемы
+
+### ⚠️ Docker не использует systemd
+
+**Важно:** Docker контейнеры обычно НЕ используют systemd!
+
+**Правильный запуск в Docker:**
+
+```bash
+# В Dockerfile
+CMD ["python", "bot.py"]
+
+# Или docker-compose.yml
+services:
+  bot:
+    command: python bot.py
+    
+# Ручной запуск в контейнере
+cd /opt/telegrambot
+python bot.py
+
+# В фоне (внутри контейнера)
+nohup python bot.py > /var/log/bot.log 2>&1 &
+```
+
+**Если setup.sh запущен в Docker:**
+
+```bash
+# Пропустить создание службы
+export SKIP_SERVICE=1
+bash setup.sh
+
+# Или запустить бота вручную после установки
+cd /opt/telegrambot
+.venv/bin/python bot.py
+```
+
+---
 
 ### ❌ Cannot connect to Docker daemon
 
@@ -303,11 +352,44 @@ chmod 644 bot_data.json users_data.json
 
 ## 🔐 Systemd проблемы
 
+### ❌ systemd-analyze: command not found
+
+**Причина**: Docker контейнеры обычно не используют systemd
+
+**Решение для Docker:**
+
+```bash
+# Запустить бота напрямую (рекомендуется для Docker)
+cd /opt/telegrambot
+.venv/bin/python bot.py
+
+# Или в фоне
+nohup .venv/bin/python bot.py > bot.log 2>&1 &
+
+# Проверить процесс
+ps aux | grep bot.py
+```
+
+**Решение для обычных систем:**
+
+```bash
+# Если systemd-analyze недоступен, проверить службу вручную
+cat /etc/systemd/system/telegrambot.service
+
+# Перезагрузить конфигурацию
+sudo systemctl daemon-reload
+
+# Запустить службу
+sudo systemctl start telegrambot
+```
+
+---
+
 ### ❌ Failed to start service
 
 ```bash
-# Проверить синтаксис
-sudo systemd-analyze verify /etc/systemd/system/telegrambot.service
+# Проверить синтаксис (если доступен systemd-analyze)
+sudo systemd-analyze verify /etc/systemd/system/telegrambot.service 2>/dev/null
 
 # Перезагрузить конфигурацию
 sudo systemctl daemon-reload
@@ -316,7 +398,8 @@ sudo systemctl daemon-reload
 sudo journalctl -u telegrambot -n 50 --no-pager
 
 # Запустить вручную для отладки
-sudo -u telegrambot /opt/telegrambot/.venv/bin/python /opt/telegrambot/bot.py
+cd /opt/telegrambot
+sudo -u telegrambot .venv/bin/python bot.py
 ```
 
 ---

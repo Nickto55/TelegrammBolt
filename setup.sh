@@ -191,6 +191,21 @@ setup_service() {
     local bot_dir="/opt/telegrambot"
     local service_file="/etc/systemd/system/telegrambot.service"
     
+    # Проверка Docker окружения
+    if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
+        warn "⚠️  Обнаружено Docker окружение"
+        warn "Docker контейнеры обычно не используют systemd"
+        warn "Пропускаем создание службы. Запускайте бота командой:"
+        echo "   cd /opt/telegrambot && .venv/bin/python bot.py"
+        return 0
+    fi
+    
+    # Проверка переменной окружения для пропуска
+    if [ ! -z "$SKIP_SERVICE" ]; then
+        warn "SKIP_SERVICE установлен, пропускаем создание службы"
+        return 0
+    fi
+    
     log "Установка службы..."
     
     # Проверяем наличие systemd
@@ -339,6 +354,13 @@ EOF'
 
 # Показать инструкции по настройке
 show_final_instructions() {
+    local is_docker=0
+    
+    # Проверка Docker окружения
+    if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
+        is_docker=1
+    fi
+    
     echo
     echo "============================================================"
     success "🎉 Установка TelegrammBolt завершена успешно!"
@@ -346,15 +368,34 @@ show_final_instructions() {
     echo -e "${YELLOW}📋 Дальнейшие шаги:${NC}"
     echo
     echo "1. Настройте конфигурацию бота:"
-    echo "   sudo nano /opt/telegrambot/ven_bot.json"
+    echo "   nano /opt/telegrambot/ven_bot.json"
     echo "   - Замените YOUR_BOT_TOKEN_HERE на токен вашего бота"
     echo "   - Замените YOUR_TELEGRAM_ID_HERE на ваш Telegram ID"
     echo
     echo "2. (Опционально) Настройте SMTP для отправки email:"
-    echo "   sudo nano /opt/telegrambot/smtp_config.json"
+    echo "   nano /opt/telegrambot/smtp_config.json"
     echo
     
-    if command -v systemctl &> /dev/null; then
+    if [ $is_docker -eq 1 ]; then
+        echo -e "${BLUE}🐳 Docker окружение обнаружено${NC}"
+        echo
+        echo "3. Запустите бота:"
+        echo "   cd /opt/telegrambot"
+        echo "   .venv/bin/python bot.py"
+        echo
+        echo "   Или в фоне:"
+        echo "   nohup .venv/bin/python bot.py > bot.log 2>&1 &"
+        echo
+        echo "4. Проверьте статус:"
+        echo "   ps aux | grep bot.py"
+        echo
+        echo "5. Просмотр логов:"
+        echo "   tail -f bot.log"
+        echo
+        echo -e "${YELLOW}🔧 Полезные команды:${NC}"
+        echo "   - Остановка бота:     pkill -f bot.py"
+        echo "   - Проверка процесса:  ps aux | grep bot.py"
+    elif command -v systemctl &> /dev/null; then
         echo "3. Запустите службу бота:"
         echo "   sudo systemctl start telegrambot"
         echo
