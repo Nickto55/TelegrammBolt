@@ -4,6 +4,7 @@
 
 | Вопрос | Ответ |
 |--------|-------|
+| **WARNING: development server** | Для production используйте Gunicorn → [подробнее](#️-warning-this-is-a-development-server) |
 | **error: externally-managed-environment** | Используйте виртуальное окружение! → [подробнее](#-error-externally-managed-environment) |
 | **systemd-analyze не найден** | Это нормально для Docker. Запускайте бота напрямую: `python bot.py` → [подробнее](#-systemd-analyze-command-not-found) |
 | **Python 3.13 предупреждение** | Это нормально! Установка продолжится автоматически → [подробнее](#-конфликт-версий-python) |
@@ -140,11 +141,47 @@ async def show_pdf_export_menu(update, context):
 **Решение:**
 
 ```bash
+# В виртуальном окружении
+source .venv/bin/activate  # или .venv\Scripts\activate в Windows
+
 # Установить Flask
 pip install flask flask-cors gunicorn
 
 # Или обновить все зависимости
 pip install -r requirements.txt
+```
+
+---
+
+### ❌ ModuleNotFoundError: No module named 'reportlab'
+
+**Причина**: Не установлена библиотека для генерации PDF
+
+**Решение:**
+
+```bash
+# В виртуальном окружении
+source .venv/bin/activate
+
+# Установить reportlab
+pip install reportlab==4.0.7
+
+# Или все зависимости
+pip install -r requirements.txt
+```
+
+**Если ошибка сохраняется:**
+
+```bash
+# Проверить, что вы в виртуальном окружении
+which python  # должно показать .venv/bin/python
+
+# Переустановить reportlab
+pip uninstall -y reportlab
+pip install reportlab==4.0.7
+
+# Проверка
+python -c "from reportlab.lib.pagesizes import A4; print('OK')"
 ```
 
 ---
@@ -314,6 +351,88 @@ docker-compose config
 # Для локальной разработки используйте ngrok:
 ngrok http 5000
 # И укажите ngrok URL в @BotFather
+```
+
+---
+
+### ⚠️ WARNING: This is a development server
+
+**Симптом:**
+```
+WARNING: This is a development server. Do not use it in a production deployment.
+Use a production WSGI server instead.
+```
+
+**Причина**: Flask встроенный сервер только для разработки
+
+**✅ Решение для PRODUCTION:**
+
+```bash
+# Использовать Gunicorn (рекомендуется)
+cd /opt/telegrambot
+source .venv/bin/activate
+
+# Установить Gunicorn
+pip install gunicorn
+
+# Запустить с Gunicorn
+gunicorn -w 4 -b 0.0.0.0:5000 web_app:app
+
+# С логами
+gunicorn -w 4 -b 0.0.0.0:5000 --access-logfile - --error-logfile - web_app:app
+```
+
+**Для Docker (docker-compose.yml):**
+
+```yaml
+version: '3.8'
+services:
+  web:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             gunicorn -w 4 -b 0.0.0.0:5000 web_app:app"
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+```
+
+**Создать systemd службу:**
+
+```bash
+sudo nano /etc/systemd/system/telegrambot-web.service
+```
+
+```ini
+[Unit]
+Description=TelegrammBolt Web Interface
+After=network.target
+
+[Service]
+Type=simple
+User=telegrambot
+WorkingDirectory=/opt/telegrambot
+Environment="PATH=/opt/telegrambot/.venv/bin"
+ExecStart=/opt/telegrambot/.venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 web_app:app
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now telegrambot-web
+```
+
+**Для разработки/тестирования:**
+```bash
+# Это нормально! Просто игнорируйте предупреждение
+python web_app.py
 ```
 
 ---

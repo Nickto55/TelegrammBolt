@@ -382,11 +382,31 @@ sudo journalctl -u telegrambot -n 50
 cat /opt/telegrambot/ven_bot.json
 
 # 3. Проверить зависимости
-/opt/telegrambot/.venv/bin/pip check
-
-# 4. Тестовый запуск
 cd /opt/telegrambot
-sudo -u telegrambot .venv/bin/python bot.py
+source .venv/bin/activate
+pip check
+
+# 4. Переустановить зависимости
+pip install -r requirements.txt
+
+# 5. Тестовый запуск
+python bot.py
+```
+
+### Модуль не найден (ModuleNotFoundError)
+```bash
+# Проверить виртуальное окружение
+cd /opt/telegrambot
+source .venv/bin/activate
+
+# Переустановить все зависимости
+pip install -r requirements.txt
+
+# Проверка конкретных модулей
+pip install python-telegram-bot>=21.0
+pip install flask flask-cors gunicorn
+pip install reportlab==4.0.7
+pip install pandas openpyxl
 ```
 
 ### Веб-интерфейс недоступен
