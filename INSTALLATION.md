@@ -210,7 +210,7 @@ sudo journalctl -u telegrambot -f
 pip install flask flask-cors gunicorn
 
 # Запустить веб
-python web_app.py
+cd /opt/telegrambot && python3 -m venv .venv && source .venv/bin/activate && python web_app.py
 
 # Или через Gunicorn
 gunicorn -w 4 -b 0.0.0.0:5000 web_app:app
