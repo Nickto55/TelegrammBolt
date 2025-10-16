@@ -114,7 +114,7 @@ ls -la /opt/telegrambot/
 
 ## 🐛 Отладка
 
-### Логи
+### Проверка логов
 ```bash
 # Бот
 sudo journalctl -u telegrambot -n 50 --no-pager
@@ -128,6 +128,14 @@ sudo tail -f /var/log/nginx/error.log
 # Docker
 docker logs telegrambot --tail 50
 ```
+
+### Типичные ошибки
+
+**Ошибка импорта** → см. [TROUBLESHOOTING.md](TROUBLESHOOTING.md#-importerror-cannot-import-name-show_pdf_export_menu)
+
+**Конфликт бота** → см. [TROUBLESHOOTING.md](TROUBLESHOOTING.md#-ошибка-подключения-к-telegram-api)
+
+**Python 3.13** → см. [TROUBLESHOOTING.md](TROUBLESHOOTING.md#-конфликт-версий-python)
 
 ### Проверка портов
 ```bash
@@ -372,12 +380,9 @@ sudo -u telegrambot .venv/bin/python web_app.py
 
 ## 📚 Полезные ссылки
 
-- [Основная документация](README_Ubuntu.md)
-- [Установка из ветки web](INSTALL_FROM_WEB_BRANCH.md)
-- [Быстрый старт веб-интерфейса](WEB_QUICKSTART.md)
-- [Получение ссылки на веб](GET_WEB_URL.md)
-- [Решение проблем Python 3.13](PYTHON_VERSION_FIX.md)
-- [Запуск без systemd](NO_SYSTEMD.md)
+- **[README.md](README.md)** - Основная документация
+- **[INSTALLATION.md](INSTALLATION.md)** - Полное руководство по установке
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Решение всех проблем
 
 ---
 

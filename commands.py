@@ -19,7 +19,7 @@ from user_manager import (register_user, get_user_role, has_permission, set_user
                          set_user_nickname, remove_user_nickname, get_user_nickname, get_user_display_name,
                          check_nickname_exists, get_all_nicknames)
 import os
-
+print(str(os.urandom(32)))
 # Глобальные переменные
 user_states = {}
 admin_states = {}  # Для отслеживания состояния админских операций

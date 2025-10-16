@@ -255,6 +255,30 @@ def create_dse_pdf_report(record_data, filename=None):
         return None
 
 
+async def show_pdf_export_menu(update, context):
+    """
+    Показать меню экспорта PDF
+    """
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    query = update.callback_query
+    await query.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton("📄 Экспорт всех записей", callback_data='pdf_export_all')],
+        [InlineKeyboardButton("📋 Выбрать записи", callback_data='pdf_export_select')],
+        [InlineKeyboardButton("⬅️ Назад", callback_data='reports')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        "📊 *Экспорт в PDF*\n\n"
+        "Выберите опцию экспорта:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
 if __name__ == "__main__":
     # Тестовые данные
     test_record = {
