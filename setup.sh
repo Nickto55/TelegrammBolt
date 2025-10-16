@@ -69,12 +69,20 @@ check_python_version() {
     
     if [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -ge 13 ]]; then
         warn "⚠️  Обнаружен Python 3.13+. Для максимальной совместимости рекомендуется Python 3.11 или 3.12."
-        warn "Если возникнут ошибки с python-telegram-bot, установите Python 3.11 или 3.12."
+        warn "📚 При возникновении ошибок смотрите: TROUBLESHOOTING.md → Python 3.13"
+        warn "🔧 Установка продолжится с использованием python-telegram-bot>=21.0"
         echo
-        read -p "Продолжить с Python $PYTHON_VERSION? (y/n): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            error "Установка отменена. Установите Python 3.11 или 3.12 и запустите скрипт снова."
+        
+        # Проверка интерактивного режима
+        if [[ -t 0 ]]; then
+            read -p "Продолжить с Python $PYTHON_VERSION? (y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                error "Установка отменена. Установите Python 3.11 или 3.12 и запустите скрипт снова."
+            fi
+        else
+            log "Автоматический режим: продолжаем установку с Python $PYTHON_VERSION"
+            sleep 2
         fi
     fi
     
@@ -148,9 +156,23 @@ setup_python_env() {
     sudo -u telegrambot .venv/bin/pip install --upgrade pip
     
     log "Установка Python зависимостей..."
-    sudo -u telegrambot .venv/bin/pip install -r requirements.txt
+    log "Это может занять некоторое время..."
     
-    success "Python окружение настроено"
+    # Установка с обработкой ошибок для Python 3.13
+    if sudo -u telegrambot .venv/bin/pip install -r requirements.txt; then
+        success "Python окружение настроено"
+    else
+        error "Ошибка установки зависимостей. Проверьте TROUBLESHOOTING.md"
+    fi
+    
+    # Проверка установки telegram
+    log "Проверка установки python-telegram-bot..."
+    if sudo -u telegrambot .venv/bin/pip list | grep -q "python-telegram-bot"; then
+        local tg_version=$(sudo -u telegrambot .venv/bin/pip list | grep python-telegram-bot | awk '{print $2}')
+        success "python-telegram-bot установлен: версия $tg_version"
+    else
+        warn "python-telegram-bot не обнаружен. Возможна проблема совместимости."
+    fi
 }
 
 # Установка прав на файлы
@@ -365,6 +387,12 @@ show_final_instructions() {
     echo -e "${YELLOW}📚 Получение токена и ID:${NC}"
     echo "   - Токен бота: https://t.me/BotFather (команда /newbot)"
     echo "   - Ваш Telegram ID: https://t.me/userinfobot (команда /start)"
+    echo
+    echo -e "${YELLOW}📖 Документация:${NC}"
+    echo "   - README.md - Главная документация"
+    echo "   - INSTALLATION.md - Полное руководство по установке"
+    echo "   - TROUBLESHOOTING.md - Решение проблем (включая Python 3.13)"
+    echo "   - CHEATSHEET.md - Шпаргалка команд"
     echo
     echo "============================================================"
 }
