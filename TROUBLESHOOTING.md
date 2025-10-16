@@ -4,6 +4,7 @@
 
 | Вопрос | Ответ |
 |--------|-------|
+| **error: externally-managed-environment** | Используйте виртуальное окружение! → [подробнее](#-error-externally-managed-environment) |
 | **systemd-analyze не найден** | Это нормально для Docker. Запускайте бота напрямую: `python bot.py` → [подробнее](#-systemd-analyze-command-not-found) |
 | **Python 3.13 предупреждение** | Это нормально! Установка продолжится автоматически → [подробнее](#-конфликт-версий-python) |
 | **Docker не запускает службу** | Docker НЕ использует systemd. Используйте `CMD ["python", "bot.py"]` → [подробнее](#️-docker-не-использует-systemd) |
@@ -13,6 +14,67 @@
 ---
 
 ## 🚨 Критические ошибки
+
+### ❌ error: externally-managed-environment
+
+**Причина**: Python 3.13+ в Debian/Ubuntu защищен от установки пакетов напрямую через pip
+
+**Симптом:**
+```
+error: externally-managed-environment
+× This environment is externally managed
+```
+
+**✅ Решение (ПРАВИЛЬНОЕ):**
+
+```bash
+# 1. ИСПОЛЬЗУЙТЕ ВИРТУАЛЬНОЕ ОКРУЖЕНИЕ (рекомендуется)
+cd /opt/telegrambot
+
+# Создать виртуальное окружение
+python3 -m venv .venv
+
+# Активировать
+source .venv/bin/activate
+
+# Теперь можно устанавливать пакеты
+pip install flask flask-cors gunicorn
+pip install -r requirements.txt
+
+# Запуск бота
+python bot.py
+```
+
+**Для Docker:**
+
+```dockerfile
+# В Dockerfile используйте виртуальное окружение
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY requirements.txt .
+
+# Создать venv
+RUN python -m venv /app/.venv
+
+# Установить зависимости в venv
+RUN /app/.venv/bin/pip install --upgrade pip && \
+    /app/.venv/bin/pip install -r requirements.txt
+
+COPY . .
+
+# Запускать через venv
+CMD ["/app/.venv/bin/python", "bot.py"]
+```
+
+**❌ НЕ ДЕЛАЙТЕ ТАК (небезопасно):**
+
+```bash
+# НЕ используйте --break-system-packages!
+pip install --break-system-packages flask  # ❌ ОПАСНО!
+```
+
+---
 
 ### ❌ AttributeError: module 'telegram' has no attribute 'Bot'
 

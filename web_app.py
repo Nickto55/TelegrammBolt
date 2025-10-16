@@ -17,10 +17,10 @@ from flask_cors import CORS
 
 # Импорты из существующих модулей бота
 from config import BOT_TOKEN
-from user_manager import has_permission, get_user_data, is_user_registered
-from dse_manager import get_all_dse, get_dse_by_id, add_dse, update_dse, delete_dse
-from chat_manager import get_chat_history, send_chat_message
-from pdf_generator import generate_pdf_report
+from user_manager import has_permission, get_users_data, get_user_role, register_user
+from dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
+# chat_manager не имеет нужных функций для веб, используем свои реализации
+from pdf_generator import create_dse_pdf_report
 import pandas as pd
 
 # Настройка логирования
@@ -38,6 +38,65 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # CORS для API
 CORS(app)
+
+# ============================================================================
+# ФУНКЦИИ-ОБЕРТКИ ДЛЯ СОВМЕСТИМОСТИ
+# ============================================================================
+
+def get_all_dse():
+    """Обертка для получения всех ДСЕ"""
+    return get_all_dse_records()
+
+
+def get_dse_by_id(dse_id):
+    """Получить конкретное ДСЕ по ID (фильтрация из всех записей)"""
+    records = get_all_dse_records()
+    for record in records:
+        if str(record.get('id', '')) == str(dse_id) or str(record.get('dse', '')) == str(dse_id):
+            return record
+    return None
+
+
+def add_dse(data):
+    """Заглушка для добавления ДСЕ - требует реализации"""
+    # TODO: реализовать добавление через бота или напрямую в DATA_FILE
+    logger.warning("add_dse() not fully implemented")
+    return {"success": False, "error": "Функция в разработке"}
+
+
+def update_dse(dse_id, data):
+    """Заглушка для обновления ДСЕ - требует реализации"""
+    # TODO: реализовать обновление через бота или напрямую в DATA_FILE
+    logger.warning("update_dse() not fully implemented")
+    return {"success": False, "error": "Функция в разработке"}
+
+
+def delete_dse(dse_id):
+    """Заглушка для удаления ДСЕ - требует реализации"""
+    # TODO: реализовать удаление через бота или напрямую в DATA_FILE
+    logger.warning("delete_dse() not fully implemented")
+    return {"success": False, "error": "Функция в разработке"}
+
+
+def get_chat_history(user_id):
+    """Заглушка для получения истории чата - требует реализации"""
+    # TODO: реализовать получение истории из chat_manager или отдельного файла
+    logger.warning("get_chat_history() not fully implemented")
+    return []
+
+
+def send_chat_message(user_id, target_user_id, message):
+    """Заглушка для отправки сообщения - требует реализации"""
+    # TODO: реализовать отправку через бота
+    logger.warning("send_chat_message() not fully implemented")
+    return {"success": False, "error": "Функция в разработке"}
+
+
+def generate_pdf_report(data):
+    """Обертка для создания PDF отчета"""
+    # Используем create_dse_pdf_report из pdf_generator
+    return create_dse_pdf_report(data)
+
 
 # ============================================================================
 # УТИЛИТЫ ДЛЯ TELEGRAM LOGIN
@@ -127,11 +186,15 @@ def telegram_auth():
         user_id = str(auth_data['id'])
         
         # Проверка регистрации пользователя в боте
-        if not is_user_registered(user_id):
-            return jsonify({
-                'error': 'Пользователь не зарегистрирован',
-                'message': 'Сначала запустите бота в Telegram: /start'
-            }), 403
+        users_data = get_users_data()
+        if user_id not in users_data:
+            # Автоматическая регистрация пользователя
+            register_user(
+                user_id,
+                auth_data.get('username', ''),
+                auth_data.get('first_name', ''),
+                auth_data.get('last_name', '')
+            )
         
         # Сохранение данных в сессию
         session.permanent = True
@@ -169,7 +232,15 @@ def logout():
 def dashboard():
     """Главная панель управления"""
     user_id = session['user_id']
-    user_data = get_user_data(user_id)
+    
+    # Получаем данные пользователя из сессии и user_manager
+    users_data = get_users_data()
+    user_data = users_data.get(user_id, {
+        'username': session.get('username', ''),
+        'first_name': session.get('first_name', ''),
+        'last_name': session.get('last_name', ''),
+        'role': get_user_role(user_id)
+    })
     
     # Статистика
     dse_data = get_all_dse()

@@ -49,11 +49,23 @@ cd /opt/telegrambot
 
 ### 3. Создание виртуального окружения
 
+**⚠️ ВАЖНО для Python 3.13+:**  
+В Debian/Ubuntu Python 3.13+ защищен от прямой установки пакетов.  
+**ВСЕГДА используйте виртуальное окружение!**
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+```
+
+**Если видите ошибку `externally-managed-environment`:**
+```bash
+# Это значит вы забыли активировать venv!
+# Выполните:
+source .venv/bin/activate
+# Теперь pip будет работать
 ```
 
 ### 4. Настройка конфигурации

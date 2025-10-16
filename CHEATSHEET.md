@@ -133,6 +133,15 @@ ls -la /opt/telegrambot/
 
 ## 🐛 Отладка
 
+### ⚡ Быстрые решения
+
+| Ошибка | Команда |
+|--------|---------|
+| `externally-managed-environment` | `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` |
+| `systemd-analyze not found` | Это нормально для Docker, запускайте: `python bot.py` |
+| `ImportError` | `./emergency-fix.sh` или `pip install --force-reinstall -r requirements.txt` |
+| `Conflict: terminated` | `pkill -f bot.py && sleep 3 && python bot.py` |
+
 ### Проверка логов
 ```bash
 # Бот
