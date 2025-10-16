@@ -186,3 +186,17 @@ def get_all_nicknames():
             nicknames[user_id] = nickname
     
     return nicknames
+
+
+# === ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ВЕБ-ИНТЕРФЕЙСА ===
+
+def is_user_registered(user_id):
+    """Проверить, зарегистрирован ли пользователь"""
+    users_data = get_users_data()
+    return str(user_id) in users_data
+
+
+def get_user_data(user_id):
+    """Получить данные конкретного пользователя"""
+    users_data = get_users_data()
+    return users_data.get(str(user_id), None)

@@ -17,7 +17,14 @@ from flask_cors import CORS
 
 # Импорты из существующих модулей бота
 from config import BOT_TOKEN
-from user_manager import has_permission, get_users_data, get_user_role, register_user
+from user_manager import (
+    has_permission, 
+    get_users_data, 
+    get_user_data,
+    get_user_role, 
+    register_user,
+    is_user_registered
+)
 from dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
 # chat_manager не имеет нужных функций для веб, используем свои реализации
 from pdf_generator import create_dse_pdf_report

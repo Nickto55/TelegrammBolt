@@ -251,6 +251,76 @@ python bot.py
 
 ---
 
+---
+
+### ❌ ImportError: cannot import name 'get_user_data' from 'user_manager'
+
+**Причина**: Старая версия файлов на сервере или неправильные импорты в `web_app.py`
+
+**Симптом:**
+```
+ImportError: cannot import name 'get_user_data' from 'user_manager'
+Did you mean: 'get_users_data'?
+```
+
+**✅ Решение:**
+
+```bash
+# На сервере в Docker контейнере
+cd /opt/telegrambot
+
+# Синхронизировать файлы с репозитория (если используется Git)
+git pull origin main
+
+# Или скопировать обновленный web_app.py с локальной машины
+# docker cp web_app.py container_name:/opt/telegrambot/web_app.py
+
+# Перезапустить приложение
+python web_app.py
+```
+
+**Или добавить недостающие функции в user_manager.py:**
+
+```python
+# Добавить в конец user_manager.py
+
+def is_user_registered(user_id):
+    """Проверить, зарегистрирован ли пользователь"""
+    users_data = get_users_data()
+    return str(user_id) in users_data
+
+def get_user_data(user_id):
+    """Получить данные конкретного пользователя"""
+    users_data = get_users_data()
+    return users_data.get(str(user_id), None)
+```
+
+**Быстрое исправление в Docker:**
+
+```bash
+# Войти в контейнер
+docker exec -it <container_name> /bin/bash
+
+# Отредактировать user_manager.py
+cat >> /opt/telegrambot/user_manager.py << 'EOF'
+
+def is_user_registered(user_id):
+    """Проверить, зарегистрирован ли пользователь"""
+    users_data = get_users_data()
+    return str(user_id) in users_data
+
+def get_user_data(user_id):
+    """Получить данные конкретного пользователя"""
+    users_data = get_users_data()
+    return users_data.get(str(user_id), None)
+EOF
+
+# Перезапустить
+python web_app.py
+```
+
+---
+
 ## 🐳 Docker проблемы
 
 ### ⚠️ Docker не использует systemd
