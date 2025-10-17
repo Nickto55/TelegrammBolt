@@ -1970,6 +1970,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await show_pdf_export_menu(update, context)
         else:
             await query.edit_message_text("❌ У вас нет прав для экспорта PDF.")
+    
+    elif data == 'pdf_export_all':
+        if has_permission(user_id, 'pdf_export'):
+            from pdf_generator import handle_pdf_export_all
+            await handle_pdf_export_all(update, context)
+        else:
+            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
+    
+    elif data == 'pdf_export_select':
+        if has_permission(user_id, 'pdf_export'):
+            from pdf_generator import handle_pdf_export_select
+            await handle_pdf_export_select(update, context)
+        else:
+            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

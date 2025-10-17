@@ -279,6 +279,98 @@ async def show_pdf_export_menu(update, context):
     )
 
 
+async def handle_pdf_export_all(update, context):
+    """Экспорт всех записей ДСЕ в PDF"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from dse_manager import get_all_dse_records
+    
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        # Получаем все записи
+        records = get_all_dse_records()
+        
+        if not records:
+            await query.edit_message_text(
+                "❌ Нет записей для экспорта.\n\n"
+                "Используйте /start для возврата в главное меню.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        await query.edit_message_text(
+            f"⏳ Создаю PDF отчёт...\n"
+            f"Всего записей: {len(records)}",
+            parse_mode='Markdown'
+        )
+        
+        # Создаём PDF для каждой записи
+        from telegram import InputFile
+        import os
+        
+        for i, record in enumerate(records[:10], 1):  # Ограничение 10 файлов за раз
+            try:
+                filename = f"dse_report_{record.get('dse', 'unknown').replace('/', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+                pdf_file = create_dse_pdf_report(record, filename)
+                
+                if pdf_file and os.path.exists(pdf_file):
+                    # Отправляем PDF файл
+                    with open(pdf_file, 'rb') as f:
+                        await context.bot.send_document(
+                            chat_id=query.message.chat_id,
+                            document=f,
+                            filename=filename,
+                            caption=f"📄 Отчёт {i}/{len(records)}: {record.get('dse', 'N/A')}"
+                        )
+                    
+                    # Удаляем временный файл
+                    os.remove(pdf_file)
+            except Exception as e:
+                print(f"Ошибка создания PDF для записи {i}: {e}")
+                continue
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"✅ Экспорт завершён!\n"
+                 f"Создано отчётов: {min(len(records), 10)}",
+            reply_markup=reply_markup
+        )
+        
+    except Exception as e:
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"❌ Ошибка при экспорте: {str(e)}",
+            reply_markup=reply_markup
+        )
+
+
+async def handle_pdf_export_select(update, context):
+    """Выбор записей для экспорта в PDF"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    query = update.callback_query
+    await query.answer()
+    
+    # Пока что выводим заглушку
+    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        "🔧 *Выборочный экспорт*\n\n"
+        "Функция находится в разработке.\n"
+        "Используйте 'Экспорт всех записей' для получения PDF отчётов.",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
 if __name__ == "__main__":
     # Тестовые данные
     test_record = {
