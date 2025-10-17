@@ -128,24 +128,34 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Bot specific files
-ven_bot.json
-smtp_config.json
-bot_data.json
-users_data.json
-chat_data.json
-watched_dse.json
-RezultBot.xlsx
-test_report.pdf
+# ============================================
+# Bot specific files (в data/)
+# ============================================
+data/ven_bot.json
+data/smtp_config.json
+data/bot_data.json
+data/users_data.json
+data/chat_data.json
+data/watched_dse.json
+data/*.xlsx
+data/*.pdf
 
-# Photos directory (but keep the folder structure)
-photos/*
-!photos/.gitkeep
+# Но сохраняем примеры в config/
+!config/ven_bot.json.example
+!config/smtp_config.json.example
+!config/*.example
 
-# Windows specific files
-*.bat
-*.nsi
-windows_service.py
+# Photos directory
+data/photos/*
+!data/photos/.gitkeep
+
+# Windows specific files (переименованы в scripts/)
+# scripts/*.bat остается для использования
+
+# Backup папки
+.docs_backup_*/
+*.backup
+backup/
 
 # IDE files
 .vscode/
