@@ -1984,8 +1984,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # === PDF ЭКСПОРТ ===
     elif data == 'pdf_export_menu':
         if has_permission(user_id, 'pdf_export'):
-            from pdf_generator import show_pdf_export_menu
-            await show_pdf_export_menu(update, context)
+            # Быстрое отображение меню без загрузки данных
+            keyboard = [
+                [InlineKeyboardButton("📄 Экспорт всех записей", callback_data='pdf_export_all')],
+                [InlineKeyboardButton("📋 Выбрать записи", callback_data='pdf_export_select')],
+                [InlineKeyboardButton("⬅️ Назад", callback_data='reports')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                "📊 *Экспорт в PDF*\n\n"
+                "Выберите опцию экспорта:",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
         else:
             await query.edit_message_text("❌ У вас нет прав для экспорта PDF.")
     
