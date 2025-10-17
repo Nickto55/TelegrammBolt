@@ -553,7 +553,9 @@ def dse_list():
         return "Доступ запрещен", 403
     
     dse_data = get_all_dse()
-    return render_template('dse_list.html', dse_data=dse_data)
+    return render_template('dse_list.html', 
+                         dse_data=dse_data,
+                         permissions=get_user_permissions(user_id))
 
 
 @app.route('/dse/<int:dse_id>')

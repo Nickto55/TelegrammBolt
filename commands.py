@@ -2110,9 +2110,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 from chat_manager import handle_chat_message
                 await handle_chat_message(update, context)
                 return
-            
-            # === АДМИН: СОЗДАНИЕ ВЕБ-ПОЛЬЗОВАТЕЛЯ ===
-            elif user_id in admin_states and admin_states[user_id].get('creating_webuser'):
+    
+    # Обработка admin_states (вне блока user_states)
+    if update.message and update.message.text and user_id in admin_states:
+        text = update.message.text.strip()
+        
+        # === АДМИН: СОЗДАНИЕ ВЕБ-ПОЛЬЗОВАТЕЛЯ ===
+        if admin_states[user_id].get('creating_webuser'):
                 step = admin_states[user_id].get('step')
                 
                 if step == 'username':
@@ -2155,22 +2159,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         return
                     
                     username = admin_states[user_id].get('username')
+                    telegram_user_id = admin_states[user_id].get('telegram_user_id')
+                    telegram_name = admin_states[user_id].get('telegram_name')
                     
-                    # Сохранение в config.py
+                    # Сохранение в config.py с привязкой к Telegram ID
                     from config import ADMIN_CREDENTIALS, generate_password_hash, save_admin_credentials
                     password_hash = generate_password_hash(password)
                     ADMIN_CREDENTIALS[username] = password_hash
                     
-                    # Сохранение в файл
+                    # Сохранение в файл с привязкой к Telegram ID
                     try:
-                        save_admin_credentials(username, password_hash)
+                        save_admin_credentials(username, password_hash, telegram_user_id)
                         admin_states[user_id].clear()
                         
                         await update.message.reply_text(
-                            f"✅ <b>Веб-пользователь создан успешно!</b>\n\n"
-                            f"🔐 Логин: <code>{username}</code>\n"
+                            f"✅ <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
+                            f"� Telegram: {telegram_name} (ID: <code>{telegram_user_id}</code>)\n"
+                            f"�🔐 Логин: <code>{username}</code>\n"
                             f"🔑 Пароль: <code>{password}</code>\n\n"
                             f"🌐 URL: https://boltweb.servebeer.com/login\n\n"
+                            f"ℹ️ Теперь вы можете входить на сайт как через Telegram, так и через логин/пароль.\n"
                             f"⚠️ <i>Сохраните эти данные, пароль больше не будет показан!</i>",
                             parse_mode='HTML'
                         )
@@ -2178,72 +2186,76 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         await update.message.reply_text(f"❌ Ошибка сохранения: {e}")
                         admin_states[user_id].clear()
                     return
+        
+        # === АДМИН: ИЗМЕНЕНИЕ РОЛИ ===
+        elif admin_states[user_id].get('changing_role'):
+            target_user_id = text.strip()
+            users = get_all_users()
+            if target_user_id in users:
+                admin_states[user_id]['changing_role_for'] = target_user_id
+                admin_states[user_id].pop('changing_role', None)
+                await show_role_selection_menu(update, context, target_user_id)
+            else:
+                await update.message.reply_text(
+                    f"❌ Пользователь с ID {target_user_id} не найден.\n\n"
+                    "Введите корректный ID:"
+                )
+            return
+        
+        # === АДМИН: УСТАНОВКА КЛИЧКИ ===
+        elif admin_states[user_id].get('setting_nickname'):
+            nickname = text.strip()
+            if len(nickname) > 20:
+                await update.message.reply_text("❌ Кличка слишком длинная (максимум 20 символов).\n\nВведите другую кличку:")
+                return
             
-            # === АДМИН: ИЗМЕНЕНИЕ РОЛИ ===
-            elif user_id in admin_states and admin_states[user_id].get('changing_role'):
-                target_user_id = text.strip()
+            if check_nickname_exists(nickname):
+                await update.message.reply_text(f"❌ Кличка '{nickname}' уже используется.\n\nВведите другую кличку:")
+                return
+            
+            target_user_id = admin_states[user_id].get('setting_nickname_for')
+            if target_user_id:
+                set_user_nickname(target_user_id, nickname)
+                admin_states[user_id].pop('setting_nickname', None)
+                admin_states[user_id].pop('setting_nickname_for', None)
+                
                 users = get_all_users()
-                if target_user_id in users:
-                    admin_states[user_id]['changing_role_for'] = target_user_id
-                    admin_states[user_id].pop('changing_role', None)
-                    await show_role_selection_menu(update, context, target_user_id)
-                else:
-                    await update.message.reply_text(
-                        f"❌ Пользователь с ID {target_user_id} не найден.\n\n"
-                        "Введите корректный ID:"
-                    )
-                return
-            
-            # === АДМИН: УСТАНОВКА КЛИЧКИ ===
-            elif user_id in admin_states and admin_states[user_id].get('setting_nickname'):
-                nickname = text.strip()
-                if len(nickname) > 20:
-                    await update.message.reply_text("❌ Кличка слишком длинная (максимум 20 символов).\n\nВведите другую кличку:")
-                    return
-                
-                if check_nickname_exists(nickname):
-                    await update.message.reply_text(f"❌ Кличка '{nickname}' уже используется.\n\nВведите другую кличку:")
-                    return
-                
-                target_user_id = admin_states[user_id].get('setting_nickname_for')
-                if target_user_id:
-                    set_user_nickname(target_user_id, nickname)
-                    admin_states[user_id].pop('setting_nickname', None)
-                    admin_states[user_id].pop('setting_nickname_for', None)
-                    
-                    users = get_all_users()
-                    user_name = users.get(target_user_id, {}).get('first_name', 'Неизвестно')
-                    await update.message.reply_text(f"✅ Кличка '{nickname}' установлена для {user_name}")
-                    await show_nicknames_menu(update, context)
-                return
-            
-            # === АДМИН: EMAIL АДРЕС ===
-            elif user_id in admin_states and admin_states[user_id].get('waiting_for_email'):
-                email = text.strip()
-                # Простая проверка email
-                if '@' in email and '.' in email:
-                    admin_states[user_id].pop('waiting_for_email', None)
-                    await send_file_by_email(update, context, email)
-                else:
-                    await update.message.reply_text(
-                        "❌ Некорректный email адрес.\n\n"
-                        "Введите корректный email:"
-                    )
-                return
-            
-            # === ПОЛЬЗОВАТЕЛЬ: EMAIL ДЛЯ ЗАЯВКИ ===
-            elif user_id in user_states and user_states[user_id].get('waiting_for_application_email'):
-                email = text.strip()
-                # Простая проверка email
-                if '@' in email and '.' in email:
-                    user_states[user_id].pop('waiting_for_application_email', None)
-                    await send_application_by_email(update, context, email)
-                else:
-                    await update.message.reply_text(
-                        "❌ Некорректный email адрес.\n\n"
-                        "Введите корректный email:"
-                    )
-                return
+                user_name = users.get(target_user_id, {}).get('first_name', 'Неизвестно')
+                await update.message.reply_text(f"✅ Кличка '{nickname}' установлена для {user_name}")
+                await show_nicknames_menu(update, context)
+            return
+        
+        # === АДМИН: EMAIL АДРЕС ===
+        elif admin_states[user_id].get('waiting_for_email'):
+            email = text.strip()
+            # Простая проверка email
+            if '@' in email and '.' in email:
+                admin_states[user_id].pop('waiting_for_email', None)
+                await send_file_by_email(update, context, email)
+            else:
+                await update.message.reply_text(
+                    "❌ Некорректный email адрес.\n\n"
+                    "Введите корректный email:"
+                )
+            return
+    
+    # Обработка email для заявки (внутри user_states)
+    if update.message and update.message.text and user_id in user_states:
+        text = update.message.text.strip()
+        
+        # === ПОЛЬЗОВАТЕЛЬ: EMAIL ДЛЯ ЗАЯВКИ ===
+        if user_states[user_id].get('waiting_for_application_email'):
+            email = text.strip()
+            # Простая проверка email
+            if '@' in email and '.' in email:
+                user_states[user_id].pop('waiting_for_application_email', None)
+                await send_application_by_email(update, context, email)
+            else:
+                await update.message.reply_text(
+                    "❌ Некорректный email адрес.\n\n"
+                    "Введите корректный email:"
+                )
+            return
     
     # Если ничего не обработано, просто игнорируем сообщение
     await update.message.reply_text(
@@ -2252,8 +2264,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def createwebuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Команда /createwebuser - создать веб-пользователя (только для админов)"""
+    """Команда /createwebuser - привязать логин/пароль к своему Telegram аккаунту (только для админов)"""
     user_id = str(update.effective_user.id)
+    user = update.effective_user
     
     # Проверка прав администратора
     if get_user_role(user_id) != 'admin':
@@ -2263,12 +2276,15 @@ async def createwebuser_command(update: Update, context: ContextTypes.DEFAULT_TY
     # Инициализация состояния для ввода данных
     admin_states[user_id] = {
         'creating_webuser': True,
-        'step': 'username'
+        'step': 'username',
+        'telegram_user_id': user_id,
+        'telegram_name': f"{user.first_name} {user.last_name or ''}".strip()
     }
     
     await update.message.reply_text(
-        "🌐 <b>Создание веб-пользователя</b>\n\n"
-        "Введите логин для нового пользователя:\n"
+        "🌐 <b>Привязка логина/пароля к вашему Telegram аккаунту</b>\n\n"
+        "Это позволит вам входить на сайт через логин/пароль вместо Telegram.\n\n"
+        "Введите желаемый логин:\n"
         "(только латинские буквы, цифры, подчеркивание)",
         parse_mode='HTML'
     )

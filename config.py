@@ -218,8 +218,8 @@ ADMIN_CREDENTIALS = {
 # ADMIN_CREDENTIALS['superadmin'] = generate_password_hash('super_secret_password')
 # ADMIN_CREDENTIALS['superadmin_user_id'] = 'admin_super'
 
-def save_admin_credentials(username: str, password_hash: str):
-    """Сохраняет учётные данные администратора в файл"""
+def save_admin_credentials(username: str, password_hash: str, telegram_user_id: str = None):
+    """Сохраняет учётные данные администратора в файл с привязкой к Telegram ID"""
     import json
     import os
     
@@ -235,10 +235,11 @@ def save_admin_credentials(username: str, password_hash: str):
     else:
         data = {}
     
-    # Добавление нового пользователя
+    # Добавление нового пользователя с привязкой к Telegram ID
     data[username] = {
         'password_hash': password_hash,
-        'user_id': f'{username}_web',
+        'user_id': telegram_user_id if telegram_user_id else f'{username}_web',
+        'telegram_user_id': telegram_user_id,
         'created_at': dt.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
@@ -246,7 +247,10 @@ def save_admin_credentials(username: str, password_hash: str):
     with open(credentials_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     
-    print(f"✅ Веб-пользователь '{username}' сохранён в {credentials_file}")
+    if telegram_user_id:
+        print(f"✅ Логин/пароль '{username}' привязан к Telegram ID {telegram_user_id}")
+    else:
+        print(f"✅ Веб-пользователь '{username}' сохранён в {credentials_file}")
 
 def load_admin_credentials():
     """Загружает учётные данные из файла"""
@@ -263,7 +267,9 @@ def load_admin_credentials():
             # Обновление ADMIN_CREDENTIALS
             for username, creds in data.items():
                 ADMIN_CREDENTIALS[username] = creds['password_hash']
-                ADMIN_CREDENTIALS[f'{username}_user_id'] = creds['user_id']
+                # Используем telegram_user_id если есть, иначе user_id
+                user_id = creds.get('telegram_user_id') or creds.get('user_id')
+                ADMIN_CREDENTIALS[f'{username}_user_id'] = user_id
             
             print(f"✅ Загружено {len(data)} веб-пользователей из {credentials_file}")
         except Exception as e:
