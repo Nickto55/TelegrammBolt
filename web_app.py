@@ -23,7 +23,9 @@ from user_manager import (
     get_user_data,
     get_user_role, 
     register_user,
-    is_user_registered
+    is_user_registered,
+    set_user_role,
+    ROLES
 )
 from dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
 # chat_manager не имеет нужных функций для веб, используем свои реализации
@@ -103,6 +105,98 @@ def generate_pdf_report(data):
     """Обертка для создания PDF отчета"""
     # Используем create_dse_pdf_report из pdf_generator
     return create_dse_pdf_report(data)
+
+
+def save_users_data(users_data):
+    """Сохранение данных пользователей"""
+    from config import USERS_FILE
+    with open(USERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(users_data, f, indent=2, ensure_ascii=False)
+
+
+def load_permissions_log():
+    """Загрузка истории изменений прав"""
+    log_file = 'permissions_log.json'
+    if os.path.exists(log_file):
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+
+def log_permission_change(admin_id, target_user_id, old_role, new_role, old_permissions, new_permissions):
+    """Логирование изменения прав пользователя"""
+    log_file = 'permissions_log.json'
+    
+    # Загрузка существующих логов
+    logs = load_permissions_log()
+    
+    # Получение имён пользователей
+    users = get_users_data()
+    admin_name = users.get(admin_id, {}).get('first_name', f'ID: {admin_id}')
+    target_name = users.get(target_user_id, {}).get('first_name', f'ID: {target_user_id}')
+    
+    # Создание записи лога
+    log_entry = {
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'admin_id': admin_id,
+        'admin_name': admin_name,
+        'target_user_id': target_user_id,
+        'target_name': target_name,
+        'changes': {
+            'role': {
+                'old': old_role,
+                'new': new_role
+            },
+            'permissions': {
+                'old': old_permissions,
+                'new': new_permissions
+            }
+        }
+    }
+    
+    # Добавление в начало списка (новые записи сверху)
+    logs.insert(0, log_entry)
+    
+    # Ограничение размера лога (хранить последние 1000 записей)
+    logs = logs[:1000]
+    
+    # Сохранение
+    with open(log_file, 'w', encoding='utf-8') as f:
+        json.dump(logs, f, indent=2, ensure_ascii=False)
+    
+    logger.info(f"Права изменены: {admin_name} изменил роль {target_name} с {old_role} на {new_role}")
+
+
+def load_email_subscriptions():
+    """Загрузка подписок на email"""
+    subscriptions_file = 'email_subscriptions.json'
+    if os.path.exists(subscriptions_file):
+        try:
+            with open(subscriptions_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+
+def save_email_subscription(user_id, enabled, email):
+    """Сохранение подписки на email"""
+    subscriptions_file = 'email_subscriptions.json'
+    subscriptions = load_email_subscriptions()
+    
+    subscriptions[user_id] = {
+        'enabled': enabled,
+        'email': email,
+        'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    with open(subscriptions_file, 'w', encoding='utf-8') as f:
+        json.dump(subscriptions, f, indent=2, ensure_ascii=False)
+    
+    logger.info(f"Email подписка обновлена для пользователя {user_id}: enabled={enabled}, email={email}")
 
 
 # ============================================================================
@@ -206,6 +300,7 @@ def telegram_auth():
         # Сохранение данных в сессию
         session.permanent = True
         session['user_id'] = user_id
+        session['user_role'] = get_user_role(user_id)
         session['first_name'] = auth_data.get('first_name', '')
         session['last_name'] = auth_data.get('last_name', '')
         session['username'] = auth_data.get('username', '')
@@ -256,6 +351,7 @@ def admin_auth():
             # Сохранение данных в сессию
             session.permanent = True
             session['user_id'] = admin_user_id
+            session['user_role'] = 'admin'
             session['first_name'] = 'Администратор'
             session['last_name'] = ''
             session['username'] = username
@@ -338,6 +434,113 @@ def dashboard():
                          user=user_data,
                          stats=stats,
                          permissions=get_user_permissions(user_id))
+
+
+@app.route('/profile')
+@login_required
+def profile():
+    """Профиль пользователя"""
+    user_id = session['user_id']
+    user_data = get_user_data(user_id)
+    
+    # Загрузка настроек подписок
+    subscriptions = load_email_subscriptions()
+    user_subscription = subscriptions.get(user_id, {})
+    
+    return render_template('profile.html', 
+                         user=user_data,
+                         subscription=user_subscription)
+
+
+@app.route('/api/profile/email-subscription', methods=['POST'])
+@login_required
+def update_email_subscription():
+    """API: Обновление email-подписки"""
+    user_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(user_id) != 'admin':
+        return jsonify({'error': 'Только администраторы могут подписаться на рассылку'}), 403
+    
+    data = request.json
+    enabled = data.get('enabled', False)
+    email = data.get('email', '').strip()
+    
+    if enabled and not email:
+        return jsonify({'error': 'Необходимо указать email адрес'}), 400
+    
+    if enabled and '@' not in email:
+        return jsonify({'error': 'Некорректный email адрес'}), 400
+    
+    # Сохранение подписки
+    save_email_subscription(user_id, enabled, email)
+    
+    return jsonify({'success': True, 'message': 'Настройки подписки обновлены'})
+
+
+@app.route('/users')
+@login_required
+def users_management():
+    """Управление пользователями (только для админов)"""
+    user_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(user_id) != 'admin':
+        return "Доступ запрещен. Только для администраторов.", 403
+    
+    users = get_users_data()
+    
+    # Загрузка истории изменений прав
+    permissions_log = load_permissions_log()
+    
+    return render_template('users_management.html', 
+                         users=users,
+                         roles=ROLES,
+                         permissions_log=permissions_log)
+
+
+@app.route('/api/users/<user_id>/permissions', methods=['POST'])
+@login_required
+def update_user_permissions(user_id):
+    """API: Обновление прав пользователя"""
+    admin_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(admin_id) != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    data = request.json
+    new_role = data.get('role')
+    new_permissions = data.get('permissions', [])
+    
+    if not new_role or new_role not in ROLES:
+        return jsonify({'error': 'Некорректная роль'}), 400
+    
+    # Получение старых данных для логирования
+    users = get_users_data()
+    old_role = users.get(user_id, {}).get('role', 'user')
+    old_permissions = users.get(user_id, {}).get('permissions', [])
+    
+    # Обновление роли
+    set_user_role(user_id, new_role)
+    
+    # Обновление кастомных прав (если требуется)
+    users = get_users_data()
+    if user_id in users:
+        users[user_id]['permissions'] = new_permissions
+        save_users_data(users)
+    
+    # Логирование изменений
+    log_permission_change(
+        admin_id=admin_id,
+        target_user_id=user_id,
+        old_role=old_role,
+        new_role=new_role,
+        old_permissions=old_permissions,
+        new_permissions=new_permissions
+    )
+    
+    return jsonify({'success': True, 'message': 'Права обновлены'})
 
 
 @app.route('/dse')
@@ -659,6 +862,143 @@ def internal_error(error):
     """Обработка 500 ошибки"""
     logger.error(f"Internal error: {error}")
     return render_template('500.html'), 500
+
+
+# ============================================================================
+# API ДЛЯ ПРОФИЛЯ
+# ============================================================================
+
+@app.route('/api/profile/stats')
+@login_required
+def get_profile_stats():
+    """API: Получение статистики пользователя"""
+    user_id = session['user_id']
+    
+    # Подсчёт статистики
+    dse_data = get_all_dse()
+    user_dse = [d for d in dse_data if d.get('user_id') == user_id]
+    
+    stats = {
+        'dse_count': len(user_dse),
+        'reports_count': 0,  # TODO: подсчёт отчётов
+        'chats_count': 0,    # TODO: подсчёт чатов
+        'activity_days': calculate_activity_days(user_id)
+    }
+    
+    return jsonify(stats)
+
+
+@app.route('/api/profile/test-email', methods=['POST'])
+@login_required
+def send_test_email():
+    """API: Отправка тестового email"""
+    user_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(user_id) != 'admin':
+        return jsonify({'error': 'Только администраторы могут отправлять тестовые письма'}), 403
+    
+    data = request.json
+    email = data.get('email', '').strip()
+    
+    if not email or '@' not in email:
+        return jsonify({'error': 'Некорректный email адрес'}), 400
+    
+    try:
+        # Отправка тестового письма
+        send_test_notification_email(email, user_id)
+        return jsonify({'success': True, 'message': 'Тестовое письмо отправлено'})
+    except Exception as e:
+        logger.error(f"Ошибка отправки тестового письма: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def calculate_activity_days(user_id):
+    """Подсчёт дней активности пользователя"""
+    dse_data = get_all_dse()
+    user_dse = [d for d in dse_data if d.get('user_id') == user_id]
+    
+    if not user_dse:
+        return 0
+    
+    # Получение уникальных дат
+    dates = set()
+    for record in user_dse:
+        try:
+            date_str = record.get('datetime', '').split(' ')[0]
+            if date_str:
+                dates.add(date_str)
+        except:
+            pass
+    
+    return len(dates)
+
+
+def send_test_notification_email(email, user_id):
+    """Отправка тестового уведомления на email"""
+    from email_manager import send_email_with_pdf
+    
+    # Создание тестового сообщения
+    subject = "BOLT - Тестовое уведомление"
+    body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+        <h2 style="color: #1E5EFF;">BOLT - Тестовое уведомление</h2>
+        <p>Это тестовое письмо для проверки настроек email-рассылки.</p>
+        <p><strong>ID пользователя:</strong> {user_id}</p>
+        <p><strong>Дата отправки:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <hr>
+        <p style="color: #666; font-size: 12px;">
+            Вы получили это письмо, потому что подписались на уведомления о новых заявлениях в системе BOLT.
+        </p>
+    </body>
+    </html>
+    """
+    
+    # Отправка без вложения
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    
+    # Загрузка SMTP настроек
+    smtp_config = {}
+    try:
+        with open('smtp_config.json', 'r', encoding='utf-8') as f:
+            smtp_config = json.load(f)
+    except:
+        raise Exception("SMTP настройки не найдены. Настройте smtp_config.json")
+    
+    msg = MIMEMultipart()
+    msg['From'] = smtp_config.get('from_email', 'noreply@bolt.local')
+    msg['To'] = email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'html'))
+    
+    server = smtplib.SMTP(smtp_config['smtp_server'], smtp_config['smtp_port'])
+    server.starttls()
+    server.login(smtp_config['smtp_user'], smtp_config['smtp_password'])
+    server.send_message(msg)
+    server.quit()
+    
+    logger.info(f"Тестовое письмо отправлено на {email}")
+
+
+# ============================================================================
+# API ДЛЯ ИСТОРИИ ИЗМЕНЕНИЙ ПРАВ
+# ============================================================================
+
+@app.route('/api/permissions/log')
+@login_required
+def get_permissions_log_api():
+    """API: Получение истории изменений прав"""
+    user_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(user_id) != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    logs = load_permissions_log()
+    return jsonify(logs)
 
 
 # ============================================================================

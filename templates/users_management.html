@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Управление пользователями - BOLT{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-3">
+                <i class="bi bi-people"></i> Управление пользователями
+            </h1>
+        </div>
+    </div>
+    
+    <!-- Список пользователей -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-person-lines-fill"></i> Пользователи системы</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Имя</th>
+                                    <th>Username</th>
+                                    <th>Роль</th>
+                                    <th>Права</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user_id, user_data in users.items() %}
+                                <tr>
+                                    <td><code>{{ user_id }}</code></td>
+                                    <td>{{ user_data.get('first_name', 'Неизвестно') }} {{ user_data.get('last_name', '') }}</td>
+                                    <td>
+                                        {% if user_data.get('username') %}
+                                        @{{ user_data.username }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if user_data.get('role') == 'admin' %}bg-danger
+                                            {% elif user_data.get('role') == 'responder' %}bg-success
+                                            {% elif user_data.get('role') == 'initiator' %}bg-info
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ roles.get(user_data.get('role', 'user'), 'Пользователь') }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ user_data.get('permissions', []) | length }} прав
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="editUser('{{ user_id }}', {{ user_data | tojson }})">
+                                            <i class="bi bi-pencil"></i> Изменить
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- История изменений -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> История изменений прав</h5>
+                    <button class="btn btn-sm btn-light" onclick="loadPermissionsLog()">
+                        <i class="bi bi-arrow-clockwise"></i> Обновить
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="permissionsLog">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования пользователя -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-person-gear"></i> Редактирование прав пользователя</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <h6>Пользователь:</h6>
+                    <p id="editUserName" class="text-muted mb-0"></p>
+                    <small id="editUserId" class="text-muted"></small>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="editUserRole" class="form-label">Роль:</label>
+                    <select class="form-select" id="editUserRole">
+                        <option value="user">👤 Пользователь</option>
+                        <option value="initiator">📝 Инициатор заявок</option>
+                        <option value="responder">🔧 Ответственный</option>
+                        <option value="admin">⭐ Администратор</option>
+                    </select>
+                    <small class="form-text text-muted">
+                        Роль определяет базовый набор прав пользователя
+                    </small>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Дополнительные права:</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="perm_view_dse" value="view_dse">
+                        <label class="form-check-label" for="perm_view_dse">
+                            Просмотр ДСЕ
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="perm_export_data" value="export_data">
+                        <label class="form-check-label" for="perm_export_data">
+                            Экспорт данных
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="perm_add_dse" value="add_dse">
+                        <label class="form-check-label" for="perm_add_dse">
+                            Добавление ДСЕ
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="perm_edit_dse" value="edit_dse">
+                        <label class="form-check-label" for="perm_edit_dse">
+                            Редактирование ДСЕ
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="perm_delete_dse" value="delete_dse">
+                        <label class="form-check-label" for="perm_delete_dse">
+                            Удаление ДСЕ
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="perm_chat_dse" value="chat_dse">
+                        <label class="form-check-label" for="perm_chat_dse">
+                            Чат по ДСЕ
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveUserPermissions()">
+                    <i class="bi bi-save"></i> Сохранить изменения
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentEditingUserId = null;
+
+// Загрузка истории изменений при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    loadPermissionsLog();
+});
+
+function editUser(userId, userData) {
+    currentEditingUserId = userId;
+    
+    // Заполнение данных пользователя
+    document.getElementById('editUserName').textContent = 
+        (userData.first_name || 'Неизвестно') + ' ' + (userData.last_name || '');
+    document.getElementById('editUserId').textContent = 'ID: ' + userId;
+    
+    // Установка текущей роли
+    document.getElementById('editUserRole').value = userData.role || 'user';
+    
+    // Сброс всех чекбоксов
+    document.querySelectorAll('.form-check-input').forEach(cb => cb.checked = false);
+    
+    // Установка текущих прав
+    const permissions = userData.permissions || [];
+    permissions.forEach(perm => {
+        const checkbox = document.getElementById('perm_' + perm);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    });
+    
+    // Открытие модального окна
+    const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+    modal.show();
+}
+
+function saveUserPermissions() {
+    if (!currentEditingUserId) return;
+    
+    const newRole = document.getElementById('editUserRole').value;
+    
+    // Собираем выбранные права
+    const selectedPermissions = [];
+    document.querySelectorAll('.form-check-input:checked').forEach(cb => {
+        selectedPermissions.push(cb.value);
+    });
+    
+    // Отправка на сервер
+    fetch(`/api/users/${currentEditingUserId}/permissions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            role: newRole,
+            permissions: selectedPermissions
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Закрытие модального окна
+            bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+            
+            // Показ уведомления
+            alert('✅ Права пользователя успешно обновлены!');
+            
+            // Перезагрузка страницы
+            location.reload();
+        } else {
+            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('❌ Ошибка при сохранении изменений');
+    });
+}
+
+function loadPermissionsLog() {
+    const logContainer = document.getElementById('permissionsLog');
+    
+    fetch('/api/permissions/log')
+        .then(response => response.json())
+        .then(data => {
+            if (data.length === 0) {
+                logContainer.innerHTML = '<p class="text-center text-muted py-4">История изменений пуста</p>';
+                return;
+            }
+            
+            let html = '<div class="timeline">';
+            
+            data.slice(0, 50).forEach(log => {
+                const roleChange = log.changes.role;
+                html += `
+                    <div class="timeline-item mb-3 p-3 border-start border-3 border-primary">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <strong>${log.admin_name}</strong> 
+                                <span class="text-muted">изменил права пользователя</span>
+                                <strong>${log.target_name}</strong>
+                            </div>
+                            <small class="text-muted">${log.timestamp}</small>
+                        </div>
+                        <div class="text-muted small">
+                            <div>
+                                Роль: 
+                                <span class="badge bg-secondary">${getRoleName(roleChange.old)}</span>
+                                <i class="bi bi-arrow-right"></i>
+                                <span class="badge bg-primary">${getRoleName(roleChange.new)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            logContainer.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки истории:', error);
+            logContainer.innerHTML = '<p class="text-center text-danger py-4">Ошибка загрузки истории</p>';
+        });
+}
+
+function getRoleName(role) {
+    const roles = {
+        'admin': 'Администратор',
+        'responder': 'Ответственный',
+        'initiator': 'Инициатор',
+        'user': 'Пользователь'
+    };
+    return roles[role] || role;
+}
+</script>
+
+<style>
+.timeline-item {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.timeline-item:hover {
+    background-color: #e9ecef;
+    transition: background-color 0.3s ease;
+}
+</style>
+{% endblock %}

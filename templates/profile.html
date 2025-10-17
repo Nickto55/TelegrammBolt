@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль - BOLT{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-3">
+                <i class="bi bi-person-circle"></i> Профиль пользователя
+            </h1>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Информация о пользователе -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-person-badge"></i> Информация</h5>
+                </div>
+                <div class="card-body">
+                    {% if session.photo_url %}
+                    <div class="text-center mb-3">
+                        <img src="{{ session.photo_url }}" alt="Avatar" class="rounded-circle" width="100" height="100">
+                    </div>
+                    {% endif %}
+                    
+                    <table class="table table-borderless">
+                        <tr>
+                            <th style="width: 40%;">ID:</th>
+                            <td><code>{{ session.user_id }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Имя:</th>
+                            <td>{{ session.first_name }} {{ session.last_name }}</td>
+                        </tr>
+                        {% if session.username %}
+                        <tr>
+                            <th>Username:</th>
+                            <td>@{{ session.username }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>Роль:</th>
+                            <td>
+                                <span class="badge 
+                                    {% if session.user_role == 'admin' %}bg-danger
+                                    {% elif session.user_role == 'responder' %}bg-success
+                                    {% elif session.user_role == 'initiator' %}bg-info
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ session.user_role }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% if session.auth_type %}
+                        <tr>
+                            <th>Тип входа:</th>
+                            <td>
+                                {% if session.auth_type == 'admin' %}
+                                <span class="badge bg-warning">Логин/Пароль</span>
+                                {% else %}
+                                <span class="badge bg-info">Telegram</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Email-подписка (только для админов) -->
+        {% if session.user_role == 'admin' %}
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-envelope"></i> Email-уведомления</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Получайте уведомления о новых заявлениях (ДСЕ) с автоматическим экспортом в PDF на указанный email.
+                    </div>
+                    
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="emailSubscriptionEnabled" 
+                               {% if subscription.enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="emailSubscriptionEnabled">
+                            <strong>Включить email-рассылку</strong>
+                        </label>
+                    </div>
+                    
+                    <div id="emailInput" style="{% if not subscription.enabled %}display: none;{% endif %}">
+                        <div class="mb-3">
+                            <label for="emailAddress" class="form-label">Email адрес:</label>
+                            <input type="email" class="form-control" id="emailAddress" 
+                                   placeholder="example@company.com"
+                                   value="{{ subscription.email or '' }}">
+                            <small class="form-text text-muted">
+                                На этот адрес будут отправляться PDF-отчёты о новых заявлениях
+                            </small>
+                        </div>
+                    </div>
+                    
+                    {% if subscription.updated_at %}
+                    <div class="text-muted small mb-3">
+                        <i class="bi bi-clock"></i> Последнее обновление: {{ subscription.updated_at }}
+                    </div>
+                    {% endif %}
+                    
+                    <button class="btn btn-primary" onclick="saveEmailSubscription()">
+                        <i class="bi bi-save"></i> Сохранить настройки
+                    </button>
+                    
+                    <button class="btn btn-outline-secondary" onclick="testEmailNotification()">
+                        <i class="bi bi-send"></i> Отправить тестовое письмо
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Статистика пользователя -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Моя статистика</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h2 class="text-primary mb-0" id="myDseCount">-</h2>
+                                <p class="text-muted mb-0">Моих заявлений</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h2 class="text-success mb-0" id="myReportsCount">-</h2>
+                                <p class="text-muted mb-0">Отчётов создано</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h2 class="text-info mb-0" id="myChatsCount">-</h2>
+                                <p class="text-muted mb-0">Активных чатов</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h2 class="text-warning mb-0" id="lastActivityDays">-</h2>
+                                <p class="text-muted mb-0">Дней активности</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Показ/скрытие поля email
+document.getElementById('emailSubscriptionEnabled').addEventListener('change', function() {
+    const emailInput = document.getElementById('emailInput');
+    if (this.checked) {
+        emailInput.style.display = 'block';
+    } else {
+        emailInput.style.display = 'none';
+    }
+});
+
+function saveEmailSubscription() {
+    const enabled = document.getElementById('emailSubscriptionEnabled').checked;
+    const email = document.getElementById('emailAddress').value.trim();
+    
+    fetch('/api/profile/email-subscription', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            enabled: enabled,
+            email: email
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Настройки сохранены успешно!');
+        } else {
+            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('❌ Ошибка при сохранении настроек');
+    });
+}
+
+function testEmailNotification() {
+    const email = document.getElementById('emailAddress').value.trim();
+    
+    if (!email) {
+        alert('Укажите email адрес');
+        return;
+    }
+    
+    fetch('/api/profile/test-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            email: email
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Тестовое письмо отправлено! Проверьте почту.');
+        } else {
+            alert('❌ Ошибка отправки: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('❌ Ошибка при отправке письма');
+    });
+}
+
+// Загрузка статистики
+document.addEventListener('DOMContentLoaded', function() {
+    loadUserStats();
+});
+
+function loadUserStats() {
+    fetch('/api/profile/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('myDseCount').textContent = data.dse_count || 0;
+            document.getElementById('myReportsCount').textContent = data.reports_count || 0;
+            document.getElementById('myChatsCount').textContent = data.chats_count || 0;
+            document.getElementById('lastActivityDays').textContent = data.activity_days || 0;
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки статистики:', error);
+        });
+}
+</script>
+
+<style>
+.stat-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}
