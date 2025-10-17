@@ -1,4 +1,4 @@
-import time
+﻿import time
 from datetime import datetime as dt
 import subprocess
 import asyncio
@@ -111,8 +111,8 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     # Кнопки отправки и возврата, если основные поля заполнены (теперь включая RC)
     if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
         keyboard.append([InlineKeyboardButton("📤 Отправить", callback_data='send')])
-        keyboard.append([InlineKeyboardButton("� Отправить по почте", callback_data='send_application_email')])
-        keyboard.append([InlineKeyboardButton("�🔄 Изменить", callback_data='edit_application')])
+        keyboard.append([InlineKeyboardButton("📧 Отправить по почте", callback_data='send_application_email')])
+        keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
 
     # Кнопка возврата в главное меню
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')])
@@ -193,11 +193,11 @@ async def show_main_menu(update: Update, user_id: str) -> None:
     if has_permission(user_id, 'chat_dse'):
         keyboard.append([InlineKeyboardButton("💬 Чат по ДСЕ", callback_data='chat_dse_menu')])
 
-    # === КНОПКА 9: "� PDF Отчет" ===
+    # === КНОПКА 9: "📄 PDF Отчет" ===
     if has_permission(user_id, 'pdf_export'):
         keyboard.append([InlineKeyboardButton("📄 PDF Отчет", callback_data='pdf_export_menu')])
 
-    # === КНОПКА 10: "�🔧 Управление пользователями" ===
+    # === КНОПКА 10: "🔧 Управление пользователями" ===
     if role == 'admin':
         keyboard.append([InlineKeyboardButton("🔧 Управление пользователями", callback_data='admin_users')])
 
