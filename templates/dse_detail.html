@@ -268,8 +268,8 @@
                         <i class="bi bi-printer me-2"></i>
                         Печать
                     </button>
-                    <a href="{{ url_for('dse_list') }}?export=pdf&dse={{ dse.get('dse', '') }}" 
-                       class="btn btn-outline-primary w-100 mb-2">
+                    <a href="{{ url_for('pdf_export_page') }}?preselect={{ dse.get('dse', '') }}" 
+                       class="btn btn-danger w-100 mb-2">
                         <i class="bi bi-file-pdf me-2"></i>
                         Экспорт в PDF
                     </a>

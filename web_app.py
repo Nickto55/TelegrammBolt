@@ -101,10 +101,89 @@ def send_chat_message(user_id, target_user_id, message):
     return {"success": False, "error": "Функция в разработке"}
 
 
-def generate_pdf_report(data):
-    """Обертка для создания PDF отчета"""
-    # Используем create_dse_pdf_report из pdf_generator
-    return create_dse_pdf_report(data)
+def generate_pdf_report(options):
+    """Генерация PDF отчета с новыми опциями"""
+    import tempfile
+    import zipfile
+    from telegram import Bot
+    import asyncio
+    
+    dse_numbers = options.get('dse_numbers', [])
+    mode = options.get('mode', 'single')
+    include_photos = options.get('include_photos', True)
+    include_description = options.get('include_description', True)
+    include_user_info = options.get('include_user_info', True)
+    include_timestamp = options.get('include_timestamp', True)
+    page_format = options.get('page_format', 'A4')
+    page_orientation = options.get('page_orientation', 'portrait')
+    
+    # Получаем записи по номерам ДСЕ
+    all_records = get_all_dse()
+    selected_records = [r for r in all_records if r.get('dse') in dse_numbers]
+    
+    if not selected_records:
+        raise ValueError("Не найдены записи с указанными номерами ДСЕ")
+    
+    if mode == 'single':
+        # Один PDF файл со всеми ДСЕ
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+        temp_file.close()
+        
+        # Создаем PDF с множественными записями
+        from pdf_generator import create_multi_dse_pdf_report
+        create_multi_dse_pdf_report(
+            selected_records, 
+            temp_file.name,
+            options={
+                'include_photos': include_photos,
+                'include_description': include_description,
+                'include_user_info': include_user_info,
+                'include_timestamp': include_timestamp,
+                'page_format': page_format,
+                'page_orientation': page_orientation,
+                'bot_token': BOT_TOKEN if include_photos else None
+            }
+        )
+        
+        return temp_file.name
+    
+    else:
+        # Множественные PDF файлы в ZIP архиве
+        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_zip.close()
+        
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for i, record in enumerate(selected_records):
+                temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                temp_pdf.close()
+                
+                # Создаем PDF для каждой записи
+                from pdf_generator import create_single_dse_pdf_report
+                create_single_dse_pdf_report(
+                    record,
+                    temp_pdf.name,
+                    options={
+                        'include_photos': include_photos,
+                        'include_description': include_description,
+                        'include_user_info': include_user_info,
+                        'include_timestamp': include_timestamp,
+                        'page_format': page_format,
+                        'page_orientation': page_orientation,
+                        'bot_token': BOT_TOKEN if include_photos else None
+                    }
+                )
+                
+                # Добавляем в ZIP
+                dse_safe = str(record.get('dse', f'dse_{i}')).replace('/', '_').replace('\\', '_')
+                zipf.write(temp_pdf.name, f'DSE_{dse_safe}.pdf')
+                
+                # Удаляем временный PDF
+                try:
+                    os.remove(temp_pdf.name)
+                except:
+                    pass
+        
+        return temp_zip.name
 
 
 def save_users_data(users_data):
@@ -630,6 +709,30 @@ def get_photo(photo_id):
         return send_file('static/img/no-image.svg', mimetype='image/svg+xml')
 
 
+@app.route('/pdf-export')
+@login_required
+def pdf_export_page():
+    """Страница выбора ДСЕ для экспорта в PDF"""
+    user_id = session['user_id']
+    
+    if not has_permission(user_id, 'export_data'):
+        return "Доступ запрещен", 403
+    
+    # Получаем все ДСЕ
+    dse_data = get_all_dse()
+    
+    # Получаем уникальные типы проблем
+    problem_types = sorted(list(set([d.get('problem_type', '') for d in dse_data if d.get('problem_type')])))
+    
+    # Получаем уникальные ID пользователей
+    user_ids = sorted(list(set([d.get('user_id', '') for d in dse_data if d.get('user_id')])))
+    
+    return render_template('pdf_export.html', 
+                         dse_data=dse_data,
+                         problem_types=problem_types,
+                         user_ids=user_ids)
+
+
 @app.route('/reports')
 @login_required
 def reports():
@@ -763,16 +866,28 @@ def api_export_pdf():
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     try:
-        data = request.json
-        pdf_path = generate_pdf_report(data)
+        options = request.json
+        
+        if not options.get('dse_numbers'):
+            return jsonify({'error': 'Не указаны номера ДСЕ'}), 400
+        
+        pdf_path = generate_pdf_report(options)
+        
+        # Определяем MIME тип и имя файла
+        if options.get('mode') == 'multiple':
+            mimetype = 'application/zip'
+            download_name = f'DSE_Export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip'
+        else:
+            mimetype = 'application/pdf'
+            download_name = f'DSE_Export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
         
         return send_file(pdf_path,
                         as_attachment=True,
-                        download_name=f'report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf',
-                        mimetype='application/pdf')
+                        download_name=download_name,
+                        mimetype=mimetype)
     except Exception as e:
         logger.error(f"PDF generation error: {e}")
-        return jsonify({'error': 'Ошибка генерации PDF'}), 500
+        return jsonify({'error': f'Ошибка генерации PDF: {str(e)}'}), 500
 
 
 @app.route('/api/chat/messages', methods=['GET'])

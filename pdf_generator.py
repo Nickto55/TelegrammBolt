@@ -255,6 +255,370 @@ def create_dse_pdf_report(record_data, filename=None):
         return None
 
 
+def create_single_dse_pdf_report(record_data, filename, options=None):
+    """
+    Создание PDF отчета для одной записи ДСЕ с расширенными опциями
+    
+    :param record_data: Данные записи
+    :param filename: Путь к выходному файлу
+    :param options: Словарь с опциями (include_photos, include_description, etc.)
+    :return: True если успешно, False если ошибка
+    """
+    if options is None:
+        options = {}
+    
+    try:
+        from reportlab.lib.pagesizes import A4, A3, LETTER, landscape, portrait
+        from reportlab.platypus import PageBreak, Image as RLImage
+        
+        # Определяем размер страницы
+        page_format = options.get('page_format', 'A4')
+        if page_format == 'A3':
+            pagesize = A3
+        elif page_format == 'Letter':
+            pagesize = LETTER
+        else:
+            pagesize = A4
+        
+        # Определяем ориентацию
+        if options.get('page_orientation') == 'landscape':
+            pagesize = landscape(pagesize)
+        else:
+            pagesize = portrait(pagesize)
+        
+        # Создаем документ
+        doc = SimpleDocTemplate(
+            filename,
+            pagesize=pagesize,
+            rightMargin=20*mm,
+            leftMargin=20*mm,
+            topMargin=20*mm,
+            bottomMargin=20*mm
+        )
+        
+        generator = DSEPDFGenerator()
+        story = []
+        
+        # Заголовок
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=generator.styles['Heading1'],
+            fontName=generator.font_bold,
+            fontSize=16,
+            alignment=1,
+            spaceAfter=20
+        )
+        
+        title = Paragraph("ОТЧЕТ ПО ЗАЯВКЕ ДСЕ", title_style)
+        story.append(title)
+        story.append(Spacer(1, 10*mm))
+        
+        # Основная информация
+        info_data = [
+            ['Номер ДСЕ:', str(record_data.get('dse', 'N/A'))],
+            ['Тип проблемы:', str(record_data.get('problem_type', 'N/A'))],
+            ['РЦ:', str(record_data.get('rc', 'N/A'))],
+        ]
+        
+        if options.get('include_timestamp', True):
+            info_data.append(['Дата создания:', str(record_data.get('datetime', 'N/A'))])
+        
+        if options.get('include_user_info', True):
+            info_data.append(['Автор:', f"ID: {record_data.get('user_id', 'N/A')}"])
+        
+        info_table = Table(info_data, colWidths=[50*mm, 120*mm])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), generator.font_bold),
+            ('FONTNAME', (1, 0), (1, -1), generator.font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        
+        story.append(info_table)
+        story.append(Spacer(1, 10*mm))
+        
+        # Описание
+        if options.get('include_description', True) and record_data.get('description'):
+            desc_style = ParagraphStyle(
+                'DescTitle',
+                parent=generator.styles['Normal'],
+                fontName=generator.font_bold,
+                fontSize=12
+            )
+            desc_title = Paragraph("<b>Описание проблемы:</b>", desc_style)
+            story.append(desc_title)
+            story.append(Spacer(1, 3*mm))
+            
+            desc_text = str(record_data.get('description', ''))
+            desc_para = Paragraph(desc_text, generator.styles['Normal'])
+            story.append(desc_para)
+            story.append(Spacer(1, 10*mm))
+        
+        # Фотографии
+        if options.get('include_photos', True) and record_data.get('photo_file_id'):
+            bot_token = options.get('bot_token')
+            if bot_token:
+                try:
+                    from telegram import Bot
+                    import asyncio
+                    import tempfile
+                    
+                    async def download_photo():
+                        bot = Bot(token=bot_token)
+                        file = await bot.get_file(record_data['photo_file_id'])
+                        temp_photo = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                        temp_photo.close()
+                        await file.download_to_drive(temp_photo.name)
+                        return temp_photo.name
+                    
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    photo_path = loop.run_until_complete(download_photo())
+                    loop.close()
+                    
+                    # Добавляем фото в PDF
+                    photo_title = Paragraph("<b>Прикрепленные фотографии:</b>", desc_style)
+                    story.append(photo_title)
+                    story.append(Spacer(1, 3*mm))
+                    
+                    # Масштабируем фото
+                    img = RLImage(photo_path, width=150*mm, height=100*mm, kind='proportional')
+                    story.append(img)
+                    story.append(Spacer(1, 5*mm))
+                    
+                    # Удаляем временный файл
+                    try:
+                        os.remove(photo_path)
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    print(f"Ошибка загрузки фото: {e}")
+        
+        # Футер с информацией о создании
+        if options.get('include_timestamp', True):
+            footer_style = ParagraphStyle(
+                'Footer',
+                parent=generator.styles['Normal'],
+                fontName=generator.font_name,
+                fontSize=8,
+                alignment=2
+            )
+            creation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            footer_text = f"Отчет создан: {creation_time}"
+            footer = Paragraph(footer_text, footer_style)
+            story.append(Spacer(1, 10*mm))
+            story.append(footer)
+        
+        doc.build(story)
+        return True
+        
+    except Exception as e:
+        print(f"Ошибка создания PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def create_multi_dse_pdf_report(records_list, filename, options=None):
+    """
+    Создание PDF отчета с несколькими записями ДСЕ
+    
+    :param records_list: Список записей ДСЕ
+    :param filename: Путь к выходному файлу
+    :param options: Словарь с опциями
+    :return: True если успешно, False если ошибка
+    """
+    if options is None:
+        options = {}
+    
+    try:
+        from reportlab.lib.pagesizes import A4, A3, LETTER, landscape, portrait
+        from reportlab.platypus import PageBreak, Image as RLImage
+        
+        # Определяем размер страницы
+        page_format = options.get('page_format', 'A4')
+        if page_format == 'A3':
+            pagesize = A3
+        elif page_format == 'Letter':
+            pagesize = LETTER
+        else:
+            pagesize = A4
+        
+        # Определяем ориентацию
+        if options.get('page_orientation') == 'landscape':
+            pagesize = landscape(pagesize)
+        else:
+            pagesize = portrait(pagesize)
+        
+        # Создаем документ
+        doc = SimpleDocTemplate(
+            filename,
+            pagesize=pagesize,
+            rightMargin=20*mm,
+            leftMargin=20*mm,
+            topMargin=20*mm,
+            bottomMargin=20*mm
+        )
+        
+        generator = DSEPDFGenerator()
+        story = []
+        
+        # Титульная страница
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=generator.styles['Heading1'],
+            fontName=generator.font_bold,
+            fontSize=18,
+            alignment=1,
+            spaceAfter=20
+        )
+        
+        title = Paragraph(f"ОТЧЕТ ПО ЗАЯВКАМ ДСЕ", title_style)
+        story.append(title)
+        story.append(Spacer(1, 5*mm))
+        
+        subtitle_style = ParagraphStyle(
+            'Subtitle',
+            parent=generator.styles['Normal'],
+            fontName=generator.font_name,
+            fontSize=12,
+            alignment=1
+        )
+        
+        subtitle = Paragraph(f"Всего записей: {len(records_list)}", subtitle_style)
+        story.append(subtitle)
+        
+        if options.get('include_timestamp', True):
+            date_text = Paragraph(f"Дата создания: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style)
+            story.append(date_text)
+        
+        story.append(PageBreak())
+        
+        # Добавляем каждую запись
+        for i, record_data in enumerate(records_list, 1):
+            # Заголовок записи
+            record_title_style = ParagraphStyle(
+                'RecordTitle',
+                parent=generator.styles['Heading2'],
+                fontName=generator.font_bold,
+                fontSize=14,
+                spaceAfter=10
+            )
+            
+            record_title = Paragraph(f"Запись {i} из {len(records_list)}: {record_data.get('dse', 'N/A')}", record_title_style)
+            story.append(record_title)
+            story.append(Spacer(1, 5*mm))
+            
+            # Основная информация
+            info_data = [
+                ['Номер ДСЕ:', str(record_data.get('dse', 'N/A'))],
+                ['Тип проблемы:', str(record_data.get('problem_type', 'N/A'))],
+                ['РЦ:', str(record_data.get('rc', 'N/A'))],
+            ]
+            
+            if options.get('include_timestamp', True):
+                info_data.append(['Дата создания:', str(record_data.get('datetime', 'N/A'))])
+            
+            if options.get('include_user_info', True):
+                info_data.append(['Автор:', f"ID: {record_data.get('user_id', 'N/A')}"])
+            
+            info_table = Table(info_data, colWidths=[50*mm, 120*mm])
+            info_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (0, -1), generator.font_bold),
+                ('FONTNAME', (1, 0), (1, -1), generator.font_name),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            
+            story.append(info_table)
+            story.append(Spacer(1, 8*mm))
+            
+            # Описание
+            if options.get('include_description', True) and record_data.get('description'):
+                desc_style = ParagraphStyle(
+                    'DescTitle',
+                    parent=generator.styles['Normal'],
+                    fontName=generator.font_bold,
+                    fontSize=11
+                )
+                desc_title = Paragraph("<b>Описание:</b>", desc_style)
+                story.append(desc_title)
+                story.append(Spacer(1, 2*mm))
+                
+                desc_text = str(record_data.get('description', ''))
+                desc_para_style = ParagraphStyle(
+                    'DescText',
+                    parent=generator.styles['Normal'],
+                    fontName=generator.font_name,
+                    fontSize=10
+                )
+                desc_para = Paragraph(desc_text, desc_para_style)
+                story.append(desc_para)
+                story.append(Spacer(1, 8*mm))
+            
+            # Фотографии
+            if options.get('include_photos', True) and record_data.get('photo_file_id'):
+                bot_token = options.get('bot_token')
+                if bot_token:
+                    try:
+                        from telegram import Bot
+                        import asyncio
+                        import tempfile
+                        
+                        async def download_photo():
+                            bot = Bot(token=bot_token)
+                            file = await bot.get_file(record_data['photo_file_id'])
+                            temp_photo = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                            temp_photo.close()
+                            await file.download_to_drive(temp_photo.name)
+                            return temp_photo.name
+                        
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        photo_path = loop.run_until_complete(download_photo())
+                        loop.close()
+                        
+                        # Добавляем фото в PDF
+                        photo_title = Paragraph("<b>Фото:</b>", desc_style)
+                        story.append(photo_title)
+                        story.append(Spacer(1, 2*mm))
+                        
+                        # Масштабируем фото
+                        img = RLImage(photo_path, width=120*mm, height=80*mm, kind='proportional')
+                        story.append(img)
+                        story.append(Spacer(1, 5*mm))
+                        
+                        # Удаляем временный файл
+                        try:
+                            os.remove(photo_path)
+                        except:
+                            pass
+                            
+                    except Exception as e:
+                        print(f"Ошибка загрузки фото для записи {i}: {e}")
+            
+            # Разделитель между записями
+            if i < len(records_list):
+                story.append(Spacer(1, 10*mm))
+                story.append(PageBreak())
+        
+        doc.build(story)
+        return True
+        
+    except Exception as e:
+        print(f"Ошибка создания мульти-PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 async def show_pdf_export_menu(update, context):
     """
     Показать меню экспорта PDF

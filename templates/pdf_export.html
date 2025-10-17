@@ -1,0 +1,494 @@
+{% extends "base.html" %}
+
+{% block title %}Экспорт в PDF - BOLT{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Хлебные крошки -->
+    <nav aria-label="breadcrumb" class="mt-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Главная</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('dse_list') }}">ДСЕ</a></li>
+            <li class="breadcrumb-item active">Экспорт в PDF</li>
+        </ol>
+    </nav>
+
+    <!-- Заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">
+            <i class="bi bi-file-pdf me-2 text-danger"></i>
+            Экспорт ДСЕ в PDF
+        </h1>
+        <a href="{{ url_for('dse_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>
+            Назад
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Левая панель - выбор ДСЕ -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-check me-2"></i>
+                            Выбор ДСЕ для экспорта
+                        </h5>
+                        <span class="badge bg-light text-primary" id="selectedCount">Выбрано: 0</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Фильтры и поиск -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small">Поиск по номеру ДСЕ</label>
+                            <input type="text" class="form-control" id="searchDse" placeholder="Введите номер...">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Тип проблемы</label>
+                            <select class="form-select" id="filterProblemType">
+                                <option value="">Все типы</option>
+                                {% for problem_type in problem_types %}
+                                <option value="{{ problem_type }}">{{ problem_type }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Пользователь</label>
+                            <select class="form-select" id="filterUser">
+                                <option value="">Все пользователи</option>
+                                {% for user_id in user_ids %}
+                                <option value="{{ user_id }}">ID: {{ user_id }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Массовые действия -->
+                    <div class="d-flex gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-primary" onclick="selectAll()">
+                            <i class="bi bi-check-all me-1"></i>
+                            Выбрать все
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="deselectAll()">
+                            <i class="bi bi-x-lg me-1"></i>
+                            Снять все
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" onclick="invertSelection()">
+                            <i class="bi bi-arrow-repeat me-1"></i>
+                            Инвертировать
+                        </button>
+                    </div>
+
+                    <!-- Список ДСЕ с чекбоксами -->
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-hover">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" class="form-check-input" id="selectAllCheckbox" onchange="toggleAllCheckboxes(this)">
+                                    </th>
+                                    <th>Номер ДСЕ</th>
+                                    <th>Тип проблемы</th>
+                                    <th>Описание</th>
+                                    <th>Дата</th>
+                                    <th>Фото</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dseTableBody">
+                                {% for dse in dse_data %}
+                                <tr class="dse-row" 
+                                    data-dse="{{ dse.dse }}" 
+                                    data-problem-type="{{ dse.problem_type }}" 
+                                    data-user-id="{{ dse.user_id }}">
+                                    <td>
+                                        <input type="checkbox" 
+                                               class="form-check-input dse-checkbox" 
+                                               value="{{ dse.dse }}" 
+                                               onchange="updateSelectedCount()">
+                                    </td>
+                                    <td><strong>{{ dse.dse }}</strong></td>
+                                    <td><span class="badge bg-info">{{ dse.problem_type or 'Не указано' }}</span></td>
+                                    <td><small>{{ (dse.description or 'Нет описания')[:60] }}...</small></td>
+                                    <td><small>{{ dse.datetime }}</small></td>
+                                    <td>
+                                        {% if dse.photo_file_id or dse.photos %}
+                                        <i class="bi bi-image text-success" title="Есть фото"></i>
+                                        {% else %}
+                                        <i class="bi bi-image text-muted" title="Нет фото"></i>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if not dse_data %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Нет доступных ДСЕ для экспорта
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Правая панель - настройки экспорта -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4 sticky-top" style="top: 20px;">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-gear me-2"></i>
+                        Настройки экспорта
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Режим экспорта -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-file-earmark-pdf me-2"></i>
+                            Режим экспорта
+                        </label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="exportMode" id="modeSingle" value="single" checked>
+                            <label class="form-check-label" for="modeSingle">
+                                <strong>Один PDF файл</strong>
+                                <br><small class="text-muted">Все выбранные ДСЕ в одном документе</small>
+                            </label>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="radio" name="exportMode" id="modeMultiple" value="multiple">
+                            <label class="form-check-label" for="modeMultiple">
+                                <strong>Отдельные PDF файлы</strong>
+                                <br><small class="text-muted">По одному файлу для каждого ДСЕ (ZIP архив)</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Содержимое PDF -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-card-list me-2"></i>
+                            Включить в PDF
+                        </label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includePhotos" checked>
+                            <label class="form-check-label" for="includePhotos">
+                                Фотографии
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeDescription" checked>
+                            <label class="form-check-label" for="includeDescription">
+                                Полное описание
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeUserInfo" checked>
+                            <label class="form-check-label" for="includeUserInfo">
+                                Информация о пользователе
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeTimestamp" checked>
+                            <label class="form-check-label" for="includeTimestamp">
+                                Дата и время создания
+                            </label>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Формат и макет -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-layout-text-window me-2"></i>
+                            Формат страницы
+                        </label>
+                        <select class="form-select" id="pageFormat">
+                            <option value="A4" selected>A4 (210×297 мм)</option>
+                            <option value="Letter">Letter (216×279 мм)</option>
+                            <option value="A3">A3 (297×420 мм)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-align-center me-2"></i>
+                            Ориентация
+                        </label>
+                        <select class="form-select" id="pageOrientation">
+                            <option value="portrait" selected>Книжная</option>
+                            <option value="landscape">Альбомная</option>
+                        </select>
+                    </div>
+
+                    <hr>
+
+                    <!-- Кнопка генерации -->
+                    <button class="btn btn-success w-100 btn-lg" onclick="generatePDF()" id="generateBtn">
+                        <i class="bi bi-file-earmark-pdf me-2"></i>
+                        Создать PDF
+                    </button>
+
+                    <div class="alert alert-warning mt-3 small" id="warningMessage" style="display: none;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <span id="warningText"></span>
+                    </div>
+
+                    <!-- Прогресс генерации -->
+                    <div id="progressContainer" class="mt-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" 
+                                 id="progressBar" 
+                                 style="width: 0%">
+                            </div>
+                        </div>
+                        <p class="text-center mt-2 small text-muted" id="progressText">Подготовка...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Информационная панель -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Информация
+                    </h6>
+                </div>
+                <div class="card-body small">
+                    <p class="mb-2"><strong>Совет:</strong> Используйте фильтры для быстрого поиска нужных ДСЕ.</p>
+                    <p class="mb-2"><strong>Режим "Один файл":</strong> Удобен для печати или создания общего отчета.</p>
+                    <p class="mb-0"><strong>Режим "Отдельные файлы":</strong> Создаст ZIP архив с PDF для каждого ДСЕ.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let allDseData = {{ dse_data|tojson }};
+let filteredData = [...allDseData];
+
+// Предварительный выбор ДСЕ из URL параметра
+const urlParams = new URLSearchParams(window.location.search);
+const preselectDse = urlParams.get('preselect');
+
+// Обновление счетчика выбранных
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.dse-checkbox:checked');
+    const count = checkboxes.length;
+    document.getElementById('selectedCount').textContent = `Выбрано: ${count}`;
+    
+    // Показать предупреждение если ничего не выбрано
+    const warning = document.getElementById('warningMessage');
+    const warningText = document.getElementById('warningText');
+    
+    if (count === 0) {
+        warning.style.display = 'block';
+        warningText.textContent = 'Выберите хотя бы одно ДСЕ для экспорта';
+    } else if (count > 50) {
+        warning.style.display = 'block';
+        warningText.textContent = `Выбрано ${count} ДСЕ. Генерация может занять продолжительное время.`;
+    } else {
+        warning.style.display = 'none';
+    }
+}
+
+// Выбрать все
+function selectAll() {
+    document.querySelectorAll('.dse-checkbox').forEach(cb => {
+        if (cb.closest('tr').style.display !== 'none') {
+            cb.checked = true;
+        }
+    });
+    document.getElementById('selectAllCheckbox').checked = true;
+    updateSelectedCount();
+}
+
+// Снять все
+function deselectAll() {
+    document.querySelectorAll('.dse-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAllCheckbox').checked = false;
+    updateSelectedCount();
+}
+
+// Инвертировать выбор
+function invertSelection() {
+    document.querySelectorAll('.dse-checkbox').forEach(cb => {
+        if (cb.closest('tr').style.display !== 'none') {
+            cb.checked = !cb.checked;
+        }
+    });
+    updateSelectedCount();
+}
+
+// Переключить все чекбоксы
+function toggleAllCheckboxes(checkbox) {
+    if (checkbox.checked) {
+        selectAll();
+    } else {
+        deselectAll();
+    }
+}
+
+// Фильтрация таблицы
+function filterTable() {
+    const searchText = document.getElementById('searchDse').value.toLowerCase();
+    const problemType = document.getElementById('filterProblemType').value;
+    const userId = document.getElementById('filterUser').value;
+    
+    document.querySelectorAll('.dse-row').forEach(row => {
+        const dse = row.dataset.dse.toLowerCase();
+        const rowProblemType = row.dataset.problemType;
+        const rowUserId = row.dataset.userId;
+        
+        const matchSearch = dse.includes(searchText);
+        const matchProblemType = !problemType || rowProblemType === problemType;
+        const matchUser = !userId || rowUserId === userId;
+        
+        if (matchSearch && matchProblemType && matchUser) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Генерация PDF
+async function generatePDF() {
+    const selectedCheckboxes = document.querySelectorAll('.dse-checkbox:checked');
+    
+    if (selectedCheckboxes.length === 0) {
+        alert('Пожалуйста, выберите хотя бы одно ДСЕ для экспорта');
+        return;
+    }
+    
+    // Собираем данные
+    const dseNumbers = Array.from(selectedCheckboxes).map(cb => cb.value);
+    const exportMode = document.querySelector('input[name="exportMode"]:checked').value;
+    
+    const options = {
+        dse_numbers: dseNumbers,
+        mode: exportMode,
+        include_photos: document.getElementById('includePhotos').checked,
+        include_description: document.getElementById('includeDescription').checked,
+        include_user_info: document.getElementById('includeUserInfo').checked,
+        include_timestamp: document.getElementById('includeTimestamp').checked,
+        page_format: document.getElementById('pageFormat').value,
+        page_orientation: document.getElementById('pageOrientation').value
+    };
+    
+    // Показываем прогресс
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const generateBtn = document.getElementById('generateBtn');
+    
+    progressContainer.style.display = 'block';
+    generateBtn.disabled = true;
+    progressBar.style.width = '20%';
+    progressText.textContent = `Генерация PDF для ${dseNumbers.length} ДСЕ...`;
+    
+    try {
+        progressBar.style.width = '50%';
+        
+        // Отправляем запрос
+        const response = await fetch('/api/export/pdf', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(options)
+        });
+        
+        progressBar.style.width = '80%';
+        
+        if (!response.ok) {
+            throw new Error('Ошибка генерации PDF');
+        }
+        
+        // Получаем файл
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Имя файла зависит от режима
+        if (exportMode === 'single') {
+            a.download = `DSE_Export_${new Date().toISOString().split('T')[0]}.pdf`;
+        } else {
+            a.download = `DSE_Export_${new Date().toISOString().split('T')[0]}.zip`;
+        }
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Готово! Загрузка начата...';
+        
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+            generateBtn.disabled = false;
+            progressBar.style.width = '0%';
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при генерации PDF: ' + error.message);
+        progressContainer.style.display = 'none';
+        generateBtn.disabled = false;
+    }
+}
+
+// Инициализация фильтров
+document.getElementById('searchDse').addEventListener('input', filterTable);
+document.getElementById('filterProblemType').addEventListener('change', filterTable);
+document.getElementById('filterUser').addEventListener('change', filterTable);
+
+// Инициализация счетчика
+updateSelectedCount();
+
+// Предварительный выбор ДСЕ если есть параметр
+if (preselectDse) {
+    setTimeout(() => {
+        const checkbox = document.querySelector(`.dse-checkbox[value="${preselectDse}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+            updateSelectedCount();
+            // Прокручиваем к выбранному элементу
+            checkbox.closest('tr').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 100);
+}
+</script>
+
+<style>
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.dse-row {
+    transition: background-color 0.2s;
+}
+
+.dse-row:hover {
+    background-color: #f8f9fa;
+}
+
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+</style>
+{% endblock %}
