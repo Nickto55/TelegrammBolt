@@ -141,7 +141,7 @@ class BotMonitor:
         y = y_start
         
         # Статус бота
-        status = stats.get("status", "unknown")
+        status = str(stats.get("status", "unknown"))
         status_color = 3 if status == "running" else 4
         stdscr.attron(curses.color_pair(status_color))
         stdscr.addstr(y, 2, f"● Статус: {status.upper()}")
@@ -151,12 +151,12 @@ class BotMonitor:
         # Основная статистика
         info = [
             ("⏱️  Uptime", f"{stats.get('uptime', 0)} сек"),
-            ("👥 Всего пользователей", stats.get('users_total', 0)),
-            ("✅ Активных пользователей", stats.get('users_active', 0)),
-            ("📋 Всего ДСЕ", stats.get('dse_total', 0)),
-            ("📊 Всего запросов", stats.get('requests_total', 0)),
-            ("⚡ Запросов/мин", stats.get('requests_per_minute', 0)),
-            ("💾 Память (MB)", stats.get('memory_mb', 0)),
+            ("👥 Всего пользователей", str(stats.get('users_total', 0))),
+            ("✅ Активных пользователей", str(stats.get('users_active', 0))),
+            ("📋 Всего ДСЕ", str(stats.get('dse_total', 0))),
+            ("📊 Всего запросов", str(stats.get('requests_total', 0))),
+            ("⚡ Запросов/мин", str(stats.get('requests_per_minute', 0))),
+            ("💾 Память (MB)", str(stats.get('memory_mb', 0))),
         ]
         
         for label, value in info:
@@ -166,7 +166,7 @@ class BotMonitor:
         y += 1
         stdscr.addstr(y, 2, "Последнее обновление:")
         y += 1
-        last_update = stats.get('last_update', 'N/A')
+        last_update = str(stats.get('last_update') or 'N/A')
         stdscr.addstr(y, 4, last_update)
     
     def draw_logs_tab(self, stdscr, y_start, height, width):
@@ -183,7 +183,7 @@ class BotMonitor:
         for log_line in visible_logs:
             if y >= height - 2:
                 break
-            line = log_line.strip()[:width - 6]
+            line = str(log_line or "").strip()[:width - 6]
             
             # Цветное выделение по уровню
             if "ERROR" in line or "❌" in line:
@@ -226,7 +226,7 @@ class BotMonitor:
         for user_line in visible_users:
             if y >= height - 2:
                 break
-            stdscr.addstr(y, 4, user_line[:width - 6])
+            stdscr.addstr(y, 4, str(user_line or "")[:width - 6])
             y += 1
     
     def draw_control_tab(self, stdscr, y_start, height, width):
@@ -259,8 +259,12 @@ class BotMonitor:
         recent_commands = commands_data.get("commands", [])[-5:]
         
         for cmd in recent_commands:
+            if y >= height - 2:
+                break
             status_icon = "✅" if cmd.get("status") == "completed" else "⏳"
-            line = f"{status_icon} {cmd['command']} - {cmd['timestamp'][:19]}"
+            cmd_name = str(cmd.get('command', 'unknown'))
+            timestamp = str(cmd.get('timestamp', ''))[:19]
+            line = f"{status_icon} {cmd_name} - {timestamp}"
             stdscr.addstr(y, 4, line[:width - 6])
             y += 1
     
