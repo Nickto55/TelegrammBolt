@@ -1220,6 +1220,17 @@ async def request_application_email_address(update: Update, context: ContextType
         )
         return
     
+    # Инициализируем состояние пользователя если его нет
+    if user_id not in user_states:
+        user_states[user_id] = {
+            'application': '',
+            'dse': '',
+            'problem_type': '',
+            'description': '',
+            'rc': '',
+            'photo_file_id': None
+        }
+    
     # Устанавливаем состояние ожидания email для заявки
     user_states[user_id]['waiting_for_application_email'] = True
     
@@ -1267,6 +1278,14 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
                 "Для отправки заявок по email необходимо:\n"
                 "1. Настроить параметры в файле smtp_config.json\n"
                 "2. Указать корректный email и пароль приложения"
+            )
+            return
+        
+        # Проверяем наличие данных пользователя
+        if user_id not in user_states:
+            await update.message.reply_text(
+                "❌ Данные заявки не найдены!\n\n"
+                "Пожалуйста, создайте заявку заново через /start"
             )
             return
         
@@ -1640,6 +1659,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     elif data == 'send':
         # Отправка заявки
+        # Проверяем наличие данных пользователя
+        if user_id not in user_states:
+            await query.edit_message_text(
+                "❌ Данные заявки не найдены!\n\n"
+                "Пожалуйста, создайте заявку заново через /start"
+            )
+            return
+        
         user_data = user_states[user_id]
         record = {
             'dse': user_data['dse'],
