@@ -207,8 +207,12 @@ configure_bot_token() {
     echo ""
     
     while true; do
+        echo ""
         echo -ne "${PURPLE}[?]${NC} Введите токен бота: "
-        read BOT_TOKEN
+        read -r BOT_TOKEN
+        
+        # Убираем возможные пробелы в начале и конце
+        BOT_TOKEN=$(echo "$BOT_TOKEN" | xargs)
         
         if [[ -z "$BOT_TOKEN" ]]; then
             error "Токен не может быть пустым!"
@@ -218,7 +222,9 @@ configure_bot_token() {
         # Базовая проверка формата токена
         if [[ ! "$BOT_TOKEN" =~ ^[0-9]+:[A-Za-z0-9_-]+$ ]]; then
             warn "Токен имеет неправильный формат!"
-            read -p "Продолжить с этим токеном? (y/n): " -n 1 -r
+            warn "Ожидаемый формат: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+            echo -ne "Продолжить с этим токеном? (y/n): "
+            read -r -n 1 REPLY
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 break
@@ -244,8 +250,12 @@ configure_admin_ids() {
     echo ""
     
     while true; do
+        echo ""
         echo -ne "${PURPLE}[?]${NC} Введите ID администратора(ов) через запятую: "
-        read ADMIN_IDS
+        read -r ADMIN_IDS
+        
+        # Убираем пробелы
+        ADMIN_IDS=$(echo "$ADMIN_IDS" | xargs)
         
         if [[ -z "$ADMIN_IDS" ]]; then
             error "Нужен хотя бы один администратор!"
@@ -279,10 +289,19 @@ configure_smtp() {
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         SMTP_ENABLED="yes"
         
-        read -p "SMTP сервер (например: smtp.gmail.com): " SMTP_SERVER
-        read -p "SMTP порт (обычно 587): " SMTP_PORT
-        read -p "Email адрес: " SMTP_USER
-        read -s -p "Email пароль: " SMTP_PASSWORD
+        echo ""
+        echo -ne "SMTP сервер (например: smtp.gmail.com): "
+        read -r SMTP_SERVER
+        
+        echo -ne "SMTP порт (обычно 587): "
+        read -r SMTP_PORT
+        SMTP_PORT=${SMTP_PORT:-587}
+        
+        echo -ne "Email адрес: "
+        read -r SMTP_USER
+        
+        echo -ne "Email пароль: "
+        read -r -s SMTP_PASSWORD
         echo ""
         
         success "SMTP настроен"
@@ -305,7 +324,9 @@ configure_web() {
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         WEB_ENABLED="yes"
         
-        read -p "Порт для веб-интерфейса (по умолчанию 5000): " WEB_PORT
+        echo ""
+        echo -ne "Порт для веб-интерфейса (по умолчанию 5000): "
+        read -r WEB_PORT
         WEB_PORT=${WEB_PORT:-5000}
         
         success "Веб-интерфейс будет доступен на порту $WEB_PORT"
@@ -318,7 +339,9 @@ configure_web() {
         
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             HTTPS_ENABLED="yes"
-            read -p "Введите доменное имя (например: bot.example.com): " DOMAIN_NAME
+            echo ""
+            echo -ne "Введите доменное имя (например: bot.example.com): "
+            read -r DOMAIN_NAME
             
             if [[ -z "$DOMAIN_NAME" ]]; then
                 warn "Доменное имя не указано. HTTPS будет пропущен."
@@ -519,7 +542,8 @@ setup_https() {
     log "Убедитесь что домен $DOMAIN_NAME указывает на этот сервер!"
     echo ""
     
-    read -p "Продолжить получение сертификата? (y/n): " -n 1 -r
+    echo -ne "Продолжить получение сертификата? (y/n): "
+    read -r -n 1 REPLY
     echo
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -653,7 +677,8 @@ show_final_info() {
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     
-    read -p "Запустить бота сейчас? (Y/n): " -n 1 -r
+    echo -ne "Запустить бота сейчас? (Y/n): "
+    read -r -n 1 REPLY
     echo
     
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
