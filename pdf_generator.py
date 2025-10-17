@@ -267,7 +267,7 @@ async def show_pdf_export_menu(update, context):
     keyboard = [
         [InlineKeyboardButton("📄 Экспорт всех записей", callback_data='pdf_export_all')],
         [InlineKeyboardButton("📋 Выбрать записи", callback_data='pdf_export_select')],
-        [InlineKeyboardButton("⬅️ Назад", callback_data='reports')]
+        [InlineKeyboardButton("⬅️ Назад в главное меню", callback_data='back_to_main')]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
