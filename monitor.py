@@ -19,7 +19,8 @@ class BotMonitor:
     def __init__(self):
         self.running = True
         self.current_tab = 0
-        self.tabs = ["📊 Статистика", "📋 Логи", "👥 Пользователи", "⚙️ Управление"]
+        # Используем ASCII вместо эмодзи для совместимости с терминалом
+        self.tabs = ["[STATS] Статистика", "[LOGS] Логи", "[USERS] Пользователи", "[CTRL] Управление"]
         self.log_scroll = 0
         self.users_scroll = 0
         
@@ -111,7 +112,7 @@ class BotMonitor:
     
     def draw_header(self, stdscr, height, width):
         """Отрисовка заголовка"""
-        title = "🤖 TelegrammBolt Monitor"
+        title = "TelegrammBolt Monitor"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         stdscr.attron(curses.color_pair(1))
@@ -132,7 +133,7 @@ class BotMonitor:
             x_offset += len(tab) + 3
         
         # Разделитель
-        stdscr.addstr(2, 0, "─" * width)
+        stdscr.addstr(2, 0, "-" * width)
     
     def draw_stats_tab(self, stdscr, y_start, height, width):
         """Вкладка статистики"""
@@ -150,13 +151,13 @@ class BotMonitor:
         
         # Основная статистика
         info = [
-            ("⏱️  Uptime", f"{stats.get('uptime', 0)} сек"),
-            ("👥 Всего пользователей", str(stats.get('users_total', 0))),
-            ("✅ Активных пользователей", str(stats.get('users_active', 0))),
-            ("📋 Всего ДСЕ", str(stats.get('dse_total', 0))),
-            ("📊 Всего запросов", str(stats.get('requests_total', 0))),
-            ("⚡ Запросов/мин", str(stats.get('requests_per_minute', 0))),
-            ("💾 Память (MB)", str(stats.get('memory_mb', 0))),
+            ("Uptime", f"{stats.get('uptime', 0)} сек"),
+            ("Всего пользователей", str(stats.get('users_total', 0))),
+            ("Активных пользователей", str(stats.get('users_active', 0))),
+            ("Всего ДСЕ", str(stats.get('dse_total', 0))),
+            ("Всего запросов", str(stats.get('requests_total', 0))),
+            ("Запросов/мин", str(stats.get('requests_per_minute', 0))),
+            ("Память (MB)", str(stats.get('memory_mb', 0))),
         ]
         
         for label, value in info:
@@ -174,7 +175,7 @@ class BotMonitor:
         logs = self.get_logs(height - y_start - 5)
         
         y = y_start
-        stdscr.addstr(y, 2, "📋 Последние логи (↑↓ для прокрутки):")
+        stdscr.addstr(y, 2, "Последние логи (стрелки для прокрутки):")
         y += 2
         
         max_lines = height - y - 2
@@ -186,20 +187,20 @@ class BotMonitor:
             line = str(log_line or "").strip()[:width - 6]
             
             # Цветное выделение по уровню
-            if "ERROR" in line or "❌" in line:
+            if "ERROR" in line:
                 stdscr.attron(curses.color_pair(4))
-            elif "WARN" in line or "⚠️" in line:
+            elif "WARN" in line:
                 stdscr.attron(curses.color_pair(5))
-            elif "SUCCESS" in line or "✅" in line:
+            elif "SUCCESS" in line:
                 stdscr.attron(curses.color_pair(3))
             
             stdscr.addstr(y, 4, line)
             
-            if "ERROR" in line or "❌" in line:
+            if "ERROR" in line:
                 stdscr.attroff(curses.color_pair(4))
-            elif "WARN" in line or "⚠️" in line:
+            elif "WARN" in line:
                 stdscr.attroff(curses.color_pair(5))
-            elif "SUCCESS" in line or "✅" in line:
+            elif "SUCCESS" in line:
                 stdscr.attroff(curses.color_pair(3))
             
             y += 1
@@ -209,7 +210,7 @@ class BotMonitor:
         users = self.get_users()
         
         y = y_start
-        stdscr.addstr(y, 2, "👥 Пользователи бота (↑↓ для прокрутки):")
+        stdscr.addstr(y, 2, "Пользователи бота (стрелки для прокрутки):")
         y += 2
         
         # Заголовок таблицы
@@ -217,7 +218,7 @@ class BotMonitor:
         stdscr.addstr(y, 4, f"{'ID':<15} | {'Username':<18} | {'Роль':<10}")
         stdscr.attroff(curses.color_pair(1))
         y += 1
-        stdscr.addstr(y, 4, "─" * 50)
+        stdscr.addstr(y, 4, "-" * 50)
         y += 1
         
         max_lines = height - y - 2
@@ -232,7 +233,7 @@ class BotMonitor:
     def draw_control_tab(self, stdscr, y_start, height, width):
         """Вкладка управления"""
         y = y_start
-        stdscr.addstr(y, 2, "⚙️  Команды управления:")
+        stdscr.addstr(y, 2, "Команды управления:")
         y += 2
         
         commands = [
@@ -261,7 +262,7 @@ class BotMonitor:
         for cmd in recent_commands:
             if y >= height - 2:
                 break
-            status_icon = "✅" if cmd.get("status") == "completed" else "⏳"
+            status_icon = "[OK]" if cmd.get("status") == "completed" else "[..]"
             cmd_name = str(cmd.get('command', 'unknown'))
             timestamp = str(cmd.get('timestamp', ''))[:19]
             line = f"{status_icon} {cmd_name} - {timestamp}"
@@ -273,7 +274,7 @@ class BotMonitor:
         stdscr.attron(curses.color_pair(1))
         stdscr.addstr(height - 1, 0, " " * width)
         
-        help_text = "[TAB] Вкладки | [Q] Выход | [F5] Обновить | [↑↓] Прокрутка"
+        help_text = "[TAB] Вкладки | [Q] Выход | [F5] Обновить | [UP/DOWN] Прокрутка"
         stdscr.addstr(height - 1, 2, help_text[:width - 4])
         stdscr.attroff(curses.color_pair(1))
     
@@ -372,7 +373,7 @@ class BotMonitor:
 
 def main():
     """Точка входа"""
-    print("🚀 Запуск TelegrammBolt Monitor...")
+    print("=> Запуск TelegrammBolt Monitor...")
     print("Для выхода нажмите 'Q'\n")
     time.sleep(1)
     
@@ -383,9 +384,9 @@ def main():
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"[!] Ошибка: {e}")
     
-    print("\n✅ Монитор остановлен")
+    print("\n[OK] Монитор остановлен")
 
 
 if __name__ == "__main__":
