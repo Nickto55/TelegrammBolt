@@ -122,18 +122,23 @@ class BotMonitorIntegration:
             users = get_all_users()
             dse_records = get_all_dse_records()
             
-            # Активные пользователи (за последние 24 часа)
-            # Для упрощения считаем всех зарегистрированных
-            active_users = len([u for u in users if u.get('username')])
+            # Безопасная проверка - users это список user_id (строки)
+            users_total = len(users) if users else 0
+            
+            # Активные пользователи - для простоты считаем всех зарегистрированных
+            active_users = users_total
+            
+            # Безопасная проверка - dse_records это список словарей
+            dse_total = len(dse_records) if dse_records else 0
             
             uptime = (datetime.now() - self.start_time).total_seconds()
             
             stats = {
                 "status": "running",
                 "uptime": int(uptime),
-                "users_total": len(users),
+                "users_total": users_total,
                 "users_active": active_users,
-                "dse_total": len(dse_records),
+                "dse_total": dse_total,
                 "requests_total": self.request_count,
                 "requests_per_minute": len(self.requests_last_minute),
                 "memory_mb": self.get_memory_usage(),
