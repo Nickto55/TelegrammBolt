@@ -44,12 +44,18 @@ def get_dse_records_by_dse_value(dse_value: str):
 
 async def initiate_dse_chat_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Начинает процесс поиска чата по ДСЕ. Запрашивает у пользователя номер ДСЕ."""
+    from commands import user_states
+    
     user = update.effective_user
     user_id = str(user.id)
 
     dse_chat_states[user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
                                 'target_candidates': {}}
 
+    # ВАЖНО: Устанавливаем состояние также в user_states для обработки текстовых сообщений
+    if user_id not in user_states:
+        user_states[user_id] = {}
+    user_states[user_id]['dse_chat_state'] = 'awaiting_manual_input'
 
     if update.callback_query:
         await update.callback_query.edit_message_text("🔍 Пожалуйста, введите номер ДСЕ для поиска:")
@@ -89,6 +95,10 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     if not records:
         del dse_chat_states[user_id]
+        # Очищаем состояние в user_states
+        if user_id in user_states:
+            user_states[user_id].pop('dse_chat_state', None)
+            user_states[user_id].pop('dse_chat_dse_value', None)
         # Отправляем сообщение в зависимости от типа update
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ По запросу ДСЕ '{dse_value}' ничего не найдено.")
@@ -113,6 +123,11 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         }
 
     dse_chat_states[user_id]['target_candidates'] = target_candidates
+    
+    # Очищаем состояние ожидания ввода в user_states
+    if user_id in user_states:
+        user_states[user_id].pop('dse_chat_state', None)
+        user_states[user_id].pop('dse_chat_dse_value', None)
 
     if len(target_candidates) == 1:
         single_target_user_id = list(target_candidates.keys())[0]
