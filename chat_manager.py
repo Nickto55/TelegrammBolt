@@ -61,9 +61,23 @@ async def initiate_dse_chat_search(update: Update, context: ContextTypes.DEFAULT
 
 async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает ввод номера ДСЕ пользователем."""
+    from commands import user_states
+    
     user = update.effective_user
     user_id = str(user.id)
-    dse_value = update.message.text.strip()
+    
+    # Получаем значение DSE: из текстового сообщения или из user_states
+    if update.message and update.message.text:
+        dse_value = update.message.text.strip()
+    elif user_id in user_states and 'dse_chat_dse_value' in user_states[user_id]:
+        dse_value = user_states[user_id]['dse_chat_dse_value']
+    else:
+        # Если нет ни того, ни другого, запрашиваем ввод
+        if update.callback_query:
+            await update.callback_query.edit_message_text("🔍 Пожалуйста, введите номер ДСЕ для поиска:")
+        elif update.message:
+            await update.message.reply_text("🔍 Пожалуйста, введите номер ДСЕ для поиска:")
+        return
 
     dse_chat_states[user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
                                 'target_candidates': {}}
@@ -75,7 +89,11 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     if not records:
         del dse_chat_states[user_id]
-        await update.message.reply_text(f"❌ По запросу ДСЕ '{dse_value}' ничего не найдено.")
+        # Отправляем сообщение в зависимости от типа update
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ По запросу ДСЕ '{dse_value}' ничего не найдено.")
+        elif update.message:
+            await update.message.reply_text(f"❌ По запросу ДСЕ '{dse_value}' ничего не найдено.")
         print(f"💬 Для {user.first_name} ничего не найдено по ДСЕ '{dse_value}'.")
         return
 
@@ -128,11 +146,15 @@ async def show_target_selection_menu(update: Update, context: ContextTypes.DEFAU
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        f"✅ Найдено {len(target_candidates)} записей по ДСЕ '{dse_value}' от разных пользователей.\nПожалуйста, выберите пользователя для связи:",
-        reply_markup=reply_markup
-    )
-    print(f"💬 Для {user.first_name} найдено {len(target_candidates)} кандидатов по ДСЕ '{dse_value}'.")
+    # Отправляем сообщение в зависимости от типа update
+    message_text = f"✅ Найдено {len(target_candidates)} записей по ДСЕ '{dse_value}' от разных пользователей.\nПожалуйста, выберите пользователя для связи:"
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
+    elif update.message:
+        await update.message.reply_text(message_text, reply_markup=reply_markup)
+    
+    print(f"💬 Найдено {len(target_candidates)} кандидатов по ДСЕ '{dse_value}'.")
 
 
 async def handle_target_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
