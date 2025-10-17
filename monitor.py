@@ -640,18 +640,59 @@ class BotMonitor:
 
 def main():
     """Точка входа"""
-    print("=> Starting TelegrammBolt Monitor...")
-    print("Press 'Q' to exit\n")
-    time.sleep(1)
+    print("=" * 60)
+    print("TelegrammBolt Monitor - Starting...")
+    print("=" * 60)
+    print()
+    
+    # Проверка файлов данных
+    if not os.path.exists("monitor_stats.json"):
+        print("[!] WARNING: monitor_stats.json not found")
+        print("    Bot may not be running or monitor integration disabled")
+        print()
+        print("Creating test data for demo...")
+        
+        # Создаём тестовые данные
+        import json
+        from datetime import datetime
+        
+        test_stats = {
+            "status": "unknown",
+            "uptime": 0,
+            "users_total": 0,
+            "users_active": 0,
+            "dse_total": 0,
+            "requests_total": 0,
+            "requests_per_minute": 0,
+            "memory_mb": 0,
+            "last_update": datetime.now().isoformat()
+        }
+        
+        with open("monitor_stats.json", "w", encoding="utf-8") as f:
+            json.dump(test_stats, f, ensure_ascii=False, indent=2)
+        
+        if not os.path.exists("bot_monitor.log"):
+            with open("bot_monitor.log", "w", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Monitor started\n")
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [WARN] No bot data available\n")
+        
+        print("[OK] Test data created")
+        print()
+    
+    print("Terminal requirements: minimum 80x20")
+    print("Controls: Tab/Arrows - navigate, Q - quit")
+    print()
+    print("Starting in 2 seconds...")
+    time.sleep(2)
     
     monitor = BotMonitor()
     
     try:
         curses.wrapper(monitor.run)
     except KeyboardInterrupt:
-        pass
+        print("\n[!] Interrupted by user")
     except Exception as e:
-        print(f"[!] Error: {e}")
+        print(f"\n[!] Error: {e}")
         import traceback
         traceback.print_exc()
     
