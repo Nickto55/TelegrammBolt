@@ -1399,9 +1399,9 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
             'sent_to_emails': ', '.join(valid_emails)  # Сохраняем все адреса
         }
         
-        data_list = load_data()
+        data_list = load_data(DATA_FILE)
         data_list.append(record)
-        save_data(data_list)
+        save_data(data_list, DATA_FILE)
         
         # Сохраняем каждый email в историю с номером ДСЕ
         for recipient_email in valid_emails:
@@ -1627,6 +1627,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_application_menu(update, user_id)
     
     elif data == 'set_dse':
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '',
+                'description': '', 'rc': '', 'photo_file_id': None
+            }
         user_states[user_id]['waiting_for'] = 'dse'
         await query.edit_message_text("Введите номер ДСЕ:")
     
@@ -1634,6 +1639,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_problem_types(update, user_id)
     
     elif data.startswith('problem_'):
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '',
+                'description': '', 'rc': '', 'photo_file_id': None
+            }
         idx = int(data.split('_')[1])
         user_states[user_id]['problem_type'] = PROBLEM_TYPES[idx]
         await show_application_menu(update, user_id)
@@ -1642,15 +1652,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_rc_types(update, user_id)
     
     elif data.startswith('rc_'):
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '',
+                'description': '', 'rc': '', 'photo_file_id': None
+            }
         idx = int(data.split('_')[1])
         user_states[user_id]['rc'] = RC_TYPES[idx]
         await show_application_menu(update, user_id)
     
     elif data == 'set_description':
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '',
+                'description': '', 'rc': '', 'photo_file_id': None
+            }
         user_states[user_id]['waiting_for'] = 'description'
         await query.edit_message_text("Введите описание проблемы:")
     
     elif data == 'set_photo':
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '',
+                'description': '', 'rc': '', 'photo_file_id': None
+            }
         user_states[user_id]['waiting_for'] = 'photo'
         await query.edit_message_text(
             "📸 Отправьте фото или используйте /cancel_photo для пропуска.\n\n"
@@ -1678,9 +1703,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'photo_file_id': user_data.get('photo_file_id')
         }
         
-        data_list = load_data()
+        data_list = load_data(DATA_FILE)
         data_list.append(record)
-        save_data(data_list)
+        save_data(data_list, DATA_FILE)
         
         # Очищаем данные пользователя
         user_states[user_id] = {
