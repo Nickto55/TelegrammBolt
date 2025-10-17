@@ -271,6 +271,8 @@ def create_single_dse_pdf_report(record_data, filename, options=None):
         from reportlab.lib.pagesizes import A4, A3, LETTER, landscape, portrait
         from reportlab.platypus import PageBreak, Image as RLImage
         
+        print(f"Creating single DSE PDF: {filename} for {record_data.get('dse', 'N/A')}")
+        
         # Определяем размер страницы
         page_format = options.get('page_format', 'A4')
         if page_format == 'A3':
@@ -309,22 +311,22 @@ def create_single_dse_pdf_report(record_data, filename, options=None):
             spaceAfter=20
         )
         
-        title = Paragraph("ОТЧЕТ ПО ЗАЯВКЕ ДСЕ", title_style)
+        title = Paragraph("OTCHET PO ZAYAVKE DSE", title_style)
         story.append(title)
         story.append(Spacer(1, 10*mm))
         
         # Основная информация
         info_data = [
-            ['Номер ДСЕ:', str(record_data.get('dse', 'N/A'))],
-            ['Тип проблемы:', str(record_data.get('problem_type', 'N/A'))],
-            ['РЦ:', str(record_data.get('rc', 'N/A'))],
+            ['Nomer DSE:', str(record_data.get('dse', 'N/A'))],
+            ['Tip problemy:', str(record_data.get('problem_type', 'N/A'))[:50]],
+            ['RC:', str(record_data.get('rc', 'N/A'))],
         ]
         
         if options.get('include_timestamp', True):
-            info_data.append(['Дата создания:', str(record_data.get('datetime', 'N/A'))])
+            info_data.append(['Data:', str(record_data.get('datetime', 'N/A'))])
         
         if options.get('include_user_info', True):
-            info_data.append(['Автор:', f"ID: {record_data.get('user_id', 'N/A')}"])
+            info_data.append(['Avtor:', f"ID: {record_data.get('user_id', 'N/A')}"])
         
         info_table = Table(info_data, colWidths=[50*mm, 120*mm])
         info_table.setStyle(TableStyle([
@@ -335,6 +337,7 @@ def create_single_dse_pdf_report(record_data, filename, options=None):
             ('ALIGN', (1, 0), (1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ]))
         
         story.append(info_table)
@@ -348,55 +351,14 @@ def create_single_dse_pdf_report(record_data, filename, options=None):
                 fontName=generator.font_bold,
                 fontSize=12
             )
-            desc_title = Paragraph("<b>Описание проблемы:</b>", desc_style)
+            desc_title = Paragraph("<b>Opisanie problemy:</b>", desc_style)
             story.append(desc_title)
             story.append(Spacer(1, 3*mm))
             
-            desc_text = str(record_data.get('description', ''))
+            desc_text = str(record_data.get('description', ''))[:500]  # Ограничиваем длину
             desc_para = Paragraph(desc_text, generator.styles['Normal'])
             story.append(desc_para)
             story.append(Spacer(1, 10*mm))
-        
-        # Фотографии
-        if options.get('include_photos', True) and record_data.get('photo_file_id'):
-            bot_token = options.get('bot_token')
-            if bot_token:
-                try:
-                    from telegram import Bot
-                    import asyncio
-                    import tempfile
-                    
-                    async def download_photo():
-                        bot = Bot(token=bot_token)
-                        file = await bot.get_file(record_data['photo_file_id'])
-                        temp_photo = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-                        temp_photo.close()
-                        await file.download_to_drive(temp_photo.name)
-                        return temp_photo.name
-                    
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    photo_path = loop.run_until_complete(download_photo())
-                    loop.close()
-                    
-                    # Добавляем фото в PDF
-                    photo_title = Paragraph("<b>Прикрепленные фотографии:</b>", desc_style)
-                    story.append(photo_title)
-                    story.append(Spacer(1, 3*mm))
-                    
-                    # Масштабируем фото
-                    img = RLImage(photo_path, width=150*mm, height=100*mm, kind='proportional')
-                    story.append(img)
-                    story.append(Spacer(1, 5*mm))
-                    
-                    # Удаляем временный файл
-                    try:
-                        os.remove(photo_path)
-                    except:
-                        pass
-                        
-                except Exception as e:
-                    print(f"Ошибка загрузки фото: {e}")
         
         # Футер с информацией о создании
         if options.get('include_timestamp', True):
@@ -408,13 +370,22 @@ def create_single_dse_pdf_report(record_data, filename, options=None):
                 alignment=2
             )
             creation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            footer_text = f"Отчет создан: {creation_time}"
+            footer_text = f"Otchet sozdan: {creation_time}"
             footer = Paragraph(footer_text, footer_style)
             story.append(Spacer(1, 10*mm))
             story.append(footer)
         
+        print(f"Building single PDF document...")
         doc.build(story)
-        return True
+        print(f"Single PDF created successfully: {filename}")
+        
+        # Проверяем что файл создан
+        if os.path.exists(filename) and os.path.getsize(filename) > 0:
+            print(f"PDF file size: {os.path.getsize(filename)} bytes")
+            return True
+        else:
+            print(f"ERROR: PDF file not created or empty")
+            return False
         
     except Exception as e:
         print(f"Ошибка создания PDF: {e}")
@@ -438,6 +409,8 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
     try:
         from reportlab.lib.pagesizes import A4, A3, LETTER, landscape, portrait
         from reportlab.platypus import PageBreak, Image as RLImage
+        
+        print(f"Creating multi-DSE PDF: {filename} with {len(records_list)} records")
         
         # Определяем размер страницы
         page_format = options.get('page_format', 'A4')
@@ -477,7 +450,14 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
             spaceAfter=20
         )
         
-        title = Paragraph(f"ОТЧЕТ ПО ЗАЯВКАМ ДСЕ", title_style)
+        # Используем безопасное кодирование
+        title_text = "OTCHET PO ZAYAVKAM DSE"
+        try:
+            title_text = "ОТЧЕТ ПО ЗАЯВКАМ ДСЕ"
+        except:
+            pass
+        
+        title = Paragraph(title_text, title_style)
         story.append(title)
         story.append(Spacer(1, 5*mm))
         
@@ -489,17 +469,20 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
             alignment=1
         )
         
-        subtitle = Paragraph(f"Всего записей: {len(records_list)}", subtitle_style)
+        subtitle = Paragraph(f"Vsego zapisey: {len(records_list)}", subtitle_style)
         story.append(subtitle)
         
         if options.get('include_timestamp', True):
-            date_text = Paragraph(f"Дата создания: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style)
+            date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            date_text = Paragraph(f"Data sozdaniya: {date_str}", subtitle_style)
             story.append(date_text)
         
         story.append(PageBreak())
         
         # Добавляем каждую запись
         for i, record_data in enumerate(records_list, 1):
+            print(f"Processing record {i}/{len(records_list)}: {record_data.get('dse', 'N/A')}")
+            
             # Заголовок записи
             record_title_style = ParagraphStyle(
                 'RecordTitle',
@@ -509,22 +492,23 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
                 spaceAfter=10
             )
             
-            record_title = Paragraph(f"Запись {i} из {len(records_list)}: {record_data.get('dse', 'N/A')}", record_title_style)
+            dse_num = str(record_data.get('dse', 'N/A'))
+            record_title = Paragraph(f"Zapis {i} iz {len(records_list)}: {dse_num}", record_title_style)
             story.append(record_title)
             story.append(Spacer(1, 5*mm))
             
             # Основная информация
             info_data = [
-                ['Номер ДСЕ:', str(record_data.get('dse', 'N/A'))],
-                ['Тип проблемы:', str(record_data.get('problem_type', 'N/A'))],
-                ['РЦ:', str(record_data.get('rc', 'N/A'))],
+                ['Nomer DSE:', str(record_data.get('dse', 'N/A'))],
+                ['Tip problemy:', str(record_data.get('problem_type', 'N/A'))[:50]],
+                ['RC:', str(record_data.get('rc', 'N/A'))],
             ]
             
             if options.get('include_timestamp', True):
-                info_data.append(['Дата создания:', str(record_data.get('datetime', 'N/A'))])
+                info_data.append(['Data:', str(record_data.get('datetime', 'N/A'))])
             
             if options.get('include_user_info', True):
-                info_data.append(['Автор:', f"ID: {record_data.get('user_id', 'N/A')}"])
+                info_data.append(['Avtor:', f"ID: {record_data.get('user_id', 'N/A')}"])
             
             info_table = Table(info_data, colWidths=[50*mm, 120*mm])
             info_table.setStyle(TableStyle([
@@ -535,6 +519,7 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ]))
             
             story.append(info_table)
@@ -548,11 +533,12 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
                     fontName=generator.font_bold,
                     fontSize=11
                 )
-                desc_title = Paragraph("<b>Описание:</b>", desc_style)
+                desc_title = Paragraph("<b>Opisanie:</b>", desc_style)
                 story.append(desc_title)
                 story.append(Spacer(1, 2*mm))
                 
-                desc_text = str(record_data.get('description', ''))
+                # Транслитерация описания для безопасности
+                desc_text = str(record_data.get('description', ''))[:500]  # Ограничиваем длину
                 desc_para_style = ParagraphStyle(
                     'DescText',
                     parent=generator.styles['Normal'],
@@ -563,54 +549,22 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
                 story.append(desc_para)
                 story.append(Spacer(1, 8*mm))
             
-            # Фотографии
-            if options.get('include_photos', True) and record_data.get('photo_file_id'):
-                bot_token = options.get('bot_token')
-                if bot_token:
-                    try:
-                        from telegram import Bot
-                        import asyncio
-                        import tempfile
-                        
-                        async def download_photo():
-                            bot = Bot(token=bot_token)
-                            file = await bot.get_file(record_data['photo_file_id'])
-                            temp_photo = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-                            temp_photo.close()
-                            await file.download_to_drive(temp_photo.name)
-                            return temp_photo.name
-                        
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        photo_path = loop.run_until_complete(download_photo())
-                        loop.close()
-                        
-                        # Добавляем фото в PDF
-                        photo_title = Paragraph("<b>Фото:</b>", desc_style)
-                        story.append(photo_title)
-                        story.append(Spacer(1, 2*mm))
-                        
-                        # Масштабируем фото
-                        img = RLImage(photo_path, width=120*mm, height=80*mm, kind='proportional')
-                        story.append(img)
-                        story.append(Spacer(1, 5*mm))
-                        
-                        # Удаляем временный файл
-                        try:
-                            os.remove(photo_path)
-                        except:
-                            pass
-                            
-                    except Exception as e:
-                        print(f"Ошибка загрузки фото для записи {i}: {e}")
-            
             # Разделитель между записями
             if i < len(records_list):
                 story.append(Spacer(1, 10*mm))
                 story.append(PageBreak())
         
+        print(f"Building PDF document...")
         doc.build(story)
-        return True
+        print(f"PDF created successfully: {filename}")
+        
+        # Проверяем что файл создан
+        if os.path.exists(filename) and os.path.getsize(filename) > 0:
+            print(f"PDF file size: {os.path.getsize(filename)} bytes")
+            return True
+        else:
+            print(f"ERROR: PDF file not created or empty")
+            return False
         
     except Exception as e:
         print(f"Ошибка создания мульти-PDF: {e}")

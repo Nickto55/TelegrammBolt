@@ -124,66 +124,108 @@ def generate_pdf_report(options):
     if not selected_records:
         raise ValueError("Не найдены записи с указанными номерами ДСЕ")
     
+    logger.info(f"Generating PDF for {len(selected_records)} records in mode: {mode}")
+    
     if mode == 'single':
         # Один PDF файл со всеми ДСЕ
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
         temp_file.close()
         
-        # Создаем PDF с множественными записями
-        from pdf_generator import create_multi_dse_pdf_report
-        create_multi_dse_pdf_report(
-            selected_records, 
-            temp_file.name,
-            options={
-                'include_photos': include_photos,
-                'include_description': include_description,
-                'include_user_info': include_user_info,
-                'include_timestamp': include_timestamp,
-                'page_format': page_format,
-                'page_orientation': page_orientation,
-                'bot_token': BOT_TOKEN if include_photos else None
-            }
-        )
-        
-        return temp_file.name
+        try:
+            # Создаем PDF с множественными записями
+            from pdf_generator import create_multi_dse_pdf_report
+            success = create_multi_dse_pdf_report(
+                selected_records, 
+                temp_file.name,
+                options={
+                    'include_photos': include_photos,
+                    'include_description': include_description,
+                    'include_user_info': include_user_info,
+                    'include_timestamp': include_timestamp,
+                    'page_format': page_format,
+                    'page_orientation': page_orientation,
+                    'bot_token': BOT_TOKEN if include_photos else None
+                }
+            )
+            
+            if not success:
+                raise Exception("Ошибка создания PDF файла")
+            
+            # Проверяем что файл существует и не пустой
+            if not os.path.exists(temp_file.name) or os.path.getsize(temp_file.name) == 0:
+                raise Exception("PDF файл пустой или не создан")
+            
+            logger.info(f"PDF created successfully: {temp_file.name}, size: {os.path.getsize(temp_file.name)} bytes")
+            return temp_file.name
+            
+        except Exception as e:
+            logger.error(f"Error creating PDF: {e}")
+            # Удаляем поврежденный файл
+            try:
+                if os.path.exists(temp_file.name):
+                    os.remove(temp_file.name)
+            except:
+                pass
+            raise
     
     else:
         # Множественные PDF файлы в ZIP архиве
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
         temp_zip.close()
         
-        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for i, record in enumerate(selected_records):
-                temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-                temp_pdf.close()
-                
-                # Создаем PDF для каждой записи
-                from pdf_generator import create_single_dse_pdf_report
-                create_single_dse_pdf_report(
-                    record,
-                    temp_pdf.name,
-                    options={
-                        'include_photos': include_photos,
-                        'include_description': include_description,
-                        'include_user_info': include_user_info,
-                        'include_timestamp': include_timestamp,
-                        'page_format': page_format,
-                        'page_orientation': page_orientation,
-                        'bot_token': BOT_TOKEN if include_photos else None
-                    }
-                )
-                
-                # Добавляем в ZIP
-                dse_safe = str(record.get('dse', f'dse_{i}')).replace('/', '_').replace('\\', '_')
-                zipf.write(temp_pdf.name, f'DSE_{dse_safe}.pdf')
-                
-                # Удаляем временный PDF
-                try:
-                    os.remove(temp_pdf.name)
-                except:
-                    pass
-        
-        return temp_zip.name
+        try:
+            with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for i, record in enumerate(selected_records):
+                    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                    temp_pdf.close()
+                    
+                    try:
+                        # Создаем PDF для каждой записи
+                        from pdf_generator import create_single_dse_pdf_report
+                        success = create_single_dse_pdf_report(
+                            record,
+                            temp_pdf.name,
+                            options={
+                                'include_photos': include_photos,
+                                'include_description': include_description,
+                                'include_user_info': include_user_info,
+                                'include_timestamp': include_timestamp,
+                                'page_format': page_format,
+                                'page_orientation': page_orientation,
+                                'bot_token': BOT_TOKEN if include_photos else None
+                            }
+                        )
+                        
+                        if success and os.path.exists(temp_pdf.name):
+                            # Добавляем в ZIP
+                            dse_safe = str(record.get('dse', f'dse_{i}')).replace('/', '_').replace('\\', '_')
+                            zipf.write(temp_pdf.name, f'DSE_{dse_safe}.pdf')
+                            logger.info(f"Added to ZIP: DSE_{dse_safe}.pdf")
+                        
+                    finally:
+                        # Удаляем временный PDF
+                        try:
+                            if os.path.exists(temp_pdf.name):
+                                os.remove(temp_pdf.name)
+                        except:
+                            pass
+            
+            # Проверяем что ZIP создан
+            if not os.path.exists(temp_zip.name) or os.path.getsize(temp_zip.name) == 0:
+                raise Exception("ZIP архив пустой или не создан")
+            
+            logger.info(f"ZIP created successfully: {temp_zip.name}, size: {os.path.getsize(temp_zip.name)} bytes")
+            return temp_zip.name
+            
+        except Exception as e:
+            logger.error(f"Error creating ZIP: {e}")
+            # Удаляем поврежденный файл
+            try:
+                if os.path.exists(temp_zip.name):
+                    os.remove(temp_zip.name)
+            except:
+                pass
+            raise
 
 
 def save_users_data(users_data):
