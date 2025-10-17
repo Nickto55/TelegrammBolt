@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+
+{% block title %}Список ДСЕ - BOLT{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-3">
+                <i class="bi bi-list-ul"></i> Список ДСЕ
+            </h1>
+        </div>
+    </div>
+    
+    <!-- Панель фильтров и поиска -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> Фильтры и поиск</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="searchInput" class="form-label">Поиск</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Введите ДСЕ, описание...">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="problemTypeFilter" class="form-label">Тип проблемы</label>
+                            <select class="form-select" id="problemTypeFilter">
+                                <option value="">Все типы</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="userFilter" class="form-label">Пользователь</label>
+                            <select class="form-select" id="userFilter">
+                                <option value="">Все пользователи</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="sortBy" class="form-label">Сортировка</label>
+                            <select class="form-select" id="sortBy">
+                                <option value="date_desc">Сначала новые</option>
+                                <option value="date_asc">Сначала старые</option>
+                                <option value="dse_asc">По ДСЕ (A-Z)</option>
+                                <option value="dse_desc">По ДСЕ (Z-A)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button class="btn btn-primary" onclick="applyFilters()">
+                                <i class="bi bi-search"></i> Применить фильтры
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="resetFilters()">
+                                <i class="bi bi-x-circle"></i> Сбросить
+                            </button>
+                            {% if permissions.export_data %}
+                            <button class="btn btn-success" onclick="exportToExcel()">
+                                <i class="bi bi-file-earmark-excel"></i> Экспорт Excel
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Информация о количестве записей -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <span><strong id="totalCount">0</strong> записей найдено</span>
+                <span class="text-muted">Показано: <strong id="visibleCount">0</strong></span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Таблица ДСЕ -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-table"></i> Данные</h5>
+                    <button class="btn btn-sm btn-light" onclick="toggleTableView()">
+                        <i class="bi bi-grid-3x3" id="viewToggleIcon"></i> <span id="viewToggleText">Карточки</span>
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Табличный вид -->
+                    <div id="tableView" class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 10%;">ДСЕ</th>
+                                    <th style="width: 20%;">Тип проблемы</th>
+                                    <th style="width: 35%;">Описание</th>
+                                    <th style="width: 15%;">Пользователь</th>
+                                    <th style="width: 15%;">Дата</th>
+                                    <th style="width: 5%;">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dseTableBody">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Загрузка...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Карточный вид -->
+                    <div id="cardView" style="display: none;" class="p-3">
+                        <div class="row g-3" id="dseCardsContainer">
+                            <div class="col-12 text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Загрузка...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Пагинация -->
+    <div class="row mt-4 mb-4">
+        <div class="col-12">
+            <nav aria-label="Навигация по страницам">
+                <ul class="pagination justify-content-center" id="pagination">
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let allDseData = [];
+let filteredData = [];
+let currentPage = 1;
+let itemsPerPage = 20;
+let currentView = 'table'; // 'table' или 'card'
+
+// Загрузка данных при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    loadDseData();
+});
+
+function loadDseData() {
+    fetch('/api/dse')
+        .then(response => response.json())
+        .then(data => {
+            allDseData = data;
+            filteredData = [...data];
+            
+            // Заполнение фильтров
+            populateFilters(data);
+            
+            // Отображение данных
+            displayData();
+            updateCounts();
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки данных:', error);
+            showError('Ошибка загрузки данных');
+        });
+}
+
+function populateFilters(data) {
+    // Уникальные типы проблем
+    const problemTypes = [...new Set(data.map(item => item.problem_type).filter(Boolean))];
+    const problemTypeSelect = document.getElementById('problemTypeFilter');
+    problemTypes.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        problemTypeSelect.appendChild(option);
+    });
+    
+    // Уникальные пользователи
+    const users = [...new Set(data.map(item => item.user_id).filter(Boolean))];
+    const userSelect = document.getElementById('userFilter');
+    users.forEach(userId => {
+        const option = document.createElement('option');
+        option.value = userId;
+        option.textContent = `ID: ${userId}`;
+        userSelect.appendChild(option);
+    });
+}
+
+function applyFilters() {
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+    const problemType = document.getElementById('problemTypeFilter').value;
+    const user = document.getElementById('userFilter').value;
+    const sortBy = document.getElementById('sortBy').value;
+    
+    // Фильтрация
+    filteredData = allDseData.filter(item => {
+        const matchesSearch = !searchText || 
+            (item.dse && item.dse.toLowerCase().includes(searchText)) ||
+            (item.description && item.description.toLowerCase().includes(searchText)) ||
+            (item.problem_type && item.problem_type.toLowerCase().includes(searchText));
+        
+        const matchesProblemType = !problemType || item.problem_type === problemType;
+        const matchesUser = !user || item.user_id === user;
+        
+        return matchesSearch && matchesProblemType && matchesUser;
+    });
+    
+    // Сортировка
+    filteredData.sort((a, b) => {
+        switch(sortBy) {
+            case 'date_desc':
+                return new Date(b.datetime || 0) - new Date(a.datetime || 0);
+            case 'date_asc':
+                return new Date(a.datetime || 0) - new Date(b.datetime || 0);
+            case 'dse_asc':
+                return (a.dse || '').localeCompare(b.dse || '');
+            case 'dse_desc':
+                return (b.dse || '').localeCompare(a.dse || '');
+            default:
+                return 0;
+        }
+    });
+    
+    currentPage = 1;
+    displayData();
+    updateCounts();
+}
+
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('problemTypeFilter').value = '';
+    document.getElementById('userFilter').value = '';
+    document.getElementById('sortBy').value = 'date_desc';
+    applyFilters();
+}
+
+function displayData() {
+    if (currentView === 'table') {
+        displayTableView();
+    } else {
+        displayCardView();
+    }
+    updatePagination();
+}
+
+function displayTableView() {
+    const tbody = document.getElementById('dseTableBody');
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const pageData = filteredData.slice(start, end);
+    
+    if (pageData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Нет данных для отображения</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = pageData.map(item => `
+        <tr>
+            <td><strong>${item.dse || '-'}</strong></td>
+            <td><span class="badge bg-info">${item.problem_type || 'Не указано'}</span></td>
+            <td>${truncateText(item.description || 'Без описания', 80)}</td>
+            <td><small>ID: ${item.user_id || '-'}</small></td>
+            <td><small>${item.datetime || '-'}</small></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewDetails('${item.dse}')" title="Просмотр">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function displayCardView() {
+    const container = document.getElementById('dseCardsContainer');
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const pageData = filteredData.slice(start, end);
+    
+    if (pageData.length === 0) {
+        container.innerHTML = '<div class="col-12"><p class="text-center text-muted py-4">Нет данных для отображения</p></div>';
+        return;
+    }
+    
+    container.innerHTML = pageData.map(item => `
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-file-earmark-text text-primary"></i> ${item.dse || 'Без номера'}
+                    </h5>
+                    <h6 class="card-subtitle mb-2">
+                        <span class="badge bg-info">${item.problem_type || 'Не указано'}</span>
+                    </h6>
+                    <p class="card-text">${truncateText(item.description || 'Без описания', 100)}</p>
+                    <div class="text-muted small">
+                        <div><i class="bi bi-person"></i> ID: ${item.user_id || '-'}</div>
+                        <div><i class="bi bi-calendar"></i> ${item.datetime || '-'}</div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="viewDetails('${item.dse}')">
+                        <i class="bi bi-eye"></i> Подробнее
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function toggleTableView() {
+    currentView = currentView === 'table' ? 'card' : 'table';
+    
+    const tableView = document.getElementById('tableView');
+    const cardView = document.getElementById('cardView');
+    const toggleIcon = document.getElementById('viewToggleIcon');
+    const toggleText = document.getElementById('viewToggleText');
+    
+    if (currentView === 'table') {
+        tableView.style.display = 'block';
+        cardView.style.display = 'none';
+        toggleIcon.className = 'bi bi-grid-3x3';
+        toggleText.textContent = 'Карточки';
+    } else {
+        tableView.style.display = 'none';
+        cardView.style.display = 'block';
+        toggleIcon.className = 'bi bi-table';
+        toggleText.textContent = 'Таблица';
+    }
+    
+    displayData();
+}
+
+function updatePagination() {
+    const pagination = document.getElementById('pagination');
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // Предыдущая страница
+    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">Назад</a>
+    </li>`;
+    
+    // Страницы
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+        </li>`;
+    }
+    
+    // Следующая страница
+    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">Вперёд</a>
+    </li>`;
+    
+    pagination.innerHTML = html;
+}
+
+function changePage(page) {
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    displayData();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateCounts() {
+    document.getElementById('totalCount').textContent = allDseData.length;
+    document.getElementById('visibleCount').textContent = filteredData.length;
+}
+
+function truncateText(text, maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
+
+function viewDetails(dse) {
+    // TODO: Открыть модальное окно или перейти на страницу деталей
+    alert(`Просмотр деталей для ДСЕ: ${dse}`);
+}
+
+function exportToExcel() {
+    window.location.href = '/api/export/excel';
+}
+
+function showError(message) {
+    const tbody = document.getElementById('dseTableBody');
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${message}</td></tr>`;
+}
+</script>
+{% endblock %}
