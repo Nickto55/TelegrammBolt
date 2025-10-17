@@ -333,23 +333,59 @@ configure_web() {
         
         # HTTPS
         echo ""
-        echo -ne "${PURPLE}[?]${NC} Настроить HTTPS с Let's Encrypt? (y/N): "
-        read -n 1 -r
-        echo
+        log "═══════════════════════════════════════════════════════"
+        log "Настройка HTTPS (опционально)"
+        log "═══════════════════════════════════════════════════════"
+        echo ""
+        log "Варианты настройки SSL/HTTPS:"
+        echo ""
+        echo "  1. Let's Encrypt (требуется домен)"
+        echo "     • Бесплатный SSL сертификат"
+        echo "     • Требуется доменное имя (example.com)"
+        echo "     • DNS должен указывать на этот сервер"
+        echo ""
+        echo "  2. Самоподписанный сертификат"
+        echo "     • Работает без домена"
+        echo "     • Браузер покажет предупреждение безопасности"
+        echo "     • Подходит для локального использования"
+        echo ""
+        echo "  3. Без HTTPS (только HTTP)"
+        echo "     • Без шифрования"
+        echo "     • Для тестирования или локальной сети"
+        echo ""
+        log "Бесплатные домены: DuckDNS (duckdns.org), No-IP (noip.com)"
+        echo ""
         
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            HTTPS_ENABLED="yes"
-            echo ""
-            echo -ne "Введите доменное имя (например: bot.example.com): "
-            read -r DOMAIN_NAME
-            
-            if [[ -z "$DOMAIN_NAME" ]]; then
-                warn "Доменное имя не указано. HTTPS будет пропущен."
+        echo -ne "${PURPLE}[?]${NC} Выберите вариант (1-Let's Encrypt / 2-Самоподписанный / N-Без HTTPS): "
+        read -r HTTPS_CHOICE
+        
+        case "${HTTPS_CHOICE}" in
+            1)
+                HTTPS_ENABLED="letsencrypt"
+                echo ""
+                echo -ne "Введите доменное имя (например: bot.example.com): "
+                read -r DOMAIN_NAME
+                
+                if [[ -z "$DOMAIN_NAME" ]]; then
+                    warn "Доменное имя не указано. HTTPS будет пропущен."
+                    HTTPS_ENABLED="no"
+                else
+                    success "Let's Encrypt будет настроен для $DOMAIN_NAME"
+                fi
+                ;;
+            2)
+                HTTPS_ENABLED="selfsigned"
+                echo ""
+                log "Будет создан самоподписанный SSL сертификат"
+                warn "⚠️  Браузер будет показывать предупреждение безопасности"
+                log "Это нормально для локального использования"
+                success "Самоподписанный сертификат будет создан"
+                ;;
+            *)
                 HTTPS_ENABLED="no"
-            else
-                success "HTTPS будет настроен для $DOMAIN_NAME"
-            fi
-        fi
+                log "HTTPS отключен. Веб-интерфейс будет доступен по HTTP"
+                ;;
+        esac
     else
         WEB_ENABLED="no"
         log "Веб-интерфейс отключен"
@@ -532,28 +568,88 @@ EOF
 # Настройка HTTPS
 # ============================================
 setup_https() {
-    if [ "$HTTPS_ENABLED" != "yes" ] || [ -z "$DOMAIN_NAME" ]; then
+    if [ "$HTTPS_ENABLED" == "no" ]; then
         return 0
     fi
     
     section "Настройка HTTPS"
     
-    log "Получение SSL сертификата от Let's Encrypt..."
-    log "Убедитесь что домен $DOMAIN_NAME указывает на этот сервер!"
-    echo ""
-    
-    echo -ne "Продолжить получение сертификата? (y/n): "
-    read -r -n 1 REPLY
-    echo
-    
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        if certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "admin@$DOMAIN_NAME"; then
-            success "HTTPS настроен для $DOMAIN_NAME"
+    if [ "$HTTPS_ENABLED" == "letsencrypt" ]; then
+        # Let's Encrypt
+        log "Получение SSL сертификата от Let's Encrypt..."
+        log "Убедитесь что домен $DOMAIN_NAME указывает на этот сервер!"
+        echo ""
+        
+        echo -ne "Продолжить получение сертификата? (y/n): "
+        read -r -n 1 REPLY
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "admin@$DOMAIN_NAME"; then
+                success "HTTPS настроен для $DOMAIN_NAME"
+            else
+                warn "Не удалось получить сертификат. Проверьте DNS настройки."
+                log "Веб-интерфейс будет доступен по HTTP"
+            fi
         else
-            warn "Не удалось получить сертификат. Проверьте DNS настройки."
+            log "HTTPS пропущен. Можно настроить позже."
         fi
-    else
-        log "HTTPS пропущен. Можно настроить позже."
+        
+    elif [ "$HTTPS_ENABLED" == "selfsigned" ]; then
+        # Самоподписанный сертификат
+        log "Создание самоподписанного SSL сертификата..."
+        
+        local ssl_dir="/etc/nginx/ssl"
+        mkdir -p "$ssl_dir"
+        
+        # Генерация сертификата
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout "$ssl_dir/selfsigned.key" \
+            -out "$ssl_dir/selfsigned.crt" \
+            -subj "/C=RU/ST=State/L=City/O=TelegrammBolt/CN=localhost" \
+            2>/dev/null
+        
+        if [ $? -eq 0 ]; then
+            chmod 600 "$ssl_dir/selfsigned.key"
+            chmod 644 "$ssl_dir/selfsigned.crt"
+            
+            # Обновляем конфиг nginx для самоподписанного сертификата
+            cat > /etc/nginx/sites-available/telegrambot << EOF
+server {
+    listen 80;
+    server_name _;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+    
+    ssl_certificate $ssl_dir/selfsigned.crt;
+    ssl_certificate_key $ssl_dir/selfsigned.key;
+    
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    location / {
+        proxy_pass http://127.0.0.1:$WEB_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+            
+            systemctl restart nginx
+            
+            success "Самоподписанный SSL сертификат создан"
+            warn "⚠️  Браузер покажет предупреждение - это нормально"
+            log "Для доступа: https://$(curl -s ifconfig.me 2>/dev/null || echo 'ваш-IP')"
+        else
+            error "Не удалось создать сертификат"
+            log "Веб-интерфейс будет доступен по HTTP"
+        fi
     fi
 }
 
@@ -631,11 +727,19 @@ show_final_info() {
     if [ "$WEB_ENABLED" == "yes" ]; then
         echo ""
         echo -e "${GREEN}🌐 Веб-интерфейс:${NC} Включен"
-        if [ "$HTTPS_ENABLED" == "yes" ]; then
+        
+        if [ "$HTTPS_ENABLED" == "letsencrypt" ]; then
             echo -e "${GREEN}🔗 URL:${NC} https://$DOMAIN_NAME"
+            echo -e "${GREEN}🔒 SSL:${NC} Let's Encrypt"
+        elif [ "$HTTPS_ENABLED" == "selfsigned" ]; then
+            local server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "ваш-IP")
+            echo -e "${GREEN}🔗 URL:${NC} https://$server_ip"
+            echo -e "${YELLOW}🔒 SSL:${NC} Самоподписанный сертификат"
+            echo -e "${YELLOW}⚠️  ${NC} Браузер покажет предупреждение - это нормально"
         else
-            local server_ip=$(curl -s ifconfig.me)
+            local server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "ваш-IP")
             echo -e "${GREEN}🔗 URL:${NC} http://$server_ip:$WEB_PORT"
+            echo -e "${YELLOW}⚠️  ${NC} HTTP (без шифрования)"
         fi
     fi
     

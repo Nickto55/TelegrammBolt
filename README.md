@@ -30,8 +30,8 @@ TelegrammBolt - это Telegram бот с веб-интерфейсом для �
 ### Автоматическая установка с интерактивной настройкой (Ubuntu/Debian)
 
 ```bash
-# Один скрипт для всего - установка + настройка
-curl -fsSL https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/install.sh | sudo bash
+# Установка одной командой
+curl -fsSL https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/install.sh -o install.sh && sudo bash install.sh
 ```
 
 **Что установщик спросит:**
@@ -40,8 +40,6 @@ curl -fsSL https://raw.githubusercontent.com/Nickto55/TelegrammBolt/main/install
 - 📧 Email настройки (опционально)
 - 🌐 Веб-интерфейс (вкл/выкл)
 - 🔒 HTTPS (опционально)
-
-**См. подробную инструкцию:** [QUICK_INSTALL.md](QUICK_INSTALL.md)
 
 ### Запуск
 
