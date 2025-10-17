@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from datetime import datetime as dt
 
 # Отключение лишних логов
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -216,6 +217,60 @@ ADMIN_CREDENTIALS = {
 # Можно добавить больше админов:
 # ADMIN_CREDENTIALS['superadmin'] = generate_password_hash('super_secret_password')
 # ADMIN_CREDENTIALS['superadmin_user_id'] = 'admin_super'
+
+def save_admin_credentials(username: str, password_hash: str):
+    """Сохраняет учётные данные администратора в файл"""
+    import json
+    import os
+    
+    credentials_file = 'web_credentials.json'
+    
+    # Загрузка существующих данных
+    if os.path.exists(credentials_file):
+        try:
+            with open(credentials_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except:
+            data = {}
+    else:
+        data = {}
+    
+    # Добавление нового пользователя
+    data[username] = {
+        'password_hash': password_hash,
+        'user_id': f'{username}_web',
+        'created_at': dt.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    # Сохранение
+    with open(credentials_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    print(f"✅ Веб-пользователь '{username}' сохранён в {credentials_file}")
+
+def load_admin_credentials():
+    """Загружает учётные данные из файла"""
+    import json
+    import os
+    
+    credentials_file = 'web_credentials.json'
+    
+    if os.path.exists(credentials_file):
+        try:
+            with open(credentials_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Обновление ADMIN_CREDENTIALS
+            for username, creds in data.items():
+                ADMIN_CREDENTIALS[username] = creds['password_hash']
+                ADMIN_CREDENTIALS[f'{username}_user_id'] = creds['user_id']
+            
+            print(f"✅ Загружено {len(data)} веб-пользователей из {credentials_file}")
+        except Exception as e:
+            print(f"⚠️  Ошибка загрузки веб-пользователей: {e}")
+
+# Загрузка сохранённых учётных данных при старте
+load_admin_credentials()
 
 print(f"ℹ️  Веб-админ логин: admin / admin123 (измените пароль в config.py!)")
 

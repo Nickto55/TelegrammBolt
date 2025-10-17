@@ -2111,6 +2111,74 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await handle_chat_message(update, context)
                 return
             
+            # === АДМИН: СОЗДАНИЕ ВЕБ-ПОЛЬЗОВАТЕЛЯ ===
+            elif user_id in admin_states and admin_states[user_id].get('creating_webuser'):
+                step = admin_states[user_id].get('step')
+                
+                if step == 'username':
+                    username = text.strip()
+                    # Проверка на допустимые символы
+                    if not username.replace('_', '').replace('-', '').isalnum():
+                        await update.message.reply_text(
+                            "❌ Логин должен содержать только латинские буквы, цифры, подчеркивание и дефис.\n\n"
+                            "Введите корректный логин:"
+                        )
+                        return
+                    
+                    # Проверка на существование
+                    from config import ADMIN_CREDENTIALS
+                    if username in ADMIN_CREDENTIALS:
+                        await update.message.reply_text(
+                            f"❌ Пользователь '{username}' уже существует.\n\n"
+                            "Введите другой логин:"
+                        )
+                        return
+                    
+                    admin_states[user_id]['username'] = username
+                    admin_states[user_id]['step'] = 'password'
+                    
+                    await update.message.reply_text(
+                        f"✅ Логин: <code>{username}</code>\n\n"
+                        "Теперь введите пароль для этого пользователя:\n"
+                        "(минимум 6 символов)",
+                        parse_mode='HTML'
+                    )
+                    return
+                
+                elif step == 'password':
+                    password = text.strip()
+                    if len(password) < 6:
+                        await update.message.reply_text(
+                            "❌ Пароль слишком короткий (минимум 6 символов).\n\n"
+                            "Введите корректный пароль:"
+                        )
+                        return
+                    
+                    username = admin_states[user_id].get('username')
+                    
+                    # Сохранение в config.py
+                    from config import ADMIN_CREDENTIALS, generate_password_hash, save_admin_credentials
+                    password_hash = generate_password_hash(password)
+                    ADMIN_CREDENTIALS[username] = password_hash
+                    
+                    # Сохранение в файл
+                    try:
+                        save_admin_credentials(username, password_hash)
+                        admin_states[user_id].clear()
+                        
+                        await update.message.reply_text(
+                            f"✅ <b>Веб-пользователь создан успешно!</b>\n\n"
+                            f"🔐 Логин: <code>{username}</code>\n"
+                            f"🔑 Пароль: <code>{password}</code>\n\n"
+                            f"🌐 URL: https://boltweb.servebeer.com/login\n\n"
+                            f"⚠️ <i>Сохраните эти данные, пароль больше не будет показан!</i>",
+                            parse_mode='HTML'
+                        )
+                    except Exception as e:
+                        await update.message.reply_text(f"❌ Ошибка сохранения: {e}")
+                        admin_states[user_id].clear()
+                    return
+            
             # === АДМИН: ИЗМЕНЕНИЕ РОЛИ ===
             elif user_id in admin_states and admin_states[user_id].get('changing_role'):
                 target_user_id = text.strip()
@@ -2180,6 +2248,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Если ничего не обработано, просто игнорируем сообщение
     await update.message.reply_text(
         "Используйте /start для открытия главного меню."
+    )
+
+
+async def createwebuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /createwebuser - создать веб-пользователя (только для админов)"""
+    user_id = str(update.effective_user.id)
+    
+    # Проверка прав администратора
+    if get_user_role(user_id) != 'admin':
+        await update.message.reply_text("❌ Эта команда доступна только администраторам.")
+        return
+    
+    # Инициализация состояния для ввода данных
+    admin_states[user_id] = {
+        'creating_webuser': True,
+        'step': 'username'
+    }
+    
+    await update.message.reply_text(
+        "🌐 <b>Создание веб-пользователя</b>\n\n"
+        "Введите логин для нового пользователя:\n"
+        "(только латинские буквы, цифры, подчеркивание)",
+        parse_mode='HTML'
     )
 
 
