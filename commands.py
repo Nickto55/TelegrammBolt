@@ -110,7 +110,7 @@ async def show_application_menu(update: Update, user_id: str) -> None:
 
     # Кнопки отправки и возврата, если основные поля заполнены (теперь включая RC)
     if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
-        keyboard.append([InlineKeyboardButton("📤 Отправить", callback_data='send')])
+        keyboard.append([InlineKeyboardButton("� Сохранить заявку", callback_data='send')])
         keyboard.append([InlineKeyboardButton("📧 Отправить по почте", callback_data='send_application_email')])
         keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
 
@@ -128,7 +128,9 @@ async def show_application_menu(update: Update, user_id: str) -> None:
         f"• {photo_text}\n\n"
     )
     if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
-        welcome_text += "После заполнения появятся кнопки отправки."
+        welcome_text += "✅ Все обязательные поля заполнены! Теперь можно сохранить заявку."
+    else:
+        welcome_text += "❗ Заполните все обязательные поля, чтобы сохранить заявку."
 
     if update.callback_query:
         await update.callback_query.edit_message_text(text=welcome_text, reply_markup=reply_markup)
@@ -1747,14 +1749,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             await query.edit_message_text("❌ У вас нет прав для просмотра списка ДСЕ.")
     
-    elif data == 'view_all_dse':
+    elif data == 'dse_view_all' or data == 'view_all_dse':
         await show_all_dse_records(update, context, page=0)
+    
+    elif data.startswith('dse_view_all_'):
+        page = int(data.split('_')[-1])
+        await show_all_dse_records(update, context, page=page)
     
     elif data.startswith('page_'):
         page = int(data.split('_')[1])
         await show_all_dse_records(update, context, page=page)
     
-    elif data == 'interactive_dse_search':
+    elif data == 'dse_search_interactive' or data == 'interactive_dse_search':
         await start_interactive_dse_search(update, context)
     
     elif data.startswith('dse_search_select_'):
@@ -1764,7 +1770,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif data == 'search_dse':
         await start_dse_search(update, context, 'dse')
     
-    elif data == 'search_type':
+    elif data == 'dse_search_type' or data == 'search_type':
         await start_dse_search(update, context, 'type')
     
     elif data == 'dse_statistics':
