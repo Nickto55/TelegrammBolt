@@ -43,6 +43,11 @@ async def post_init(application) -> None:
         loop.create_task(start_watcher_job(application))
         logger.info("⏱️  Задача DSE Watcher запланирована")
 
+        # Запуск интеграции с монитором
+        from monitor_integration import start_monitor_integration
+        await start_monitor_integration(application)
+        logger.info("📊 Интеграция монитора запущена")
+
         logger.info("✅ Дополнительные сервисы инициализированы")
     except Exception as e:
         logger.error(f"❌ Ошибка инициализации дополнительных сервисов: {e}")
@@ -69,16 +74,32 @@ def _register_handlers(app: Application) -> None:
 def main() -> None:
     """Основная функция запуска бота"""
 
-    # Создаем приложение
-    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
-    # Регистрируем обработчики
+    # --- Запуск Telegram бота ---
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
     _register_handlers(app)
-    
+
+    # --- Запуск web-интерфейса, если включён ---
+    import threading
+    import json
+    try:
+        with open("ven_bot.json", "r", encoding="utf-8") as f:
+            ven_cfg = json.load(f)
+        web_enabled = ven_cfg.get("web_enabled", True)
+        web_port = ven_cfg.get("web_port", 5000)
+    except Exception:
+        web_enabled = True
+        web_port = 5000
+
+    if web_enabled:
+        def run_web():
+            from web_app import app as flask_app
+            flask_app.run(host="0.0.0.0", port=web_port, debug=False, use_reloader=False)
+        threading.Thread(target=run_web, daemon=True).start()
+        print(f"🌐 Веб-интерфейс запущен на порту {web_port}")
+
     print("🚀 Бот запущен! Нажмите Ctrl+C для остановки")
     print("=" * 50)
-
-    # Запускаем бота
     app.run_polling()
 
 

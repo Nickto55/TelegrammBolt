@@ -31,6 +31,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = str(user.id)
 
+    # Логирование для монитора
+    try:
+        from monitor_integration import get_monitor_integration
+        monitor = get_monitor_integration()
+        monitor.increment_request()
+        monitor.log_to_monitor(f"👤 Пользователь {user.first_name} ({user_id}): /start", "INFO")
+    except:
+        pass
+
     # Регистрируем пользователя
     user_data = register_user(
         user_id,
@@ -109,10 +118,9 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     ]
 
     # Кнопки отправки и возврата, если основные поля заполнены (теперь включая RC)
-    if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
-        keyboard.append([InlineKeyboardButton("� Сохранить заявку", callback_data='send')])
-        keyboard.append([InlineKeyboardButton("📧 Отправить по почте", callback_data='send_application_email')])
-        keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
+        if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
+            keyboard.append([InlineKeyboardButton("💾 Сохранить заявку", callback_data='send')])
+            keyboard.append([InlineKeyboardButton(" Изменить", callback_data='edit_application')])
 
     # Кнопка возврата в главное меню
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')])
