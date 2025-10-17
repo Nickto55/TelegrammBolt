@@ -118,9 +118,9 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     ]
 
     # Кнопки отправки и возврата, если основные поля заполнены (теперь включая RC)
-        if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
-            keyboard.append([InlineKeyboardButton("💾 Сохранить заявку", callback_data='send')])
-            keyboard.append([InlineKeyboardButton(" Изменить", callback_data='edit_application')])
+    if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
+        keyboard.append([InlineKeyboardButton("💾 Сохранить заявку", callback_data='send')])
+        keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
 
     # Кнопка возврата в главное меню
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')])
