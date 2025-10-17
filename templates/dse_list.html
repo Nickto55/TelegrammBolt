@@ -398,8 +398,8 @@ function truncateText(text, maxLength) {
 }
 
 function viewDetails(dse) {
-    // TODO: Открыть модальное окно или перейти на страницу деталей
-    alert(`Просмотр деталей для ДСЕ: ${dse}`);
+    // Переход на страницу детальной информации о ДСЕ
+    window.location.href = `/dse/${encodeURIComponent(dse)}`;
 }
 
 function exportToExcel() {

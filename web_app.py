@@ -558,7 +558,7 @@ def dse_list():
                          permissions=get_user_permissions(user_id))
 
 
-@app.route('/dse/<int:dse_id>')
+@app.route('/dse/<dse_id>')
 @login_required
 def dse_detail(dse_id):
     """Детальная информация о ДСЕ"""
@@ -571,7 +571,63 @@ def dse_detail(dse_id):
     if not dse:
         return "ДСЕ не найдено", 404
     
-    return render_template('dse_detail.html', dse=dse)
+    # Получить информацию о пользователе, создавшем ДСЕ
+    user_info = None
+    if dse.get('user_id'):
+        user_info = get_user_data(str(dse['user_id']))
+    
+    return render_template('dse_detail.html', 
+                         dse=dse, 
+                         user_info=user_info,
+                         permissions=get_user_permissions(user_id))
+
+
+@app.route('/photo/<photo_id>')
+@login_required
+def get_photo(photo_id):
+    """Получить фото по file_id из Telegram"""
+    user_id = session['user_id']
+    
+    if not has_permission(user_id, 'view_dse'):
+        return "Доступ запрещен", 403
+    
+    try:
+        # Импортируем telegram для работы с API
+        from telegram import Bot
+        from config import BOT_TOKEN
+        import asyncio
+        
+        async def download_photo():
+            """Асинхронная загрузка фото"""
+            bot = Bot(token=BOT_TOKEN)
+            file = await bot.get_file(photo_id)
+            
+            # Создаем директорию для временных фото если нет
+            temp_dir = 'photos/temp'
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Путь для сохранения
+            photo_path = f"{temp_dir}/{photo_id}.jpg"
+            
+            # Скачиваем если еще не скачано
+            if not os.path.exists(photo_path):
+                await file.download_to_drive(photo_path)
+            
+            return photo_path
+        
+        # Запускаем асинхронную функцию
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        photo_path = loop.run_until_complete(download_photo())
+        loop.close()
+        
+        # Отправляем файл
+        return send_file(photo_path, mimetype='image/jpeg')
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки фото {photo_id}: {e}")
+        # Возвращаем заглушку
+        return send_file('static/img/no-image.svg', mimetype='image/svg+xml')
 
 
 @app.route('/reports')

@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Детали ДСЕ - BOLT{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Хлебные крошки -->
+    <nav aria-label="breadcrumb" class="mt-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Главная</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('dse_list') }}">ДСЕ</a></li>
+            <li class="breadcrumb-item active">{{ dse.get('dse', 'N/A') }}</li>
+        </ol>
+    </nav>
+
+    <!-- Заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">
+            <i class="bi bi-file-earmark-text me-2"></i>
+            Детали заявки ДСЕ
+        </h1>
+        <a href="{{ url_for('dse_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>
+            Назад к списку
+        </a>
+    </div>
+
+    <!-- Основная информация -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Основная информация
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small mb-1">Номер ДСЕ</label>
+                            <h4 class="text-primary">{{ dse.get('dse', 'N/A') }}</h4>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small mb-1">Дата создания</label>
+                            <h5>{{ dse.get('datetime', 'N/A') }}</h5>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small mb-1">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                Тип проблемы
+                            </label>
+                            <p class="mb-0">
+                                <span class="badge bg-warning text-dark fs-6">
+                                    {{ dse.get('problem_type', 'N/A') }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small mb-1">
+                                <i class="bi bi-building me-1"></i>
+                                РЦ
+                            </label>
+                            <p class="mb-0 fs-5">{{ dse.get('rc', 'N/A') }}</p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label class="text-muted small mb-1">
+                            <i class="bi bi-chat-left-text me-1"></i>
+                            Описание проблемы
+                        </label>
+                        <div class="border rounded p-3 bg-light">
+                            <p class="mb-0" style="white-space: pre-wrap;">{{ dse.get('description', 'Описание отсутствует') }}</p>
+                        </div>
+                    </div>
+
+                    {% if dse.get('sent_to_emails') %}
+                    <hr>
+                    <div class="mb-0">
+                        <label class="text-muted small mb-1">
+                            <i class="bi bi-envelope me-1"></i>
+                            Отправлено на email
+                        </label>
+                        <p class="mb-0">{{ dse.get('sent_to_emails', 'N/A') }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Фотографии -->
+            {% if dse.get('photo_file_id') or dse.get('photos') %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-images me-2"></i>
+                        Прикрепленные фото
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% if dse.get('photo_file_id') %}
+                        <div class="col-md-6">
+                            <div class="position-relative">
+                                <img src="{{ url_for('get_photo', photo_id=dse.get('photo_file_id')) }}" 
+                                     class="img-fluid rounded shadow-sm" 
+                                     alt="Фото ДСЕ"
+                                     style="cursor: pointer;"
+                                     data-bs-toggle="modal" 
+                                     data-bs-target="#photoModal{{ loop.index0 }}">
+                                <div class="position-absolute top-0 end-0 m-2">
+                                    <a href="{{ url_for('get_photo', photo_id=dse.get('photo_file_id')) }}" 
+                                       download="dse_{{ dse.get('dse', 'photo') }}.jpg"
+                                       class="btn btn-sm btn-light">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Modal для увеличения фото -->
+                            <div class="modal fade" id="photoModal{{ loop.index0 }}" tabindex="-1">
+                                <div class="modal-dialog modal-lg modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Фото ДСЕ {{ dse.get('dse', '') }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body text-center">
+                                            <img src="{{ url_for('get_photo', photo_id=dse.get('photo_file_id')) }}" 
+                                                 class="img-fluid" 
+                                                 alt="Фото ДСЕ">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if dse.get('photos') %}
+                            {% for photo_id in dse.get('photos', []) %}
+                            <div class="col-md-6">
+                                <div class="position-relative">
+                                    <img src="{{ url_for('get_photo', photo_id=photo_id) }}" 
+                                         class="img-fluid rounded shadow-sm" 
+                                         alt="Фото {{ loop.index }}"
+                                         style="cursor: pointer;"
+                                         data-bs-toggle="modal" 
+                                         data-bs-target="#photoModal{{ loop.index }}">
+                                    <div class="position-absolute top-0 end-0 m-2">
+                                        <a href="{{ url_for('get_photo', photo_id=photo_id) }}" 
+                                           download="dse_{{ dse.get('dse', 'photo') }}_{{ loop.index }}.jpg"
+                                           class="btn btn-sm btn-light">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                                
+                                <!-- Modal для увеличения фото -->
+                                <div class="modal fade" id="photoModal{{ loop.index }}" tabindex="-1">
+                                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Фото {{ loop.index }} - ДСЕ {{ dse.get('dse', '') }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body text-center">
+                                                <img src="{{ url_for('get_photo', photo_id=photo_id) }}" 
+                                                     class="img-fluid" 
+                                                     alt="Фото {{ loop.index }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                К этой заявке не прикреплены фотографии
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Боковая панель -->
+        <div class="col-lg-4">
+            <!-- Информация о пользователе -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person me-2"></i>
+                        Автор заявки
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <strong>ID пользователя:</strong><br>
+                        <code>{{ dse.get('user_id', 'N/A') }}</code>
+                    </p>
+                    {% if user_info %}
+                    <p class="mb-2">
+                        <strong>Имя:</strong><br>
+                        {{ user_info.get('name', 'N/A') }}
+                    </p>
+                    <p class="mb-0">
+                        <strong>Отдел:</strong><br>
+                        {{ user_info.get('department', 'N/A') }}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Статистика -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart me-2"></i>
+                        Статистика
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Фотографий:</span>
+                        <strong>
+                            {% if dse.get('photo_file_id') %}
+                                1
+                            {% elif dse.get('photos') %}
+                                {{ dse.get('photos', [])|length }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Email уведомлений:</span>
+                        <strong>
+                            {% if dse.get('sent_to_emails') %}
+                                {{ dse.get('sent_to_emails').split(',')|length }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Действия -->
+            {% if permissions.export_data %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-gear me-2"></i>
+                        Действия
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary w-100 mb-2" onclick="window.print()">
+                        <i class="bi bi-printer me-2"></i>
+                        Печать
+                    </button>
+                    <a href="{{ url_for('dse_list') }}?export=pdf&dse={{ dse.get('dse', '') }}" 
+                       class="btn btn-outline-primary w-100 mb-2">
+                        <i class="bi bi-file-pdf me-2"></i>
+                        Экспорт в PDF
+                    </a>
+                    <a href="{{ url_for('dse_list') }}?export=excel&dse={{ dse.get('dse', '') }}" 
+                       class="btn btn-outline-success w-100">
+                        <i class="bi bi-file-excel me-2"></i>
+                        Экспорт в Excel
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    @media print {
+        .btn, .breadcrumb, nav, .modal {
+            display: none !important;
+        }
+    }
+</style>
+{% endblock %}
