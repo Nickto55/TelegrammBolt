@@ -1988,7 +1988,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             keyboard = [
                 [InlineKeyboardButton("📄 Экспорт всех записей", callback_data='pdf_export_all')],
                 [InlineKeyboardButton("📋 Выбрать записи", callback_data='pdf_export_select')],
-                [InlineKeyboardButton("⬅️ Назад", callback_data='reports')]
+                [InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
