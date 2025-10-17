@@ -489,6 +489,7 @@ def get_bot_username():
         asyncio.set_event_loop(loop)
         bot_info = loop.run_until_complete(bot.get_me())
         loop.close()
+        logger.info(f"Username бота получен через API: @{bot_info.username}")
         return bot_info.username
     except Exception as e:
         logger.error(f"Ошибка получения username бота: {e}")
@@ -598,6 +599,15 @@ def server_info():
 def show_url():
     """Страница для отображения URL сервера"""
     info = get_server_url()
+    
+    # Определить домен для Telegram Login
+    # Telegram Login Widget работает ТОЛЬКО с доменами или IP (без протокола и порта)
+    if info['public_ip']:
+        telegram_domain = info['public_ip']
+    elif info['local_ip'] != 'localhost':
+        telegram_domain = info['local_ip']
+    else:
+        telegram_domain = 'localhost'
     
     html = f"""
     <!DOCTYPE html>
@@ -721,11 +731,17 @@ def show_url():
             
             <div class="alert alert-warning">
                 <h6><i class="bi bi-telegram"></i> Настройка Telegram Login:</h6>
-                <ol class="mb-0 ps-3">
+                <p class="mb-2"><strong>Для работы Telegram Login Widget настройте домен в @BotFather:</strong></p>
+                <ol class="mb-2 ps-3">
                     <li>Откройте @BotFather в Telegram</li>
-                    <li>Отправьте: /mybots → Ваш бот → Bot Settings → Domain</li>
-                    <li>Укажите домен: <code>{info['public_ip'] or info['local_ip']}</code></li>
+                    <li>Отправьте: <code>/mybots</code> → Ваш бот → <code>Bot Settings</code> → <code>Domain</code></li>
+                    <li>Укажите: <code>{telegram_domain}</code> <strong>(БЕЗ http:// и порта!)</strong></li>
                 </ol>
+                <div class="alert alert-info mb-0">
+                    <strong>⚠️ Важно:</strong> Telegram принимает только домен или IP без протокола (http/https) и порта.<br>
+                    <strong>Правильно:</strong> <code>{telegram_domain}</code><br>
+                    <strong>Неправильно:</strong> <code>http://{telegram_domain}:5000</code>
+                </div>
             </div>
             
             <div class="text-center mt-4">

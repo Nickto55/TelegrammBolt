@@ -111,7 +111,8 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     # Кнопки отправки и возврата, если основные поля заполнены (теперь включая RC)
     if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
         keyboard.append([InlineKeyboardButton("📤 Отправить", callback_data='send')])
-        keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
+        keyboard.append([InlineKeyboardButton("� Отправить по почте", callback_data='send_application_email')])
+        keyboard.append([InlineKeyboardButton("�🔄 Изменить", callback_data='edit_application')])
 
     # Кнопка возврата в главное меню
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='back_to_main')])
@@ -988,6 +989,8 @@ async def request_email_address(update: Update, context: ContextTypes.DEFAULT_TY
     """Запросить email адрес для отправки отчёта в выбранном формате"""
     user_id = str(update.callback_query.from_user.id)
     from config import SMTP_SETTINGS, is_smtp_configured
+    from email_manager import get_email_suggestions, get_formatted_emails_list
+    
     if not is_smtp_configured():
         await update.callback_query.edit_message_text(
             "❌ SMTP не настроен!\n\n"
@@ -1000,24 +1003,49 @@ async def request_email_address(update: Update, context: ContextTypes.DEFAULT_TY
             f"• Email: {SMTP_SETTINGS.get('SMTP_USER', 'не указан')}"
         )
         return
+    
     # Устанавливаем состояние ожидания email и формат
     admin_states[user_id]['waiting_for_email'] = True
     admin_states[user_id]['email_format'] = format_type
-    await update.callback_query.edit_message_text(
-        f"📧 Введите email адрес для отправки отчёта (формат: {format_type}):\n\n"
-        "Пример: user@example.com\n\n"
-        f"ℹ️ Настроен отправитель: {SMTP_SETTINGS['SMTP_USER']}"
-    )
+    
+    # Получаем предложения email адресов
+    suggestions = get_email_suggestions(user_id, email_type="export", limit=5)
+    
+    message = f"📧 Введите email адрес для отправки отчёта (формат: {format_type}):\n\n"
+    
+    # Показываем историю использованных email
+    if suggestions:
+        message += "💡 Ваши часто используемые адреса:\n"
+        for i, email in enumerate(suggestions, 1):
+            message += f"{i}. {email}\n"
+        message += "\n"
+    
+    message += "Введите email адрес или выберите из списка выше.\n"
+    message += "💡 Можно указать несколько адресов через запятую.\n\n"
+    message += f"ℹ️ Настроен отправитель: {SMTP_SETTINGS['SMTP_USER']}"
+    
+    await update.callback_query.edit_message_text(message)
 
 
 async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE, email: str) -> None:
-    """Отправить отчёт по электронной почте в выбранном формате"""
-    user_id = str(update.effective_user.id)
-    server = None
+    """Отправить отчёт по электронной почте в выбранном формате (поддержка нескольких адресов)"""
     user_id = str(update.effective_user.id)
     server = None
     from config import SMTP_SETTINGS, is_smtp_configured
+    from email_manager import add_email_to_history, validate_multiple_emails, format_email_list_for_display
+    
     try:
+        # Валидация email (поддержка нескольких адресов)
+        is_valid, error_msg, valid_emails = validate_multiple_emails(email)
+        
+        if not is_valid:
+            await update.message.reply_text(f"❌ Некорректный email адрес!\n\n{error_msg}")
+            return
+        
+        # Показываем предупреждение если какие-то адреса были пропущены
+        if error_msg:
+            await update.message.reply_text(error_msg)
+        
         if not is_smtp_configured():
             await update.message.reply_text(
                 "❌ SMTP не настроен!\n\n"
@@ -1026,31 +1054,48 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 "2. Указать корректный email и пароль приложения"
             )
             return
+        
         file_path = admin_states.get(user_id, {}).get('export_file', 'RezultBot.xlsx')
         format_type = admin_states.get(user_id, {}).get('email_format', 'excel')
+        
         smtp_server = SMTP_SETTINGS["SMTP_SERVER"]
         smtp_port = SMTP_SETTINGS["SMTP_PORT"]
         smtp_user = SMTP_SETTINGS["SMTP_USER"]
         smtp_password = SMTP_SETTINGS["SMTP_PASSWORD"]
+        
+        # Показываем на какие адреса отправляем
+        recipients_text = format_email_list_for_display(valid_emails)
+        await update.message.reply_text(
+            f"📧 Отправка на {len(valid_emails)} адрес(ов):\n{recipients_text}"
+        )
+        
+        # Готовим сообщение
         msg = MIMEMultipart()
         msg['From'] = f"{SMTP_SETTINGS['FROM_NAME']} <{smtp_user}>"
-        msg['To'] = email
-        msg['Subject'] = f"Выгрузка данных ДСЕ - {dt.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        msg['To'] = ', '.join(valid_emails)  # Все адреса в поле To
+        
+        # Тема письма для выгрузки данных
+        msg['Subject'] = "ЖП Бот"
+        
         if format_type == "excel":
             if not os.path.exists(file_path):
                 await update.message.reply_text("❌ Файл не найден!")
                 return
+            
             file_size = os.path.getsize(file_path) / 1024 / 1024
             body = f"Здравствуйте!\n\nВо вложении находится файл с выгрузкой данных ДСЕ.\n\n📊 Информация о выгрузке:\n• Дата создания: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}\n• Размер файла: {file_size:.2f} MB\n• Формат файла: Excel (.xlsx)\n\nС уважением,\n{SMTP_SETTINGS['FROM_NAME']}"
             msg.attach(MIMEText(body, 'plain', 'utf-8'))
+            
             await update.message.reply_text("📎 Подготовка вложения...")
             with open(file_path, "rb") as attachment:
                 part = MIMEBase('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 part.set_payload(attachment.read())
+            
             encoders.encode_base64(part)
             filename = f"Выгрузка_данных_ДСЕ_{dt.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
             part.add_header('Content-Disposition', f'attachment; filename=\"{filename}\"')
             msg.attach(part)
+            
         elif format_type == "text":
             report_text = await generate_text_report()
             body = f"Здравствуйте!\n\nВыгрузка данных ДСЕ в виде текста:\n\n{report_text}\n\nС уважением,\n{SMTP_SETTINGS['FROM_NAME']}"
@@ -1058,17 +1103,30 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
         else:
             await update.message.reply_text("❌ Неизвестный формат отчёта!")
             return
+        
         await update.message.reply_text("📧 Подключение к серверу...")
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.set_debuglevel(0)
+        
         await update.message.reply_text("🔒 Установка защищенного соединения...")
         server.starttls()
+        
         await update.message.reply_text("👤 Авторизация...")
         server.login(smtp_user, smtp_password)
+        
         await update.message.reply_text("📤 Отправка письма...")
         text = msg.as_string()
-        server.sendmail(smtp_user, email, text)
-        await update.message.reply_text(f"✅ Отчёт успешно отправлен на {email}!")
+        server.sendmail(smtp_user, valid_emails, text)  # Отправка на все адреса
+        
+        # Сохраняем каждый email в историю
+        for recipient_email in valid_emails:
+            add_email_to_history(user_id, recipient_email, email_type="export")
+        
+        await update.message.reply_text(
+            f"✅ Отчёт успешно отправлен на {len(valid_emails)} адрес(ов)!\n\n"
+            f"📧 Все адреса сохранены в вашу историю для быстрого выбора."
+        )
+        
     except Exception as e:
         await update.message.reply_text(
             f"❌ Ошибка отправки email!\n\n"
@@ -1141,6 +1199,228 @@ async def test_smtp_connection(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.callback_query.edit_message_text(
             f"❌ Ошибка теста SMTP: {str(e)}"
         )
+
+
+async def request_application_email_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Запросить email адрес для отправки заявки"""
+    user_id = str(update.callback_query.from_user.id)
+    from config import SMTP_SETTINGS, is_smtp_configured
+    from email_manager import get_email_suggestions
+    
+    if not is_smtp_configured():
+        await update.callback_query.edit_message_text(
+            "❌ SMTP не настроен!\n\n"
+            "Для отправки заявок по email необходимо:\n"
+            "1. Настроить параметры в файле smtp_config.json\n"
+            "2. Указать корректный email и пароль приложения\n\n"
+            "Текущие настройки:\n"
+            f"• Сервер: {SMTP_SETTINGS.get('SMTP_SERVER', 'не указан')}\n"
+            f"• Порт: {SMTP_SETTINGS.get('SMTP_PORT', 'не указан')}\n"
+            f"• Email: {SMTP_SETTINGS.get('SMTP_USER', 'не указан')}"
+        )
+        return
+    
+    # Устанавливаем состояние ожидания email для заявки
+    user_states[user_id]['waiting_for_application_email'] = True
+    
+    # Получаем предложения email адресов для заявок
+    suggestions = get_email_suggestions(user_id, email_type="application", limit=5)
+    
+    message = "📧 Введите email адрес для отправки заявки:\n\n"
+    
+    # Показываем историю использованных email
+    if suggestions:
+        message += "💡 Ваши часто используемые адреса для заявок:\n"
+        for i, email in enumerate(suggestions, 1):
+            message += f"{i}. {email}\n"
+        message += "\n"
+    
+    message += "Введите email адрес или выберите из списка выше.\n"
+    message += "💡 Можно указать несколько адресов через запятую.\n\n"
+    message += f"ℹ️ Настроен отправитель: {SMTP_SETTINGS['SMTP_USER']}"
+    
+    await update.callback_query.edit_message_text(message)
+
+
+async def send_application_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE, email: str) -> None:
+    """Отправить заявку по электронной почте (поддержка нескольких адресов)"""
+    user_id = str(update.effective_user.id)
+    server = None
+    from config import SMTP_SETTINGS, is_smtp_configured
+    from email_manager import add_email_to_history, validate_multiple_emails, format_email_list_for_display
+    
+    try:
+        # Валидация email (поддержка нескольких адресов)
+        is_valid, error_msg, valid_emails = validate_multiple_emails(email)
+        
+        if not is_valid:
+            await update.message.reply_text(f"❌ Некорректный email адрес!\n\n{error_msg}")
+            return
+        
+        # Показываем предупреждение если какие-то адреса были пропущены
+        if error_msg:
+            await update.message.reply_text(error_msg)
+        
+        if not is_smtp_configured():
+            await update.message.reply_text(
+                "❌ SMTP не настроен!\n\n"
+                "Для отправки заявок по email необходимо:\n"
+                "1. Настроить параметры в файле smtp_config.json\n"
+                "2. Указать корректный email и пароль приложения"
+            )
+            return
+        
+        # Получаем данные заявки
+        user_data = user_states[user_id]
+        dse_number = user_data.get('dse', 'Н/Д')
+        problem_type = user_data.get('problem_type', 'Не указан')
+        rc = user_data.get('rc', 'Не указан')
+        description = user_data.get('description', 'Нет описания')
+        photo_file_id = user_data.get('photo_file_id')
+        
+        smtp_server = SMTP_SETTINGS["SMTP_SERVER"]
+        smtp_port = SMTP_SETTINGS["SMTP_PORT"]
+        smtp_user = SMTP_SETTINGS["SMTP_USER"]
+        smtp_password = SMTP_SETTINGS["SMTP_PASSWORD"]
+        
+        # Показываем на какие адреса отправляем
+        recipients_text = format_email_list_for_display(valid_emails)
+        await update.message.reply_text(
+            f"📧 Отправка заявки на {len(valid_emails)} адрес(ов):\n{recipients_text}"
+        )
+        
+        msg = MIMEMultipart()
+        msg['From'] = f"{SMTP_SETTINGS['FROM_NAME']} <{smtp_user}>"
+        msg['To'] = ', '.join(valid_emails)  # Все адреса в поле To
+        
+        # Тема письма для заявки с номером ДСЕ
+        msg['Subject'] = f"Заявка ЖП Бот: {dse_number}"
+        
+        # Тело письма с деталями заявки
+        body = f"""Здравствуйте!
+
+Получена новая заявка через ЖП Бот.
+
+📋 ДЕТАЛИ ЗАЯВКИ:
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🏢 ДСЕ: {dse_number}
+📝 Тип проблемы: {problem_type}
+🏭 РЦ: {rc}
+📅 Дата создания: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+📄 ОПИСАНИЕ:
+{description}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+С уважением,
+{SMTP_SETTINGS['FROM_NAME']}
+"""
+        
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        # Добавляем фото если есть
+        if photo_file_id:
+            await update.message.reply_text("📎 Подготовка вложения с фото...")
+            try:
+                # Скачиваем фото
+                photo_file = await context.bot.get_file(photo_file_id)
+                photo_path = f"{PHOTOS_DIR}/temp_{user_id}_{dt.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                await photo_file.download_to_drive(photo_path)
+                
+                # Прикрепляем к письму
+                with open(photo_path, 'rb') as f:
+                    img_data = f.read()
+                
+                # Определяем MIME тип
+                mime_type, _ = mimetypes.guess_type(photo_path)
+                if not mime_type:
+                    mime_type = 'image/jpeg'
+                
+                maintype, subtype = mime_type.split('/', 1)
+                img_part = MIMEBase(maintype, subtype)
+                img_part.set_payload(img_data)
+                encoders.encode_base64(img_part)
+                img_part.add_header('Content-Disposition', f'attachment; filename="photo_{dse_number}.jpg"')
+                msg.attach(img_part)
+                
+                # Удаляем временный файл
+                try:
+                    os.remove(photo_path)
+                except:
+                    pass
+                    
+            except Exception as e:
+                await update.message.reply_text(f"⚠️ Не удалось прикрепить фото: {str(e)}")
+        
+        await update.message.reply_text("📧 Подключение к серверу...")
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.set_debuglevel(0)
+        
+        await update.message.reply_text("🔒 Установка защищенного соединения...")
+        server.starttls()
+        
+        await update.message.reply_text("👤 Авторизация...")
+        server.login(smtp_user, smtp_password)
+        
+        await update.message.reply_text("📤 Отправка заявки...")
+        text = msg.as_string()
+        server.sendmail(smtp_user, valid_emails, text)  # Отправка на все адреса
+        
+        # Сохраняем заявку в базу данных
+        record = {
+            'dse': dse_number,
+            'problem_type': problem_type,
+            'rc': rc,
+            'description': description,
+            'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'user_id': user_id,
+            'photo_file_id': photo_file_id,
+            'sent_to_emails': ', '.join(valid_emails)  # Сохраняем все адреса
+        }
+        
+        data_list = load_data()
+        data_list.append(record)
+        save_data(data_list)
+        
+        # Сохраняем каждый email в историю с номером ДСЕ
+        for recipient_email in valid_emails:
+            add_email_to_history(user_id, recipient_email, email_type="application", dse_number=dse_number)
+        
+        # Очищаем данные пользователя
+        user_states[user_id] = {
+            'application': '',
+            'dse': '',
+            'problem_type': '',
+            'description': '',
+            'rc': '',
+            'photo_file_id': None
+        }
+        
+        await update.message.reply_text(
+            f"✅ Заявка успешно отправлена на {len(valid_emails)} адрес(ов)!\n\n"
+            f"📋 ДСЕ: {dse_number}\n"
+            f"📝 Тип проблемы: {problem_type}\n"
+            f"🏭 РЦ: {rc}\n"
+            f"📧 Все адреса сохранены в вашу историю для быстрого выбора."
+        )
+        
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Ошибка отправки заявки!\n\n"
+            f"Тип ошибки: {type(e).__name__}\n"
+            f"Детали: {str(e)}\n\n"
+            "Проверьте настройки SMTP в файле smtp_config.json"
+        )
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
+        if user_id in user_states:
+            user_states[user_id].pop('waiting_for_application_email', None)
 
 
 # === ФУНКЦИИ УПРАВЛЕНИЯ КЛИЧКАМИ ===
@@ -1394,6 +1674,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"📅 Дата: {record['datetime']}"
         )
         await show_main_menu(update, user_id)
+    
+    elif data == 'send_application_email':
+        # Отправка заявки по email
+        await request_application_email_address(update, context)
     
     elif data == 'edit_application':
         await show_application_menu(update, user_id)
@@ -1742,6 +2026,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 if '@' in email and '.' in email:
                     admin_states[user_id].pop('waiting_for_email', None)
                     await send_file_by_email(update, context, email)
+                else:
+                    await update.message.reply_text(
+                        "❌ Некорректный email адрес.\n\n"
+                        "Введите корректный email:"
+                    )
+                return
+            
+            # === ПОЛЬЗОВАТЕЛЬ: EMAIL ДЛЯ ЗАЯВКИ ===
+            elif user_id in user_states and user_states[user_id].get('waiting_for_application_email'):
+                email = text.strip()
+                # Простая проверка email
+                if '@' in email and '.' in email:
+                    user_states[user_id].pop('waiting_for_application_email', None)
+                    await send_application_by_email(update, context, email)
                 else:
                     await update.message.reply_text(
                         "❌ Некорректный email адрес.\n\n"
