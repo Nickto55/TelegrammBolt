@@ -84,6 +84,19 @@ def has_permission(user_id, permission):
     if role == 'admin':
         return True
 
+    # Маппинг прав для совместимости с веб-интерфейсом
+    permission_mapping = {
+        'view_dse': 'view_dse_list',
+        'export_data': 'pdf_export',
+        'add_dse': 'use_form',  # Только админы могут добавлять
+        'edit_dse': 'admin',    # Только админы могут редактировать
+        'delete_dse': 'admin',  # Только админы могут удалять
+    }
+    
+    # Если используется веб-право, преобразуем его в право бота
+    if permission in permission_mapping:
+        permission = permission_mapping[permission]
+
     # Ответчик может просматривать ДСЕ, отслеживать, общаться по ДСЕ и создавать PDF отчеты
     if role == 'responder':
         if permission in ['chat_dse', 'view_main_menu', 'view_dse_list', 'watch_dse', 'pdf_export']:

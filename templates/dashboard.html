@@ -14,7 +14,7 @@
     
     <!-- Статистика -->
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
+        <div class="col-lg-3 col-md-6">
             <div class="card text-white bg-primary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -33,44 +33,103 @@
             </div>
         </div>
         
-        <div class="col-md-4">
+        <div class="col-lg-3 col-md-6">
             <div class="card text-white bg-success">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-subtitle mb-2">Активные чаты</h6>
-                            <h2 class="card-title mb-0">{{ stats.active_chats }}</h2>
+                            <h6 class="card-subtitle mb-2">Активные пользователи</h6>
+                            <h2 class="card-title mb-0">{{ stats.active_users }}</h2>
                         </div>
-                        <i class="bi bi-chat-dots display-4 opacity-50"></i>
+                        <i class="bi bi-people display-4 opacity-50"></i>
                     </div>
                 </div>
                 <div class="card-footer bg-transparent border-0">
-                    <a href="{{ url_for('chat') }}" class="text-white text-decoration-none">
-                        Открыть чат <i class="bi bi-arrow-right"></i>
-                    </a>
+                    <small class="text-white">Пользователей в системе</small>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-4">
+        <div class="col-lg-3 col-md-6">
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-subtitle mb-2">Отчетов создано</h6>
-                            <h2 class="card-title mb-0">{{ stats.reports_generated }}</h2>
+                            <h6 class="card-subtitle mb-2">За неделю</h6>
+                            <h2 class="card-title mb-0">{{ stats.recent_dse }}</h2>
                         </div>
-                        <i class="bi bi-file-earmark-text display-4 opacity-50"></i>
+                        <i class="bi bi-calendar-week display-4 opacity-50"></i>
                     </div>
                 </div>
                 <div class="card-footer bg-transparent border-0">
-                    <a href="{{ url_for('reports') }}" class="text-white text-decoration-none">
-                        Создать отчет <i class="bi bi-arrow-right"></i>
-                    </a>
+                    <small class="text-white">Новых записей за 7 дней</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Топ проблема</h6>
+                            <h5 class="card-title mb-0">{{ stats.top_problem_type }}</h5>
+                        </div>
+                        <i class="bi bi-exclamation-triangle display-4 opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <small class="text-white">Самый частый тип</small>
                 </div>
             </div>
         </div>
     </div>
+    
+    <!-- Диаграмма распределения по типам проблем -->
+    {% if stats.problem_types %}
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Распределение по типам проблем</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="problemTypesChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Статистика по типам</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Тип проблемы</th>
+                                    <th class="text-end">Количество</th>
+                                    <th class="text-end">%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for problem_type, count in stats.problem_types.items() | sort(attribute=1, reverse=True) %}
+                                <tr>
+                                    <td>{{ problem_type }}</td>
+                                    <td class="text-end"><strong>{{ count }}</strong></td>
+                                    <td class="text-end">{{ "%.1f"|format((count / stats.total_dse * 100)) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     
     <!-- Быстрые действия -->
     <div class="row mb-4">
@@ -148,7 +207,73 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
 <script>
+// Данные для диаграммы
+const problemTypesData = {
+    labels: [
+        {% for problem_type, count in stats.problem_types.items() %}
+        "{{ problem_type }}",
+        {% endfor %}
+    ],
+    datasets: [{
+        data: [
+            {% for problem_type, count in stats.problem_types.items() %}
+            {{ count }},
+            {% endfor %}
+        ],
+        backgroundColor: [
+            'rgba(30, 94, 255, 0.8)',   // #1E5EFF
+            'rgba(0, 212, 255, 0.8)',    // #00D4FF
+            'rgba(75, 192, 192, 0.8)',
+            'rgba(255, 159, 64, 0.8)',
+            'rgba(153, 102, 255, 0.8)',
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(201, 203, 207, 0.8)'
+        ],
+        borderWidth: 2,
+        borderColor: '#fff'
+    }]
+};
+
+// Создание диаграммы
+const ctx = document.getElementById('problemTypesChart');
+if (ctx) {
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: problemTypesData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
 // Загрузка последних ДСЕ
 document.addEventListener('DOMContentLoaded', function() {
     loadRecentDse();
@@ -167,20 +292,17 @@ function loadRecentDse() {
             // Показать последние 5
             const recent = data.slice(0, 5);
             let html = '<div class="table-responsive"><table class="table table-hover">';
-            html += '<thead><tr><th>ID</th><th>Название</th><th>Статус</th><th>Дата</th><th>Действия</th></tr></thead><tbody>';
+            html += '<thead><tr><th>ДСЕ</th><th>Тип проблемы</th><th>Описание</th><th>Дата</th></tr></thead><tbody>';
             
             recent.forEach(dse => {
+                const description = dse.description || 'Без описания';
+                const shortDesc = description.length > 50 ? description.substring(0, 50) + '...' : description;
                 html += `
                     <tr>
-                        <td>${dse.id}</td>
-                        <td>${dse.name || 'Без названия'}</td>
-                        <td><span class="badge bg-info">${dse.status || 'Активно'}</span></td>
-                        <td>${dse.date || '-'}</td>
-                        <td>
-                            <a href="/dse/${dse.id}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                        </td>
+                        <td><strong>${dse.dse || '-'}</strong></td>
+                        <td><span class="badge bg-info">${dse.problem_type || 'Не указано'}</span></td>
+                        <td>${shortDesc}</td>
+                        <td>${dse.datetime || '-'}</td>
                     </tr>
                 `;
             });

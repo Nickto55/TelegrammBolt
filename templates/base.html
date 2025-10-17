@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}TelegrammBolt{% endblock %}</title>
+    <title>{% block title %}BOLT{% endblock %}</title>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -19,36 +19,22 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
-                <i class="bi bi-robot"></i> TelegrammBolt
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
+                <svg width="32" height="32" viewBox="0 0 100 100" class="me-2">
+                    <!-- Волны -->
+                    <path d="M20,30 Q35,20 50,30 T80,30" fill="none" stroke="#00D4FF" stroke-width="8" opacity="0.6"/>
+                    <path d="M10,50 Q30,35 50,50 T90,50" fill="none" stroke="#1E5EFF" stroke-width="10" opacity="0.8"/>
+                    <path d="M15,70 Q35,55 55,70 T85,70" fill="none" stroke="#5B9FFF" stroke-width="8" opacity="0.5"/>
+                    <!-- Буква B -->
+                    <text x="50" y="65" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="white" text-anchor="middle">B</text>
+                </svg>
+                <span class="fw-bold fs-4">BOLT</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">
-                            <i class="bi bi-speedometer2"></i> Панель управления
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dse_list') }}">
-                            <i class="bi bi-list-ul"></i> ДСЕ
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('reports') }}">
-                            <i class="bi bi-file-earmark-text"></i> Отчеты
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('chat') }}">
-                            <i class="bi bi-chat-dots"></i> Чат
-                        </a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
+                <ul class="navbar-nav ms-auto">
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                             {% if session.photo_url %}
@@ -57,8 +43,12 @@
                             {{ session.first_name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#"><i class="bi bi-person"></i> Профиль</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2"></i> Панель управления</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('dse_list') }}"><i class="bi bi-list-ul"></i> ДСЕ</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('reports') }}"><i class="bi bi-file-earmark-text"></i> Отчеты</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Чат</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-person"></i> Профиль</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Выход</a></li>
                         </ul>
                     </li>
@@ -88,7 +78,7 @@
     {% if session.user_id %}
     <footer class="footer mt-auto py-3 bg-light">
         <div class="container text-center">
-            <span class="text-muted">© 2025 TelegrammBolt. Все права защищены.</span>
+            <span class="text-muted">© 2025 BOLT. Все права защищены.</span>
         </div>
     </footer>
     {% endif %}

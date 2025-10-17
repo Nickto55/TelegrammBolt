@@ -223,6 +223,59 @@ def telegram_auth():
         return jsonify({'error': 'Ошибка авторизации'}), 500
 
 
+@app.route('/auth/admin', methods=['POST'])
+def admin_auth():
+    """Обработка авторизации администратора через логин/пароль"""
+    try:
+        auth_data = request.json
+        username = auth_data.get('username', '').strip()
+        password = auth_data.get('password', '').strip()
+        
+        # Загружаем админ-креды из config
+        import config
+        admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
+        
+        # Проверка логина/пароля
+        if username in admin_credentials and admin_credentials[username] == hashlib.sha256(password.encode()).hexdigest():
+            # Получаем user_id админа из конфига или создаём специальный
+            admin_user_id = admin_credentials.get(f'{username}_user_id', f'admin_{username}')
+            
+            # Проверяем, что пользователь зарегистрирован и является админом
+            users_data = get_users_data()
+            if admin_user_id not in users_data:
+                # Регистрируем админа если его нет
+                register_user(admin_user_id, username, 'Администратор', '')
+                # Устанавливаем роль admin
+                from user_manager import set_user_role
+                set_user_role(admin_user_id, 'admin')
+            
+            # Проверяем, что роль действительно admin
+            if get_user_role(admin_user_id) != 'admin':
+                return jsonify({'error': 'У пользователя нет прав администратора'}), 403
+            
+            # Сохранение данных в сессию
+            session.permanent = True
+            session['user_id'] = admin_user_id
+            session['first_name'] = 'Администратор'
+            session['last_name'] = ''
+            session['username'] = username
+            session['photo_url'] = ''
+            session['auth_type'] = 'admin'  # Помечаем тип авторизации
+            
+            logger.info(f"Admin {username} logged in via credentials")
+            
+            return jsonify({
+                'success': True,
+                'redirect': url_for('dashboard')
+            })
+        else:
+            return jsonify({'error': 'Неверный логин или пароль'}), 401
+    
+    except Exception as e:
+        logger.error(f"Admin auth error: {e}")
+        return jsonify({'error': 'Ошибка авторизации'}), 500
+
+
 @app.route('/logout')
 def logout():
     """Выход из системы"""
@@ -251,10 +304,34 @@ def dashboard():
     
     # Статистика
     dse_data = get_all_dse()
+    
+    # Подсчёт активных пользователей
+    active_users = len([u for u in users_data.values() if u.get('role') != 'banned'])
+    
+    # Подсчёт записей по типам проблем
+    problem_types = {}
+    for record in dse_data:
+        problem_type = record.get('problem_type', 'Неизвестно')
+        problem_types[problem_type] = problem_types.get(problem_type, 0) + 1
+    
+    # Подсчёт записей за последние 7 дней
+    from datetime import datetime, timedelta
+    recent_date = datetime.now() - timedelta(days=7)
+    recent_dse = 0
+    for record in dse_data:
+        try:
+            record_date = datetime.strptime(record.get('datetime', ''), '%Y-%m-%d %H:%M:%S')
+            if record_date >= recent_date:
+                recent_dse += 1
+        except:
+            pass
+    
     stats = {
         'total_dse': len(dse_data),
-        'active_chats': 0,  # TODO: подсчет активных чатов
-        'reports_generated': 0,  # TODO: статистика отчетов
+        'active_users': active_users,
+        'recent_dse': recent_dse,
+        'problem_types': problem_types,
+        'top_problem_type': max(problem_types.items(), key=lambda x: x[1])[0] if problem_types else 'Нет данных'
     }
     
     return render_template('dashboard.html', 

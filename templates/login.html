@@ -1,13 +1,20 @@
 {% extends "base.html" %}
 
-{% block title %}Вход - TelegrammBolt{% endblock %}
+{% block title %}Вход - BOLT{% endblock %}
 
 {% block content %}
 <div class="login-container">
     <div class="login-box">
         <div class="text-center mb-4">
-            <i class="bi bi-robot display-1 text-primary"></i>
-            <h1 class="mt-3">TelegrammBolt</h1>
+            <svg width="80" height="80" viewBox="0 0 100 100" class="mb-3">
+                <!-- Волны -->
+                <path d="M20,30 Q35,20 50,30 T80,30" fill="none" stroke="#00D4FF" stroke-width="8" opacity="0.6"/>
+                <path d="M10,50 Q30,35 50,50 T90,50" fill="none" stroke="#1E5EFF" stroke-width="10" opacity="0.8"/>
+                <path d="M15,70 Q35,55 55,70 T85,70" fill="none" stroke="#5B9FFF" stroke-width="8" opacity="0.5"/>
+                <!-- Буква B -->
+                <text x="50" y="65" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="#1E5EFF" text-anchor="middle">B</text>
+            </svg>
+            <h1 class="mt-3 fw-bold">BOLT</h1>
             <p class="text-muted">Система управления ДСЕ</p>
         </div>
         
@@ -17,30 +24,72 @@
                 
                 <div id="alert-container"></div>
                 
-                <p class="text-center mb-4">
-                    Войдите используя ваш аккаунт Telegram
-                </p>
+                <!-- Вкладки: Telegram / Логин-пароль -->
+                <ul class="nav nav-pills nav-fill mb-4" id="loginTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="telegram-tab" data-bs-toggle="tab" data-bs-target="#telegram" type="button" role="tab">
+                            <i class="bi bi-telegram"></i> Telegram
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab">
+                            <i class="bi bi-shield-lock"></i> Администратор
+                        </button>
+                    </li>
+                </ul>
                 
-                <!-- Telegram Login Button -->
-                <div class="d-flex justify-content-center mb-3">
-                    <script async src="https://telegram.org/js/telegram-widget.js?22" 
-                            data-telegram-login="{{ bot_username }}" 
-                            data-size="large" 
-                            data-onauth="onTelegramAuth(user)" 
-                            data-request-access="write">
-                    </script>
-                </div>
-                
-                <hr>
-                
-                <div class="text-center">
-                    <p class="small text-muted">
-                        <i class="bi bi-info-circle"></i> 
-                        Не зарегистрированы в боте?
-                    </p>
-                    <a href="https://t.me/{{ bot_username }}" class="btn btn-outline-primary" target="_blank">
-                        <i class="bi bi-telegram"></i> Открыть бота в Telegram
-                    </a>
+                <div class="tab-content">
+                    <!-- Telegram Login -->
+                    <div class="tab-pane fade show active" id="telegram" role="tabpanel">
+                        <p class="text-center mb-4">
+                            Войдите используя ваш аккаунт Telegram
+                        </p>
+                        
+                        <!-- Telegram Login Button -->
+                        <div class="d-flex justify-content-center mb-3">
+                            <script async src="https://telegram.org/js/telegram-widget.js?22" 
+                                    data-telegram-login="{{ bot_username }}" 
+                                    data-size="large" 
+                                    data-onauth="onTelegramAuth(user)" 
+                                    data-request-access="write">
+                            </script>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="text-center">
+                            <p class="small text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                Не зарегистрированы в боте?
+                            </p>
+                            <a href="https://t.me/{{ bot_username }}" class="btn btn-outline-primary" target="_blank">
+                                <i class="bi bi-telegram"></i> Открыть бота в Telegram
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Admin Login -->
+                    <div class="tab-pane fade" id="admin" role="tabpanel">
+                        <form id="adminLoginForm" onsubmit="return onAdminLogin(event)">
+                            <div class="mb-3">
+                                <label for="adminUsername" class="form-label">Логин</label>
+                                <input type="text" class="form-control" id="adminUsername" name="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="adminPassword" class="form-label">Пароль</label>
+                                <input type="password" class="form-control" id="adminPassword" name="password" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-box-arrow-in-right"></i> Войти
+                            </button>
+                        </form>
+                        
+                        <div class="text-center mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-shield-lock"></i> Только для администраторов
+                            </small>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -55,7 +104,7 @@
 
 <style>
     body {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1E5EFF 0%, #00D4FF 100%);
         min-height: 100vh;
         display: flex;
         align-items: center;
@@ -87,6 +136,15 @@
         border: none;
         border-radius: 15px;
     }
+    
+    .nav-pills .nav-link {
+        color: #6c757d;
+        border-radius: 10px;
+    }
+    
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, #1E5EFF, #00D4FF);
+    }
 </style>
 {% endblock %}
 
@@ -116,6 +174,36 @@ function onTelegramAuth(user) {
         console.error('Error:', error);
         showAlert('Произошла ошибка при авторизации', 'danger');
     });
+}
+
+function onAdminLogin(event) {
+    event.preventDefault();
+    
+    const username = document.getElementById('adminUsername').value;
+    const password = document.getElementById('adminPassword').value;
+    
+    // Отправка логина/пароля на сервер
+    fetch('/auth/admin', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.redirect;
+        } else {
+            showAlert(data.error || 'Неверный логин или пароль', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Произошла ошибка при авторизации', 'danger');
+    });
+    
+    return false;
 }
 
 function showAlert(message, type = 'info') {

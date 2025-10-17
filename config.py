@@ -195,3 +195,27 @@ def is_smtp_configured():
     return (SMTP_SETTINGS.get("SMTP_USER") and 
             SMTP_SETTINGS.get("SMTP_PASSWORD") and
             SMTP_SETTINGS["SMTP_USER"] != "your_email@gmail.com")
+
+
+# === НАСТРОЙКИ АДМИНОВ ДЛЯ ВЕБ-ИНТЕРФЕЙСА ===
+# Креденшиалы для входа через логин/пароль
+# Пароли хранятся в виде SHA256 хешей
+import hashlib
+
+def generate_password_hash(password: str) -> str:
+    """Генерирует SHA256 хеш для пароля"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Словарь админ-кредов: {username: sha256(password)}
+# По умолчанию: admin / admin123
+ADMIN_CREDENTIALS = {
+    'admin': generate_password_hash('admin123'),
+    'admin_user_id': 'admin_web'  # ID для веб-админа
+}
+
+# Можно добавить больше админов:
+# ADMIN_CREDENTIALS['superadmin'] = generate_password_hash('super_secret_password')
+# ADMIN_CREDENTIALS['superadmin_user_id'] = 'admin_super'
+
+print(f"ℹ️  Веб-админ логин: admin / admin123 (измените пароль в config.py!)")
+
