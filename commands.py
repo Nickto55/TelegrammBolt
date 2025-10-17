@@ -1399,9 +1399,12 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
             'sent_to_emails': ', '.join(valid_emails)  # Сохраняем все адреса
         }
         
-        data_list = load_data(DATA_FILE)
-        data_list.append(record)
-        save_data(data_list, DATA_FILE)
+        # Загружаем данные как словарь {user_id: [records]}
+        data_dict = load_data(DATA_FILE)
+        if user_id not in data_dict:
+            data_dict[user_id] = []
+        data_dict[user_id].append(record)
+        save_data(data_dict, DATA_FILE)
         
         # Сохраняем каждый email в историю с номером ДСЕ
         for recipient_email in valid_emails:
@@ -1703,9 +1706,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'photo_file_id': user_data.get('photo_file_id')
         }
         
-        data_list = load_data(DATA_FILE)
-        data_list.append(record)
-        save_data(data_list, DATA_FILE)
+        # Загружаем данные как словарь {user_id: [records]}
+        data_dict = load_data(DATA_FILE)
+        if user_id not in data_dict:
+            data_dict[user_id] = []
+        data_dict[user_id].append(record)
+        save_data(data_dict, DATA_FILE)
         
         # Очищаем данные пользователя
         user_states[user_id] = {
