@@ -207,7 +207,8 @@ configure_bot_token() {
     echo ""
     
     while true; do
-        read -p "$(echo -e ${PURPLE}[?]${NC} Введите токен бота: )" BOT_TOKEN
+        echo -ne "${PURPLE}[?]${NC} Введите токен бота: "
+        read BOT_TOKEN
         
         if [[ -z "$BOT_TOKEN" ]]; then
             error "Токен не может быть пустым!"
@@ -243,7 +244,8 @@ configure_admin_ids() {
     echo ""
     
     while true; do
-        read -p "$(echo -e ${PURPLE}[?]${NC} Введите ID администратора(ов) через запятую: )" ADMIN_IDS
+        echo -ne "${PURPLE}[?]${NC} Введите ID администратора(ов) через запятую: "
+        read ADMIN_IDS
         
         if [[ -z "$ADMIN_IDS" ]]; then
             error "Нужен хотя бы один администратор!"
@@ -270,7 +272,8 @@ configure_smtp() {
     log "Email используется для отправки отчетов"
     echo ""
     
-    read -p "$(echo -e ${PURPLE}[?]${NC} Настроить Email? (y/n): )" -n 1 -r
+    echo -ne "${PURPLE}[?]${NC} Настроить Email? (y/n): "
+    read -n 1 -r
     echo
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -295,7 +298,8 @@ configure_web() {
     section "Настройка веб-интерфейса"
     
     echo ""
-    read -p "$(echo -e ${PURPLE}[?]${NC} Включить веб-интерфейс? (Y/n): )" -n 1 -r
+    echo -ne "${PURPLE}[?]${NC} Включить веб-интерфейс? (Y/n): "
+    read -n 1 -r
     echo
     
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
@@ -308,7 +312,8 @@ configure_web() {
         
         # HTTPS
         echo ""
-        read -p "$(echo -e ${PURPLE}[?]${NC} Настроить HTTPS с Let's Encrypt? (y/N): )" -n 1 -r
+        echo -ne "${PURPLE}[?]${NC} Настроить HTTPS с Let's Encrypt? (y/N): "
+        read -n 1 -r
         echo
         
         if [[ $REPLY =~ ^[Yy]$ ]]; then
