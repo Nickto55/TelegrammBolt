@@ -354,21 +354,76 @@ async def handle_pdf_export_all(update, context):
 async def handle_pdf_export_select(update, context):
     """Выбор записей для экспорта в PDF"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from dse_manager import get_all_dse_records
     
     query = update.callback_query
     await query.answer()
     
-    # Пока что выводим заглушку
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        "🔧 *Выборочный экспорт*\n\n"
-        "Функция находится в разработке.\n"
-        "Используйте 'Экспорт всех записей' для получения PDF отчётов.",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
+    try:
+        # Получаем все записи
+        records = get_all_dse_records()
+        
+        if not records:
+            keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                "❌ Нет записей для экспорта.",
+                reply_markup=reply_markup
+            )
+            return
+        
+        # Создаём кнопки выбора по ДСЕ (группируем одинаковые)
+        dse_dict = {}
+        for record in records:
+            dse = record.get('dse', 'N/A')
+            if dse not in dse_dict:
+                dse_dict[dse] = []
+            dse_dict[dse].append(record)
+        
+        keyboard = []
+        
+        # Показываем первые 10 ДСЕ
+        for i, (dse, dse_records) in enumerate(list(dse_dict.items())[:10]):
+            count = len(dse_records)
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"📄 {dse} ({count} зап.)",
+                    callback_data=f'pdf_select_dse_{dse.replace("/", "-")}'
+                )
+            ])
+        
+        keyboard.append([InlineKeyboardButton("📥 Экспорт выбранных", callback_data='pdf_export_selected')])
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "� *Выборочный экспорт PDF*\n\n"
+            "Выберите ДСЕ для экспорта:\n"
+            f"(Доступно ДСЕ: {len(dse_dict)})\n\n"
+            "💡 _Выберите один или несколько ДСЕ, затем нажмите 'Экспорт выбранных'_",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        # Сохраняем список ДСЕ в контексте
+        user_id = str(query.from_user.id)
+        if not hasattr(context, 'user_data'):
+            context.user_data = {}
+        context.user_data[user_id] = {
+            'pdf_export_mode': 'select',
+            'dse_dict': dse_dict,
+            'selected_dse': []
+        }
+        
+    except Exception as e:
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"❌ Ошибка при загрузке записей: {str(e)}",
+            reply_markup=reply_markup
+        )
 
 
 if __name__ == "__main__":
@@ -387,3 +442,146 @@ if __name__ == "__main__":
         print(f"PDF отчет создан: {filename}")
     else:
         print("Ошибка создания PDF отчета")
+
+
+async def handle_pdf_select_dse(update, context, dse_name):
+    """Обработка выбора ДСЕ для экспорта"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    
+    # Получаем данные пользователя
+    if not hasattr(context, 'user_data') or user_id not in context.user_data:
+        await query.answer("❌ Сессия истекла. Начните заново.", show_alert=True)
+        return
+    
+    user_context = context.user_data[user_id]
+    selected = user_context.get('selected_dse', [])
+    
+    # Восстанавливаем оригинальное имя ДСЕ (с "/")
+    dse_name = dse_name.replace("-", "/")
+    
+    # Переключаем выбор
+    if dse_name in selected:
+        selected.remove(dse_name)
+        await query.answer(f"❌ {dse_name} удалён из выбора")
+    else:
+        selected.append(dse_name)
+        await query.answer(f"✅ {dse_name} добавлен в выбор")
+    
+    user_context['selected_dse'] = selected
+    
+    # Обновляем меню с отметками
+    dse_dict = user_context.get('dse_dict', {})
+    keyboard = []
+    
+    for i, (dse, dse_records) in enumerate(list(dse_dict.items())[:10]):
+        count = len(dse_records)
+        mark = "✅ " if dse in selected else ""
+        keyboard.append([
+            InlineKeyboardButton(
+                f"{mark}📄 {dse} ({count} зап.)",
+                callback_data=f'pdf_select_dse_{dse.replace("/", "-")}'
+            )
+        ])
+    
+    keyboard.append([InlineKeyboardButton(
+        f"📥 Экспорт выбранных ({len(selected)})",
+        callback_data='pdf_export_selected'
+    )])
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        "📋 *Выборочный экспорт PDF*\n\n"
+        "Выберите ДСЕ для экспорта:\n"
+        f"(Доступно ДСЕ: {len(dse_dict)})\n"
+        f"(Выбрано: {len(selected)})\n\n"
+        "💡 _Нажмите на ДСЕ для выбора, затем 'Экспорт выбранных'_",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def handle_pdf_export_selected(update, context):
+    """Экспорт выбранных ДСЕ в PDF"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    import os
+    
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    
+    # Получаем данные пользователя
+    if not hasattr(context, 'user_data') or user_id not in context.user_data:
+        await query.answer("❌ Сессия истекла. Начните заново.", show_alert=True)
+        return
+    
+    user_context = context.user_data[user_id]
+    selected_dse = user_context.get('selected_dse', [])
+    dse_dict = user_context.get('dse_dict', {})
+    
+    if not selected_dse:
+        await query.answer("❌ Не выбраны ДСЕ для экспорта", show_alert=True)
+        return
+    
+    await query.answer()
+    await query.edit_message_text("⏳ Генерация PDF файлов...")
+    
+    try:
+        exported_count = 0
+        total_records = sum(len(dse_dict[dse]) for dse in selected_dse if dse in dse_dict)
+        
+        for dse in selected_dse:
+            if dse not in dse_dict:
+                continue
+            
+            records = dse_dict[dse]
+            
+            for i, record in enumerate(records[:10]):  # Максимум 10 записей на ДСЕ
+                try:
+                    filename = create_dse_pdf_report(record)
+                    
+                    if filename and os.path.exists(filename):
+                        with open(filename, 'rb') as pdf_file:
+                            await context.bot.send_document(
+                                chat_id=query.message.chat_id,
+                                document=pdf_file,
+                                filename=f"DSE_{record.get('dse', 'N/A')}_{record.get('num', i+1)}.pdf",
+                                caption=f"📄 Отчёт ДСЕ: {record.get('dse', 'N/A')}"
+                            )
+                        
+                        os.remove(filename)
+                        exported_count += 1
+                
+                except Exception as e:
+                    print(f"Ошибка экспорта записи: {e}")
+                    continue
+        
+        # Возвращаемся в меню
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"✅ *Экспорт завершён!*\n\n"
+                 f"Выбрано ДСЕ: {len(selected_dse)}\n"
+                 f"Всего записей: {total_records}\n"
+                 f"Экспортировано PDF: {exported_count}",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        # Очищаем контекст
+        context.user_data[user_id] = {}
+        
+    except Exception as e:
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='pdf_export_menu')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"❌ Ошибка экспорта: {str(e)}",
+            reply_markup=reply_markup
+        )

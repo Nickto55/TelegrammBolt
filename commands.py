@@ -1803,6 +1803,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             await query.edit_message_text("❌ У вас нет прав администратора.")
     
+    # Новый обработчик для set_role_ (формат: set_role_<user_id>_<role>)
+    elif data.startswith('set_role_'):
+        if get_user_role(user_id) == 'admin':
+            parts = data.split('_')
+            if len(parts) >= 4:
+                target_user_id = parts[2]
+                role_name = parts[3]
+                
+                if role_name in ROLES:
+                    set_user_role(target_user_id, role_name)
+                    await query.answer(f"✅ Роль изменена на: {ROLES[role_name]}", show_alert=True)
+                    await show_admin_menu(update, context)
+                else:
+                    await query.answer("❌ Неверная роль", show_alert=True)
+        else:
+            await query.answer("❌ У вас нет прав администратора.", show_alert=True)
+    
+    # Старый обработчик role_ (оставляем для совместимости)
     elif data.startswith('role_'):
         if get_user_role(user_id) == 'admin':
             role_name = data.split('_', 1)[1]
@@ -1982,6 +2000,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if has_permission(user_id, 'pdf_export'):
             from pdf_generator import handle_pdf_export_select
             await handle_pdf_export_select(update, context)
+        else:
+            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
+    
+    elif data.startswith('pdf_select_dse_'):
+        if has_permission(user_id, 'pdf_export'):
+            from pdf_generator import handle_pdf_select_dse
+            dse_name = data.replace('pdf_select_dse_', '')
+            await handle_pdf_select_dse(update, context, dse_name)
+        else:
+            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
+    
+    elif data == 'pdf_export_selected':
+        if has_permission(user_id, 'pdf_export'):
+            from pdf_generator import handle_pdf_export_selected
+            await handle_pdf_export_selected(update, context)
         else:
             await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
 
