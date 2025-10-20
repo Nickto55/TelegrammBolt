@@ -59,9 +59,14 @@
                                         </small>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary" 
+                                        <button class="btn btn-sm btn-outline-primary me-1" 
                                                 onclick="editUser('{{ user_id }}', {{ user_data | tojson }})">
                                             <i class="bi bi-pencil"></i> Изменить
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                onclick="deleteUser('{{ user_id }}', '{{ user_data.get('first_name', '') }} {{ user_data.get('last_name', '') }}')"
+                                                {% if user_id == session['user_id']|string %}disabled title="Нельзя удалить себя"{% endif %}>
+                                            <i class="bi bi-trash"></i> Удалить
                                         </button>
                                     </td>
                                 </tr>
@@ -240,7 +245,11 @@ function saveUserPermissions() {
     .then(data => {
         if (data.success) {
             // Закрытие модального окна
-            bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+            const modalElement = document.getElementById('editUserModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
             
             // Показ уведомления
             alert('✅ Права пользователя успешно обновлены!');
@@ -254,6 +263,32 @@ function saveUserPermissions() {
     .catch(error => {
         console.error('Ошибка:', error);
         alert('❌ Ошибка при сохранении изменений');
+    });
+}
+
+function deleteUser(userId, userName) {
+    if (!confirm(`Вы уверены, что хотите удалить пользователя ${userName}?\n\nЭто действие нельзя отменить!`)) {
+        return;
+    }
+    
+    fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Пользователь успешно удален!');
+            location.reload();
+        } else {
+            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('❌ Ошибка при удалении пользователя');
     });
 }
 

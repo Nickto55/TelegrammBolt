@@ -664,6 +664,51 @@ def update_user_permissions(user_id):
     return jsonify({'success': True, 'message': 'Права обновлены'})
 
 
+@app.route('/api/users/<user_id>', methods=['DELETE'])
+@login_required
+def delete_user(user_id):
+    """API: Удаление пользователя"""
+    admin_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(admin_id) != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    # Нельзя удалить самого себя
+    if str(admin_id) == str(user_id):
+        return jsonify({'error': 'Нельзя удалить самого себя'}), 400
+    
+    try:
+        users = get_users_data()
+        
+        if user_id not in users:
+            return jsonify({'error': 'Пользователь не найден'}), 404
+        
+        # Сохраняем информацию для логирования
+        deleted_user_info = users[user_id]
+        
+        # Удаляем пользователя
+        del users[user_id]
+        save_users_data(users)
+        
+        # Логируем удаление
+        log_permission_change(
+            admin_id=admin_id,
+            target_user_id=user_id,
+            old_role=deleted_user_info.get('role', 'user'),
+            new_role='deleted',
+            old_permissions=deleted_user_info.get('permissions', []),
+            new_permissions=[]
+        )
+        
+        logger.info(f"Admin {admin_id} deleted user {user_id}")
+        return jsonify({'success': True, 'message': 'Пользователь удален'})
+        
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {e}")
+        return jsonify({'error': f'Ошибка удаления: {str(e)}'}), 500
+
+
 @app.route('/dse')
 @login_required
 def dse_list():
@@ -713,40 +758,68 @@ def get_photo(photo_id):
         return "Доступ запрещен", 403
     
     try:
+        # Создаем директорию для временных фото если нет
+        temp_dir = 'photos/temp'
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Путь для сохранения
+        photo_path = f"{temp_dir}/{photo_id}.jpg"
+        
+        # Если файл уже скачан, возвращаем его
+        if os.path.exists(photo_path):
+            return send_file(photo_path, mimetype='image/jpeg')
+        
         # Импортируем telegram для работы с API
-        from telegram import Bot
-        from config import BOT_TOKEN
-        import asyncio
-        
-        async def download_photo():
-            """Асинхронная загрузка фото"""
-            bot = Bot(token=BOT_TOKEN)
-            file = await bot.get_file(photo_id)
+        try:
+            from telegram import Bot
+            from config import BOT_TOKEN
+            import asyncio
+            import nest_asyncio
             
-            # Создаем директорию для временных фото если нет
-            temp_dir = 'photos/temp'
-            os.makedirs(temp_dir, exist_ok=True)
+            # Позволяем вложенные event loops
+            try:
+                nest_asyncio.apply()
+            except:
+                pass
             
-            # Путь для сохранения
-            photo_path = f"{temp_dir}/{photo_id}.jpg"
+            async def download_photo():
+                """Асинхронная загрузка фото"""
+                try:
+                    bot = Bot(token=BOT_TOKEN)
+                    file = await bot.get_file(photo_id)
+                    await file.download_to_drive(photo_path)
+                    return photo_path
+                except Exception as e:
+                    logger.error(f"Async download error: {e}")
+                    raise
             
-            # Скачиваем если еще не скачано
-            if not os.path.exists(photo_path):
-                await file.download_to_drive(photo_path)
+            # Запускаем асинхронную функцию
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
             
-            return photo_path
-        
-        # Запускаем асинхронную функцию
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        photo_path = loop.run_until_complete(download_photo())
-        loop.close()
-        
-        # Отправляем файл
-        return send_file(photo_path, mimetype='image/jpeg')
+            if loop.is_running():
+                # Если event loop уже запущен, используем nest_asyncio
+                result = loop.run_until_complete(download_photo())
+            else:
+                result = loop.run_until_complete(download_photo())
+            
+            # Проверяем что файл скачан
+            if os.path.exists(photo_path) and os.path.getsize(photo_path) > 0:
+                return send_file(photo_path, mimetype='image/jpeg')
+            else:
+                raise Exception("Файл не был скачан")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при скачивании фото через Telegram API: {e}")
+            raise
         
     except Exception as e:
         logger.error(f"Ошибка загрузки фото {photo_id}: {e}")
+        import traceback
+        traceback.print_exc()
         # Возвращаем заглушку
         return send_file('static/img/no-image.svg', mimetype='image/svg+xml')
 
