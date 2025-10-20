@@ -1422,6 +1422,61 @@ EOF
     fi
     
     success "Служба установлена и добавлена в автозагрузку"
+    
+    # Если включен веб-интерфейс, создаем службу для него
+    if [ "$WEB_ENABLED" == "yes" ]; then
+        log "Создание systemd службы для веб-интерфейса..."
+        
+        local WEB_SERVICE_FILE="/etc/systemd/system/telegrambot-web.service"
+        
+        # Резервная копия
+        if [ -f "$WEB_SERVICE_FILE" ]; then
+            cp "$WEB_SERVICE_FILE" "${WEB_SERVICE_FILE}.backup.$(date +%s)"
+        fi
+        
+        cat > "$WEB_SERVICE_FILE" << EOF
+[Unit]
+Description=TelegrammBolt Web Interface
+After=network.target network-online.target telegrambot.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$BOT_USER
+WorkingDirectory=$BOT_DIR
+Environment="PATH=$BOT_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=$BOT_DIR/.venv/bin/gunicorn -w 4 -b 127.0.0.1:$WEB_PORT --timeout 120 --access-logfile $BOT_DIR/logs/web_access.log --error-logfile $BOT_DIR/logs/web_error.log web.web_app:app
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Безопасность
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$BOT_DIR
+
+# Логирование
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=telegrambot-web
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        
+        systemctl daemon-reload
+        
+        if systemctl enable telegrambot-web.service 2>&1 | tee /tmp/systemctl_enable_web.log; then
+            success "Служба веб-интерфейса установлена"
+        else
+            warn "Не удалось включить автозапуск веб-интерфейса"
+            cat /tmp/systemctl_enable_web.log || true
+        fi
+    fi
 }
 
 # ============================================
@@ -1535,6 +1590,29 @@ show_final_info() {
         echo ""
         echo "  # Последние 100 строк логов:"
         echo "  sudo journalctl -u telegrambot -n 100"
+        
+        if [ "$WEB_ENABLED" == "yes" ]; then
+            echo ""
+            echo -e "${YELLOW}Управление веб-интерфейсом:${NC}"
+            echo ""
+            echo "  # Запустить веб:"
+            echo "  sudo systemctl start telegrambot-web"
+            echo ""
+            echo "  # Остановить веб:"
+            echo "  sudo systemctl stop telegrambot-web"
+            echo ""
+            echo "  # Перезапустить веб:"
+            echo "  sudo systemctl restart telegrambot-web"
+            echo ""
+            echo "  # Статус веб:"
+            echo "  sudo systemctl status telegrambot-web"
+            echo ""
+            echo "  # Логи веб:"
+            echo "  sudo journalctl -u telegrambot-web -f"
+            echo ""
+            echo "  # Запустить всё сразу:"
+            echo "  sudo systemctl start telegrambot telegrambot-web"
+        fi
     else
         echo "  # Запустить бота (Docker):"
         echo "  cd $BOT_DIR && .venv/bin/python bot/bot.py"
@@ -1591,6 +1669,37 @@ show_final_info() {
                     systemctl status telegrambot --no-pager --lines=10
                     echo ""
                     success "Бот работает! Проверьте Telegram."
+                    
+                    # Запуск веб-интерфейса
+                    if [ "$WEB_ENABLED" == "yes" ]; then
+                        echo ""
+                        log "Запуск веб-интерфейса..."
+                        
+                        if systemctl start telegrambot-web 2>&1 | tee /tmp/start_web.log; then
+                            sleep 2
+                            
+                            if systemctl is-active --quiet telegrambot-web; then
+                                success "Веб-интерфейс запущен!"
+                                echo ""
+                                
+                                local server_ip=$(curl -s -m 5 ifconfig.me 2>/dev/null || curl -s -m 5 icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+                                
+                                if [ "$HTTPS_ENABLED" == "letsencrypt" ]; then
+                                    success "Веб-интерфейс доступен: https://$DOMAIN_NAME"
+                                elif [ "$HTTPS_ENABLED" == "selfsigned" ]; then
+                                    success "Веб-интерфейс доступен: https://$server_ip"
+                                else
+                                    success "Веб-интерфейс доступен: http://$server_ip:$WEB_PORT"
+                                fi
+                            else
+                                warn "Веб-интерфейс не запустился. Проверьте:"
+                                echo "  sudo journalctl -u telegrambot-web -n 50"
+                            fi
+                        else
+                            cat /tmp/start_web.log
+                            warn "Не удалось запустить веб-интерфейс"
+                        fi
+                    fi
                 else
                     error "Бот не запустился. Проверьте логи:
   sudo journalctl -u telegrambot -n 50
