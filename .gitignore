@@ -129,16 +129,23 @@ dmypy.json
 .pyre/
 
 # ============================================
-# Bot specific files (в data/)
+# КОНФИДЕНЦИАЛЬНЫЕ ДАННЫЕ - НЕ КОММИТИТЬ!
 # ============================================
-data/ven_bot.json
-data/smtp_config.json
-data/bot_data.json
-data/users_data.json
-data/chat_data.json
-data/watched_dse.json
-data/*.xlsx
-data/*.pdf
+
+# Токены и секреты
+config/ven_bot.json
+config/smtp_config.json
+smtp_config.json
+ven_bot.json
+
+# Данные пользователей и заявок
+data/
+!data/.gitkeep
+
+# Фотографии заявок
+photos/
+!photos/.gitkeep
+!photos/temp/.gitkeep
 
 # Но сохраняем примеры в config/
 !config/ven_bot.json.example
@@ -152,16 +159,19 @@ data/photos/*
 # Windows specific files (переименованы в scripts/)
 # scripts/*.bat остается для использования
 
-# Backup папки
+# Backup папки (содержат конфиденциальные данные!)
 .docs_backup_*/
-*.backup
+backup_*/
 backup/
+archive/
+*.backup
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.json
 
 # OS generated files
 .DS_Store
