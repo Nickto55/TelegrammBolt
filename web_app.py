@@ -762,66 +762,93 @@ def get_photo(photo_id):
         temp_dir = 'photos/temp'
         os.makedirs(temp_dir, exist_ok=True)
         
-        # Путь для сохранения
-        photo_path = f"{temp_dir}/{photo_id}.jpg"
+        # Безопасное имя файла
+        safe_filename = photo_id.replace('/', '_').replace('\\', '_')
+        photo_path = f"{temp_dir}/{safe_filename}.jpg"
         
         # Если файл уже скачан, возвращаем его
-        if os.path.exists(photo_path):
+        if os.path.exists(photo_path) and os.path.getsize(photo_path) > 0:
+            logger.info(f"Returning cached photo: {photo_path}")
             return send_file(photo_path, mimetype='image/jpeg')
         
-        # Импортируем telegram для работы с API
-        try:
-            from telegram import Bot
-            from config import BOT_TOKEN
-            import asyncio
-            import nest_asyncio
-            
-            # Позволяем вложенные event loops
+        # Скачиваем фото из Telegram
+        logger.info(f"Downloading photo from Telegram: {photo_id}")
+        
+        from telegram.ext import Application
+        from config import BOT_TOKEN
+        import asyncio
+        
+        async def download_photo_async():
+            """Асинхронная загрузка фото"""
             try:
-                nest_asyncio.apply()
-            except:
-                pass
-            
-            async def download_photo():
-                """Асинхронная загрузка фото"""
-                try:
-                    bot = Bot(token=BOT_TOKEN)
-                    file = await bot.get_file(photo_id)
-                    await file.download_to_drive(photo_path)
-                    return photo_path
-                except Exception as e:
-                    logger.error(f"Async download error: {e}")
-                    raise
-            
-            # Запускаем асинхронную функцию
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            if loop.is_running():
-                # Если event loop уже запущен, используем nest_asyncio
-                result = loop.run_until_complete(download_photo())
-            else:
-                result = loop.run_until_complete(download_photo())
-            
-            # Проверяем что файл скачан
-            if os.path.exists(photo_path) and os.path.getsize(photo_path) > 0:
-                return send_file(photo_path, mimetype='image/jpeg')
-            else:
-                raise Exception("Файл не был скачан")
+                # Создаем приложение
+                application = Application.builder().token(BOT_TOKEN).build()
                 
-        except Exception as e:
-            logger.error(f"Ошибка при скачивании фото через Telegram API: {e}")
-            raise
+                # Инициализируем бот
+                await application.initialize()
+                await application.bot.initialize()
+                
+                # Получаем файл
+                file = await application.bot.get_file(photo_id)
+                logger.info(f"File info: {file.file_path}")
+                
+                # Скачиваем файл
+                await file.download_to_drive(photo_path)
+                logger.info(f"Photo downloaded successfully to {photo_path}")
+                
+                # Завершаем работу бота
+                await application.bot.shutdown()
+                await application.shutdown()
+                
+                return photo_path
+                
+            except Exception as e:
+                logger.error(f"Error in download_photo_async: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
+        
+        # Создаем новый event loop для синхронного контекста
+        try:
+            # Пытаемся получить существующий loop
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Loop is closed")
+        except RuntimeError:
+            # Создаем новый loop если текущий не существует или закрыт
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Запускаем загрузку
+        try:
+            loop.run_until_complete(download_photo_async())
+        except RuntimeError as e:
+            if "This event loop is already running" in str(e):
+                # Если loop уже запущен, используем nest_asyncio
+                import nest_asyncio
+                nest_asyncio.apply()
+                loop.run_until_complete(download_photo_async())
+            else:
+                raise
+        
+        # Проверяем что файл скачан
+        if os.path.exists(photo_path) and os.path.getsize(photo_path) > 0:
+            logger.info(f"Successfully downloaded photo, size: {os.path.getsize(photo_path)} bytes")
+            return send_file(photo_path, mimetype='image/jpeg')
+        else:
+            logger.error(f"Photo file not found or empty after download: {photo_path}")
+            raise Exception("Файл не был скачан или пустой")
         
     except Exception as e:
         logger.error(f"Ошибка загрузки фото {photo_id}: {e}")
         import traceback
         traceback.print_exc()
         # Возвращаем заглушку
-        return send_file('static/img/no-image.svg', mimetype='image/svg+xml')
+        try:
+            return send_file('static/img/no-image.svg', mimetype='image/svg+xml')
+        except:
+            # Если заглушка не найдена, возвращаем простой текст
+            return "Ошибка загрузки изображения", 500
 
 
 @app.route('/pdf-export')
