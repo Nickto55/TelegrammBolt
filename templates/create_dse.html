@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Создать заявку - BOLT{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-3">
+                <i class="bi bi-plus-circle"></i> Создать новую заявку
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Главная</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('dse_list') }}">Список заявок</a></li>
+                    <li class="breadcrumb-item active">Создать заявку</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> Форма создания заявки</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('create_dse') }}">
+                        <!-- Номер ДСЕ -->
+                        <div class="mb-3">
+                            <label for="dse_number" class="form-label fw-bold">
+                                <i class="bi bi-hash"></i> Номер ДСЕ <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="dse_number" 
+                                   name="dse_number" 
+                                   placeholder="Введите номер ДСЕ" 
+                                   required>
+                            <small class="form-text text-muted">Обязательное поле</small>
+                        </div>
+
+                        <!-- Тип проблемы -->
+                        <div class="mb-3">
+                            <label for="problem_type" class="form-label fw-bold">
+                                <i class="bi bi-exclamation-circle"></i> Тип проблемы <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="problem_type" name="problem_type" required>
+                                <option value="">Выберите тип проблемы</option>
+                                {% for problem in problem_types %}
+                                <option value="{{ problem }}">{{ problem }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Обязательное поле</small>
+                        </div>
+
+                        <!-- РЦ -->
+                        <div class="mb-3">
+                            <label for="rc" class="form-label fw-bold">
+                                <i class="bi bi-building"></i> РЦ (Распределительный центр)
+                            </label>
+                            <select class="form-select" id="rc" name="rc">
+                                <option value="">Выберите РЦ (необязательно)</option>
+                                {% for rc_item in rc_types %}
+                                <option value="{{ rc_item }}">{{ rc_item }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Необязательное поле</small>
+                        </div>
+
+                        <!-- Описание -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label fw-bold">
+                                <i class="bi bi-card-text"></i> Описание проблемы
+                            </label>
+                            <textarea class="form-control" 
+                                      id="description" 
+                                      name="description" 
+                                      rows="5" 
+                                      placeholder="Подробно опишите проблему..."></textarea>
+                            <small class="form-text text-muted">Необязательное поле. Рекомендуется для лучшего понимания проблемы.</small>
+                        </div>
+
+                        <!-- Кнопки -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('dse_list') }}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Отмена
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Создать заявку
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Справочная информация -->
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="bi bi-info-circle"></i> Справочная информация</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Обязательные поля:</h6>
+                    <ul>
+                        <li><strong>Номер ДСЕ</strong> - уникальный идентификатор заявки</li>
+                        <li><strong>Тип проблемы</strong> - категория проблемы из предопределенного списка</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Необязательные поля:</h6>
+                    <ul>
+                        <li><strong>РЦ</strong> - распределительный центр, если применимо</li>
+                        <li><strong>Описание</strong> - детальное описание проблемы (рекомендуется)</li>
+                    </ul>
+                    
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <i class="bi bi-lightbulb"></i> <strong>Совет:</strong> Чем подробнее описание, тем быстрее можно будет решить проблему.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Автофокус на первое поле
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('dse_number').focus();
+});
+</script>
+{% endblock %}

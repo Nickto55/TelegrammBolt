@@ -12,11 +12,11 @@ from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import parse_qs
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file, flash
 from flask_cors import CORS
 
 # Импорты из существующих модулей бота
-from config import BOT_TOKEN, BOT_USERNAME
+from config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, load_data, save_data
 from user_manager import (
     has_permission, 
     get_users_data, 
@@ -745,6 +745,81 @@ def dse_detail(dse_id):
     return render_template('dse_detail.html', 
                          dse=dse, 
                          user_info=user_info,
+                         permissions=get_user_permissions(user_id))
+
+
+@app.route('/dse/create', methods=['GET', 'POST'])
+@login_required
+def create_dse():
+    """Создание новой заявки ДСЕ"""
+    user_id = session['user_id']
+    
+    if not has_permission(user_id, 'add_dse'):
+        return "Доступ запрещен. Требуется право на создание заявок.", 403
+    
+    if request.method == 'POST':
+        try:
+            # Получаем данные из формы
+            dse_number = request.form.get('dse_number', '').strip()
+            problem_type = request.form.get('problem_type', '').strip()
+            rc = request.form.get('rc', '').strip()
+            description = request.form.get('description', '').strip()
+            
+            # Валидация
+            if not dse_number:
+                return render_template('create_dse.html',
+                                     error="Номер ДСЕ обязателен",
+                                     problem_types=PROBLEM_TYPES,
+                                     rc_types=RC_TYPES,
+                                     permissions=get_user_permissions(user_id))
+            
+            if not problem_type or problem_type not in PROBLEM_TYPES:
+                return render_template('create_dse.html',
+                                     error="Выберите тип проблемы",
+                                     problem_types=PROBLEM_TYPES,
+                                     rc_types=RC_TYPES,
+                                     permissions=get_user_permissions(user_id))
+            
+            # Создаем запись
+            from datetime import datetime
+            record = {
+                'dse': dse_number,
+                'problem_type': problem_type,
+                'rc': rc,
+                'description': description,
+                'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'user_id': user_id,
+                'photo_file_id': None,
+                'created_via': 'web'
+            }
+            
+            # Загружаем данные
+            data_dict = load_data(DATA_FILE)
+            if user_id not in data_dict:
+                data_dict[user_id] = []
+            data_dict[user_id].append(record)
+            
+            # Сохраняем
+            save_data(data_dict, DATA_FILE)
+            
+            logger.info(f"Создана новая заявка ДСЕ {dse_number} пользователем {user_id} через веб-интерфейс")
+            
+            # Перенаправляем на страницу просмотра
+            flash('Заявка успешно создана!', 'success')
+            return redirect(url_for('dse_list'))
+            
+        except Exception as e:
+            logger.error(f"Ошибка создания заявки: {e}")
+            return render_template('create_dse.html',
+                                 error=f"Ошибка при создании заявки: {str(e)}",
+                                 problem_types=PROBLEM_TYPES,
+                                 rc_types=RC_TYPES,
+                                 permissions=get_user_permissions(user_id))
+    
+    # GET запрос - показываем форму
+    return render_template('create_dse.html',
+                         problem_types=PROBLEM_TYPES,
+                         rc_types=RC_TYPES,
                          permissions=get_user_permissions(user_id))
 
 
