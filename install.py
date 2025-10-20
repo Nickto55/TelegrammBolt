@@ -187,17 +187,43 @@ def create_startup_scripts():
     
     # Скрипт запуска бота (Linux/Mac)
     start_bot_sh = """#!/bin/bash
-# Запуск Telegram бота
+# Запуск Telegram бота TelegrammBolt
 
-cd "$(dirname "$0")/bot"
+# Переход в папку бота
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Активация виртуального окружения если есть
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    source venv/bin/activate
+fi
+
+# Запуск бота
+echo "🤖 Запуск Telegram бота..."
+cd bot
 python3 bot.py
 """
     
     # Скрипт запуска веба (Linux/Mac)
     start_web_sh = """#!/bin/bash
-# Запуск веб-интерфейса
+# Запуск веб-интерфейса TelegrammBolt
 
-cd "$(dirname "$0")/web"
+# Переход в папку проекта
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Активация виртуального окружения если есть
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    source venv/bin/activate
+fi
+
+# Запуск веб-приложения
+echo "🌐 Запуск веб-интерфейса..."
+cd web
 python3 web_app.py
 """
     
@@ -292,18 +318,22 @@ def print_final_instructions():
     print("2️⃣  Запустите бота:")
     if os.name == 'nt':
         print(f"   {Colors.YELLOW}start_bot.bat{Colors.END}")
+        print("   или")
+        print(f"   {Colors.YELLOW}cd bot && python bot.py{Colors.END}\n")
     else:
         print(f"   {Colors.YELLOW}./start_bot.sh{Colors.END}")
-    print("   или")
-    print(f"   {Colors.YELLOW}cd bot && python bot.py{Colors.END}\n")
+        print("   или")
+        print(f"   {Colors.YELLOW}cd bot && python3 bot.py{Colors.END}\n")
     
     print("3️⃣  Запустите веб-интерфейс:")
     if os.name == 'nt':
         print(f"   {Colors.YELLOW}start_web.bat{Colors.END}")
+        print("   или")
+        print(f"   {Colors.YELLOW}cd web && python web_app.py{Colors.END}\n")
     else:
         print(f"   {Colors.YELLOW}./start_web.sh{Colors.END}")
-    print("   или")
-    print(f"   {Colors.YELLOW}cd web && python web_app.py{Colors.END}\n")
+        print("   или")
+        print(f"   {Colors.YELLOW}cd web && python3 web_app.py{Colors.END}\n")
     
     print("4️⃣  Откройте в браузере:")
     print(f"   {Colors.BLUE}http://localhost:5000{Colors.END}\n")
