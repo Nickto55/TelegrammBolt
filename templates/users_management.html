@@ -49,12 +49,35 @@
                                             {% if user_data.get('role') == 'admin' %}bg-danger
                                             {% elif user_data.get('role') == 'responder' %}bg-success
                                             {% elif user_data.get('role') == 'initiator' %}bg-info
-                                            {% else %}bg-secondary{% endif %}">
+                                            {% else %}bg-secondary{% endif %}"
+                                            data-bs-toggle="tooltip" 
+                                            data-bs-placement="top"
+                                            title="{% if user_data.get('role') == 'admin' %}Полный доступ ко всем функциям
+                                                   {% elif user_data.get('role') == 'responder' %}Просмотр заявок и экспорт данных
+                                                   {% elif user_data.get('role') == 'initiator' %}Создание новых заявок
+                                                   {% else %}Базовый уровень доступа{% endif %}">
+                                            {% if user_data.get('role') == 'admin' %}⭐
+                                            {% elif user_data.get('role') == 'responder' %}🔧
+                                            {% elif user_data.get('role') == 'initiator' %}📝
+                                            {% else %}👤{% endif %}
                                             {{ roles.get(user_data.get('role', 'user'), 'Пользователь') }}
                                         </span>
                                     </td>
                                     <td>
-                                        <small class="text-muted">
+                                        <small class="text-muted" 
+                                               style="cursor: pointer;"
+                                               data-bs-toggle="tooltip"
+                                               data-bs-html="true"
+                                               data-bs-placement="left"
+                                               title="<strong>Права пользователя:</strong><br>
+                                                      {% if user_data.get('permissions') %}
+                                                          {% for perm in user_data.get('permissions', []) %}
+                                                              • {{ perm }}<br>
+                                                          {% endfor %}
+                                                      {% else %}
+                                                          Базовые права роли
+                                                      {% endif %}">
+                                            <i class="bi bi-shield-check"></i> 
                                             {{ user_data.get('permissions', []) | length }} прав
                                         </small>
                                     </td>
@@ -119,54 +142,64 @@
                 </div>
                 
                 <div class="mb-3">
-                    <label for="editUserRole" class="form-label">Роль:</label>
-                    <select class="form-select" id="editUserRole">
+                    <label for="editUserRole" class="form-label fw-bold">Роль пользователя:</label>
+                    <select class="form-select" id="editUserRole" onchange="updateRoleDescription()">
                         <option value="user">👤 Пользователь</option>
                         <option value="initiator">📝 Инициатор заявок</option>
                         <option value="responder">🔧 Ответственный</option>
                         <option value="admin">⭐ Администратор</option>
                     </select>
-                    <small class="form-text text-muted">
-                        Роль определяет базовый набор прав пользователя
-                    </small>
+                    <div id="roleDescription" class="alert alert-info mt-2" style="display: none;">
+                        <small id="roleDescriptionText"></small>
+                    </div>
                 </div>
                 
                 <div class="mb-3">
-                    <label class="form-label">Дополнительные права:</label>
+                    <label class="form-label fw-bold">Права роли:</label>
+                    <div id="rolePermissionsInfo" class="alert alert-secondary">
+                        <small class="text-muted">Выберите роль для просмотра прав</small>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Дополнительные права:</label>
+                    <small class="text-muted d-block mb-2">
+                        Можно добавить дополнительные права помимо базовых прав роли
+                    </small>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="perm_view_dse" value="view_dse">
                         <label class="form-check-label" for="perm_view_dse">
-                            Просмотр ДСЕ
+                            <i class="bi bi-eye"></i> Просмотр ДСЕ
                         </label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="perm_export_data" value="export_data">
                         <label class="form-check-label" for="perm_export_data">
-                            Экспорт данных
+                            <i class="bi bi-file-earmark-arrow-down"></i> Экспорт данных
                         </label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="perm_add_dse" value="add_dse">
                         <label class="form-check-label" for="perm_add_dse">
-                            Добавление ДСЕ
+                            <i class="bi bi-plus-circle"></i> Добавление ДСЕ
                         </label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="perm_edit_dse" value="edit_dse">
                         <label class="form-check-label" for="perm_edit_dse">
-                            Редактирование ДСЕ
+                            <i class="bi bi-pencil-square"></i> Редактирование ДСЕ
                         </label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="perm_delete_dse" value="delete_dse">
                         <label class="form-check-label" for="perm_delete_dse">
-                            Удаление ДСЕ
+                            <i class="bi bi-trash"></i> Удаление ДСЕ
                         </label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="perm_chat_dse" value="chat_dse">
                         <label class="form-check-label" for="perm_chat_dse">
-                            Чат по ДСЕ
+                            <i class="bi bi-chat-dots"></i> Чат по ДСЕ
                         </label>
                     </div>
                 </div>
@@ -186,10 +219,82 @@
 <script>
 let currentEditingUserId = null;
 
+// Конфигурация ролей и их прав
+const ROLE_CONFIG = {
+    'admin': {
+        description: 'Полный доступ ко всем функциям системы',
+        permissions: ['view_dse', 'export_data', 'add_dse', 'edit_dse', 'delete_dse', 'chat_dse'],
+        color: 'danger'
+    },
+    'responder': {
+        description: 'Может просматривать заявки, общаться в чате и экспортировать данные',
+        permissions: ['view_dse', 'export_data', 'chat_dse'],
+        color: 'success'
+    },
+    'initiator': {
+        description: 'Может создавать новые заявки через форму',
+        permissions: ['add_dse'],
+        color: 'info'
+    },
+    'user': {
+        description: 'Базовый уровень доступа без специальных прав',
+        permissions: [],
+        color: 'secondary'
+    }
+};
+
 // Загрузка истории изменений при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     loadPermissionsLog();
+    
+    // Инициализация всех подсказок Bootstrap
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 });
+
+function updateRoleDescription() {
+    const roleSelect = document.getElementById('editUserRole');
+    const selectedRole = roleSelect.value;
+    const config = ROLE_CONFIG[selectedRole];
+    
+    if (config) {
+        // Показываем описание роли
+        const descriptionDiv = document.getElementById('roleDescription');
+        const descriptionText = document.getElementById('roleDescriptionText');
+        descriptionText.textContent = config.description;
+        descriptionDiv.className = `alert alert-${config.color} mt-2`;
+        descriptionDiv.style.display = 'block';
+        
+        // Показываем права роли
+        const permissionsInfo = document.getElementById('rolePermissionsInfo');
+        const permissionsLabels = {
+            'view_dse': '👁️ Просмотр ДСЕ',
+            'export_data': '📥 Экспорт данных',
+            'add_dse': '➕ Добавление ДСЕ',
+            'edit_dse': '✏️ Редактирование ДСЕ',
+            'delete_dse': '🗑️ Удаление ДСЕ',
+            'chat_dse': '💬 Чат по ДСЕ'
+        };
+        
+        if (config.permissions.length > 0) {
+            const permsList = config.permissions.map(p => permissionsLabels[p] || p).join(', ');
+            permissionsInfo.innerHTML = `<small><strong>Базовые права:</strong> ${permsList}</small>`;
+            permissionsInfo.className = `alert alert-${config.color}`;
+        } else {
+            permissionsInfo.innerHTML = '<small class="text-muted">Нет базовых прав. Можно добавить дополнительные.</small>';
+            permissionsInfo.className = 'alert alert-secondary';
+        }
+        
+        // Автоматически проставляем базовые права роли
+        document.querySelectorAll('.form-check-input').forEach(cb => {
+            if (config.permissions.includes(cb.value)) {
+                cb.checked = true;
+            }
+        });
+    }
+}
 
 function editUser(userId, userData) {
     currentEditingUserId = userId;
@@ -201,6 +306,9 @@ function editUser(userId, userData) {
     
     // Установка текущей роли
     document.getElementById('editUserRole').value = userData.role || 'user';
+    
+    // Обновляем описание роли
+    updateRoleDescription();
     
     // Сброс всех чекбоксов
     document.querySelectorAll('.form-check-input').forEach(cb => cb.checked = false);
