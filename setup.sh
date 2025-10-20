@@ -79,6 +79,7 @@ BOT_USER="telegrambot"
 SERVICE_FILE="/etc/systemd/system/telegrambot.service"
 PYTHON_VERSION=""
 BOT_TOKEN=""
+BOT_USERNAME=""
 ADMIN_IDS=""
 SMTP_ENABLED="no"
 SMTP_SERVER=""
@@ -378,8 +379,8 @@ configure_bot_token() {
             
             if [ ! -z "$api_response" ]; then
                 if echo "$api_response" | grep -q '"ok":true'; then
-                    local bot_username=$(echo "$api_response" | grep -o '"username":"[^"]*"' | cut -d'"' -f4)
-                    success "Токен валидный! Бот: @$bot_username"
+                    BOT_USERNAME=$(echo "$api_response" | grep -o '"username":"[^"]*"' | cut -d'"' -f4)
+                    success "Токен валидный! Бот: @$BOT_USERNAME"
                     break
                 elif echo "$api_response" | grep -q '"ok":false'; then
                     warn "Telegram API вернул ошибку: токен невалидный"
@@ -387,6 +388,8 @@ configure_bot_token() {
                 fi
             else
                 warn "Не удалось проверить токен (нет ответа от API)"
+                warn "Username бота не получен. Укажите его вручную позже в config/ven_bot.json"
+                BOT_USERNAME=""
                 echo -ne "Продолжить с этим токеном? (y/n): "
                 read -r -n 1 REPLY
                 echo
@@ -396,6 +399,26 @@ configure_bot_token() {
             fi
         fi
     done
+    
+    # Если username не получен, попросим ввести вручную
+    if [ -z "$BOT_USERNAME" ]; then
+        echo ""
+        warn "Username бота не был получен автоматически"
+        log "Username нужен для Telegram Login Widget в веб-интерфейсе"
+        echo ""
+        echo -ne "${PURPLE}[?]${NC} Введите username бота (без @, например: MyBot) или пропустите (Enter): "
+        read -r BOT_USERNAME
+        
+        # Убираем @ если пользователь добавил
+        BOT_USERNAME=$(echo "$BOT_USERNAME" | tr -d '@' | tr -d '[:space:]')
+        
+        if [ ! -z "$BOT_USERNAME" ]; then
+            success "Username: @$BOT_USERNAME"
+        else
+            warn "Username не указан. Telegram Login в веб-интерфейсе не будет работать."
+            warn "Добавьте позже в config/ven_bot.json: \"BOT_USERNAME\": \"YourBotUsername\""
+        fi
+    fi
 }
 
 # ============================================
@@ -914,6 +937,7 @@ create_config_files() {
     cat > config/ven_bot.json << EOF
 {
     "BOT_TOKEN": "$BOT_TOKEN",
+    "BOT_USERNAME": "$BOT_USERNAME",
     "ADMIN_IDS": $admin_ids_json,
     "WEB_ENABLED": $([ "$WEB_ENABLED" == "yes" ] && echo "true" || echo "false"),
     "WEB_PORT": $WEB_PORT,
