@@ -56,10 +56,6 @@
                                                    {% elif user_data.get('role') == 'responder' %}Просмотр заявок и экспорт данных
                                                    {% elif user_data.get('role') == 'initiator' %}Создание новых заявок
                                                    {% else %}Базовый уровень доступа{% endif %}">
-                                            {% if user_data.get('role') == 'admin' %}⭐
-                                            {% elif user_data.get('role') == 'responder' %}🔧
-                                            {% elif user_data.get('role') == 'initiator' %}📝
-                                            {% else %}👤{% endif %}
                                             {{ roles.get(user_data.get('role', 'user'), 'Пользователь') }}
                                         </span>
                                     </td>
@@ -82,12 +78,14 @@
                                         </small>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-1" 
-                                                onclick="editUser('{{ user_id }}', {{ user_data | tojson }})">
+                                        <button class="btn btn-sm btn-outline-primary me-1 edit-user-btn" 
+                                                data-user-id="{{ user_id }}"
+                                                data-user-info="{{ user_data | tojson | forceescape }}">
                                             <i class="bi bi-pencil"></i> Изменить
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" 
-                                                onclick="deleteUser('{{ user_id }}', '{{ user_data.get('first_name', '') }} {{ user_data.get('last_name', '') }}')"
+                                        <button class="btn btn-sm btn-outline-danger delete-user-btn" 
+                                                data-user-id="{{ user_id }}"
+                                                data-user-name="{{ user_data.get('first_name', '') }} {{ user_data.get('last_name', '') }}"
                                                 {% if user_id == session['user_id']|string %}disabled title="Нельзя удалить себя"{% endif %}>
                                             <i class="bi bi-trash"></i> Удалить
                                         </button>
@@ -144,10 +142,10 @@
                 <div class="mb-3">
                     <label for="editUserRole" class="form-label fw-bold">Роль пользователя:</label>
                     <select class="form-select" id="editUserRole" onchange="updateRoleDescription()">
-                        <option value="user">👤 Пользователь</option>
-                        <option value="initiator">📝 Инициатор заявок</option>
-                        <option value="responder">🔧 Ответственный</option>
-                        <option value="admin">⭐ Администратор</option>
+                        <option value="user">Пользователь</option>
+                        <option value="initiator">Инициатор заявок</option>
+                        <option value="responder">Ответственный</option>
+                        <option value="admin">Администратор</option>
                     </select>
                     <div id="roleDescription" class="alert alert-info mt-2" style="display: none;">
                         <small id="roleDescriptionText"></small>
@@ -252,6 +250,31 @@ document.addEventListener('DOMContentLoaded', function() {
     tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+    
+    // Добавляем обработчики для кнопок редактирования
+    document.querySelectorAll('.edit-user-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const userInfoJson = this.getAttribute('data-user-info');
+            try {
+                const userData = JSON.parse(userInfoJson);
+                editUser(userId, userData);
+            } catch (e) {
+                console.error('Ошибка парсинга данных пользователя:', e);
+                alert('Ошибка открытия редактирования пользователя');
+            }
+        });
+    });
+    
+    // Добавляем обработчики для кнопок удаления
+    document.querySelectorAll('.delete-user-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            if (this.disabled) return;
+            const userId = this.getAttribute('data-user-id');
+            const userName = this.getAttribute('data-user-name');
+            deleteUser(userId, userName);
+        });
+    });
 });
 
 function updateRoleDescription() {
@@ -270,12 +293,12 @@ function updateRoleDescription() {
         // Показываем права роли
         const permissionsInfo = document.getElementById('rolePermissionsInfo');
         const permissionsLabels = {
-            'view_dse': '👁️ Просмотр ДСЕ',
-            'export_data': '📥 Экспорт данных',
-            'add_dse': '➕ Добавление ДСЕ',
-            'edit_dse': '✏️ Редактирование ДСЕ',
-            'delete_dse': '🗑️ Удаление ДСЕ',
-            'chat_dse': '💬 Чат по ДСЕ'
+            'view_dse': 'Просмотр ДСЕ',
+            'export_data': 'Экспорт данных',
+            'add_dse': 'Добавление ДСЕ',
+            'edit_dse': 'Редактирование ДСЕ',
+            'delete_dse': 'Удаление ДСЕ',
+            'chat_dse': 'Чат по ДСЕ'
         };
         
         if (config.permissions.length > 0) {
