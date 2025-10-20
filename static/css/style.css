@@ -299,7 +299,202 @@ main {
     .navbar-brand {
         font-size: 1.2rem;
     }
+    
+    /* Мобильные карточки */
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .card-body {
+        padding: 1rem !important;
+    }
+    
+    /* Таблицы на мобильных */
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .table th,
+    .table td {
+        padding: 0.5rem !important;
+    }
+    
+    /* Кнопки на весь экран на мобильных */
+    .btn-mobile-full {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Уменьшаем отступы */
+    .container-fluid {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    
+    /* Модальные окна */
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    /* Быстрые действия */
+    .row.g-3 > div {
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Breadcrumb */
+    .breadcrumb {
+        font-size: 0.875rem;
+        flex-wrap: wrap;
+    }
+    
+    /* Формы */
+    .form-control,
+    .form-select {
+        font-size: 16px; /* Предотвращает zoom на iOS */
+    }
+    
+    /* Navbar */
+    .navbar-nav {
+        padding-top: 0.5rem;
+    }
+    
+    .navbar-nav .nav-item {
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Dashboard stats */
+    .display-4 {
+        font-size: 2rem !important;
+    }
+    
+    .display-6 {
+        font-size: 1.25rem !important;
+    }
+    
+    /* Фото в заявках */
+    .col-md-6 img {
+        max-height: 300px;
+        width: 100%;
+        object-fit: cover;
+    }
 }
+
+@media (max-width: 576px) {
+    /* Очень маленькие экраны */
+    h1 {
+        font-size: 1.75rem;
+    }
+    
+    h2 {
+        font-size: 1.5rem;
+    }
+    
+    h3 {
+        font-size: 1.25rem;
+    }
+    
+    .card-header h5 {
+        font-size: 1rem;
+    }
+    
+    /* Уменьшаем padding у кнопок */
+    .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    /* Скрываем иконки на очень маленьких экранах если нужно */
+    .mobile-hide-icon i {
+        display: none;
+    }
+}
+
+/* Landscape orientation для телефонов */
+@media (max-height: 500px) and (orientation: landscape) {
+    .navbar {
+        padding: 0.25rem 1rem;
+    }
+    
+    .card {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Tablet landscape */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .container-fluid {
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+}
+
+/* Touch devices - увеличиваем области клика */
+@media (hover: none) and (pointer: coarse) {
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    .nav-link {
+        padding: 0.75rem 1rem;
+    }
+    
+    .table tbody tr {
+        cursor: pointer;
+    }
+}
+
+/* Фото с обработкой ошибок */
+.photo-with-error {
+    background-color: #f3f4f6;
+    background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+                      linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+                      linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+                      linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+.photo-with-error[src*="svg"] {
+    background: #f8f9fa;
+}
+
+/* Skeleton loader для загрузки фото */
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+.skeleton {
+    animation: shimmer 2s infinite;
+    background: linear-gradient(to right, #f3f4f6 4%, #e5e7eb 25%, #f3f4f6 36%);
+    background-size: 1000px 100%;
+}
+
+.image-loading {
+    position: relative;
+    min-height: 200px;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-loading::after {
+    content: "Загрузка...";
+    color: #9ca3af;
+    font-size: 0.875rem;
+}
+
 
 /* Animations */
 @keyframes fadeIn {

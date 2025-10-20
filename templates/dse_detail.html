@@ -111,22 +111,24 @@
                         <div class="col-md-6">
                             <div class="position-relative">
                                 <img src="{{ url_for('get_photo', photo_id=dse.get('photo_file_id')) }}" 
-                                     class="img-fluid rounded shadow-sm" 
+                                     class="img-fluid rounded shadow-sm photo-with-error" 
                                      alt="Фото ДСЕ"
-                                     style="cursor: pointer;"
+                                     style="cursor: pointer; min-height: 200px; object-fit: cover;"
                                      data-bs-toggle="modal" 
-                                     data-bs-target="#photoModal{{ loop.index0 }}">
+                                     data-bs-target="#photoModal0"
+                                     onerror="this.style.cursor='default'; this.removeAttribute('data-bs-toggle');">
                                 <div class="position-absolute top-0 end-0 m-2">
                                     <a href="{{ url_for('get_photo', photo_id=dse.get('photo_file_id')) }}" 
                                        download="dse_{{ dse.get('dse', 'photo') }}.jpg"
-                                       class="btn btn-sm btn-light">
+                                       class="btn btn-sm btn-light"
+                                       title="Скачать фото">
                                         <i class="bi bi-download"></i>
                                     </a>
                                 </div>
                             </div>
                             
                             <!-- Modal для увеличения фото -->
-                            <div class="modal fade" id="photoModal{{ loop.index0 }}" tabindex="-1">
+                            <div class="modal fade" id="photoModal0" tabindex="-1">
                                 <div class="modal-dialog modal-lg modal-dialog-centered">
                                     <div class="modal-content">
                                         <div class="modal-header">

@@ -850,7 +850,6 @@ def get_photo(photo_id):
         logger.info(f"Downloading photo from Telegram: {photo_id}")
         
         from telegram.ext import Application
-        from config import BOT_TOKEN
         import asyncio
         
         async def download_photo_async():
@@ -918,12 +917,24 @@ def get_photo(photo_id):
         logger.error(f"Ошибка загрузки фото {photo_id}: {e}")
         import traceback
         traceback.print_exc()
-        # Возвращаем заглушку
-        try:
-            return send_file('static/img/no-image.svg', mimetype='image/svg+xml')
-        except:
-            # Если заглушка не найдена, возвращаем простой текст
-            return "Ошибка загрузки изображения", 500
+        
+        # Возвращаем SVG-заглушку с сообщением об ошибке
+        svg_content = '''<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+    <rect width="400" height="300" fill="#f8f9fa"/>
+    <rect x="10" y="10" width="380" height="280" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
+    <text x="200" y="130" font-family="Arial, sans-serif" font-size="20" fill="#6c757d" text-anchor="middle">
+        ⚠️ Ошибка загрузки фото
+    </text>
+    <text x="200" y="160" font-family="Arial, sans-serif" font-size="14" fill="#6c757d" text-anchor="middle">
+        Фото временно недоступно
+    </text>
+    <text x="200" y="185" font-family="Arial, sans-serif" font-size="12" fill="#adb5bd" text-anchor="middle">
+        Попробуйте обновить страницу
+    </text>
+</svg>'''
+        from flask import Response
+        return Response(svg_content, mimetype='image/svg+xml')
 
 
 @app.route('/pdf-export')
