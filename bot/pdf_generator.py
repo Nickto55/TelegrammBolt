@@ -600,7 +600,7 @@ async def show_pdf_export_menu(update, context):
 async def handle_pdf_export_all(update, context):
     """Экспорт всех записей в PDF"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    from dse_manager import get_all_dse_records
+    from .dse_manager import get_all_dse_records
     
     query = update.callback_query
     await query.answer("⏳ Загрузка всех записей...")
@@ -672,7 +672,7 @@ async def handle_pdf_export_all(update, context):
 async def handle_pdf_export_select(update, context):
     """Выбор записей для экспорта в PDF"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    from dse_manager import get_all_dse_records
+    from .dse_manager import get_all_dse_records
     
     query = update.callback_query
     await query.answer("⏳ Загрузка записей...")

@@ -13,9 +13,9 @@ import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import load_data, save_data, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR
-from dse_manager import get_all_dse_records, search_dse_records, get_unique_dse_values
-from user_manager import (register_user, get_user_role, has_permission, set_user_role, ROLES, get_all_users,
+from config.config import load_data, save_data, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR
+from .dse_manager import get_all_dse_records, search_dse_records, get_unique_dse_values
+from .user_manager import (register_user, get_user_role, has_permission, set_user_role, ROLES, get_all_users,
                          set_user_nickname, remove_user_nickname, get_user_nickname, get_user_display_name,
                          check_nickname_exists, get_all_nicknames)
 import os
@@ -784,7 +784,7 @@ async def show_watched_dse_menu(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text("❌ У вас нет прав для отслеживания ДСЕ.")
         return
 
-    from dse_watcher import get_watched_dse_list
+    from .dse_watcher import get_watched_dse_list
     watched_list = get_watched_dse_list(user_id)
 
     keyboard = [
@@ -845,7 +845,7 @@ async def start_remove_watched_dse(update: Update, context: ContextTypes.DEFAULT
     user = update.callback_query.from_user
     user_id = str(user.id)
 
-    from dse_watcher import get_watched_dse_list
+    from .dse_watcher import get_watched_dse_list
     watched_list = get_watched_dse_list(user_id)
 
     if not watched_list:
@@ -876,7 +876,7 @@ async def show_watched_dse_list(update: Update, context: ContextTypes.DEFAULT_TY
     user = update.callback_query.from_user
     user_id = str(user.id)
 
-    from dse_watcher import get_watched_dse_list
+    from .dse_watcher import get_watched_dse_list
     watched_list = get_watched_dse_list(user_id)  # Получаем список нормализованных значений
 
     if not watched_list:
@@ -998,8 +998,8 @@ async def send_file_to_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def request_email_address(update: Update, context: ContextTypes.DEFAULT_TYPE, format_type: str = "excel") -> None:
     """Запросить email адрес для отправки отчёта в выбранном формате"""
     user_id = str(update.callback_query.from_user.id)
-    from config import SMTP_SETTINGS, is_smtp_configured
-    from email_manager import get_email_suggestions, get_formatted_emails_list
+    from config.config import SMTP_SETTINGS, is_smtp_configured
+    from .email_manager import get_email_suggestions, get_formatted_emails_list
     
     if not is_smtp_configured():
         await update.callback_query.edit_message_text(
@@ -1041,8 +1041,8 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
     """Отправить отчёт по электронной почте в выбранном формате (поддержка нескольких адресов)"""
     user_id = str(update.effective_user.id)
     server = None
-    from config import SMTP_SETTINGS, is_smtp_configured
-    from email_manager import add_email_to_history, validate_multiple_emails, format_email_list_for_display
+    from config.config import SMTP_SETTINGS, is_smtp_configured
+    from .email_manager import add_email_to_history, validate_multiple_emails, format_email_list_for_display
     
     try:
         # Валидация email (поддержка нескольких адресов)
@@ -1161,7 +1161,7 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
 async def test_smtp_connection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Тестировать SMTP подключение"""
     try:
-        from config import SMTP_SETTINGS, is_smtp_configured
+        from config.config import SMTP_SETTINGS, is_smtp_configured
         
         if not is_smtp_configured():
             await update.callback_query.edit_message_text(
@@ -1214,8 +1214,8 @@ async def test_smtp_connection(update: Update, context: ContextTypes.DEFAULT_TYP
 async def request_application_email_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Запросить email адрес для отправки заявки"""
     user_id = str(update.callback_query.from_user.id)
-    from config import SMTP_SETTINGS, is_smtp_configured
-    from email_manager import get_email_suggestions
+    from config.config import SMTP_SETTINGS, is_smtp_configured
+    from .email_manager import get_email_suggestions
     
     if not is_smtp_configured():
         await update.callback_query.edit_message_text(
@@ -1267,8 +1267,8 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
     """Отправить заявку по электронной почте (поддержка нескольких адресов)"""
     user_id = str(update.effective_user.id)
     server = None
-    from config import SMTP_SETTINGS, is_smtp_configured
-    from email_manager import add_email_to_history, validate_multiple_emails, format_email_list_for_display
+    from config.config import SMTP_SETTINGS, is_smtp_configured
+    from .email_manager import add_email_to_history, validate_multiple_emails, format_email_list_for_display
     
     try:
         # Валидация email (поддержка нескольких адресов)
@@ -1913,7 +1913,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     elif data.startswith('watch_rm_idx_'):
         idx = int(data.split('_')[-1])
-        from dse_watcher import get_watched_dse_list, remove_watched_dse
+        from .dse_watcher import get_watched_dse_list, remove_watched_dse
         watched_list = get_watched_dse_list(user_id)
         if 0 <= idx < len(watched_list):
             dse_to_remove = watched_list[idx]
@@ -1931,7 +1931,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             user_states[user_id]['watch_dse_state'] = 'awaiting_manual_input'
             await query.edit_message_text("📝 Введите номер ДСЕ для отслеживания:")
         else:
-            from dse_watcher import add_watched_dse
+            from .dse_watcher import add_watched_dse
             dse_list = get_unique_dse_values()
             idx = int(idx_str)
             if 0 <= idx < len(dse_list):
@@ -1942,7 +1942,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # === ЧАТ ПО ДСЕ ===
     elif data == 'chat_dse_menu':
-        from chat_manager import show_chat_menu
+        from .chat_manager import show_chat_menu
         await show_chat_menu(update, context)
     
     elif data == 'chat_start_search':
@@ -1955,7 +1955,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             user_states[user_id]['dse_chat_state'] = 'awaiting_manual_input'
             await query.edit_message_text("📝 Введите номер ДСЕ для начала чата:")
         else:
-            from chat_manager import handle_dse_input
+            from .chat_manager import handle_dse_input
             dse_list = get_unique_dse_values()
             idx = int(idx_str)
             if 0 <= idx < len(dse_list):
@@ -1964,21 +1964,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_states[user_id] = user_states.get(user_id, {})
                 user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
                 # Вызываем handle_dse_input с выбранным ДСЕ
-                from chat_manager import initiate_dse_chat_search
+                from .chat_manager import initiate_dse_chat_search
                 user_states[user_id]['dse_chat_dse_value'] = dse_value
                 await handle_dse_input(update, context)
     
     # === ОБРАБОТЧИКИ ЧАТА (из chat_manager) ===
     elif data.startswith('chat_confirm_target_') or data.startswith('chat_decline_target_'):
-        from chat_manager import handle_initiator_confirmation
+        from .chat_manager import handle_initiator_confirmation
         await handle_initiator_confirmation(update, context)
     
     elif data.startswith('chat_accept_') or data.startswith('chat_decline_'):
-        from chat_manager import handle_responder_confirmation
+        from .chat_manager import handle_responder_confirmation
         await handle_responder_confirmation(update, context)
     
     elif data in ['chat_end', 'chat_back']:
-        from chat_manager import handle_chat_control
+        from .chat_manager import handle_chat_control
         await handle_chat_control(update, context)
     
     # === PDF ЭКСПОРТ ===
@@ -2002,21 +2002,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     elif data == 'pdf_export_all':
         if has_permission(user_id, 'pdf_export'):
-            from pdf_generator import handle_pdf_export_all
+            from .pdf_generator import handle_pdf_export_all
             await handle_pdf_export_all(update, context)
         else:
             await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
     
     elif data == 'pdf_export_select':
         if has_permission(user_id, 'pdf_export'):
-            from pdf_generator import handle_pdf_export_select
+            from .pdf_generator import handle_pdf_export_select
             await handle_pdf_export_select(update, context)
         else:
             await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
     
     elif data.startswith('pdf_select_dse_'):
         if has_permission(user_id, 'pdf_export'):
-            from pdf_generator import handle_pdf_select_dse
+            from .pdf_generator import handle_pdf_select_dse
             dse_name = data.replace('pdf_select_dse_', '')
             await handle_pdf_select_dse(update, context, dse_name)
         else:
@@ -2024,7 +2024,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     elif data == 'pdf_export_selected':
         if has_permission(user_id, 'pdf_export'):
-            from pdf_generator import handle_pdf_export_selected
+            from .pdf_generator import handle_pdf_export_selected
             await handle_pdf_export_selected(update, context)
         else:
             await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
@@ -2051,7 +2051,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 return
             # Обработка сообщений в чате
             elif 'dse_chat_state' in user_data:
-                from chat_manager import handle_chat_message
+                from .chat_manager import handle_chat_message
                 await handle_chat_message(update, context)
                 return
         
@@ -2091,7 +2091,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             # === ОТСЛЕЖИВАНИЕ ДСЕ ===
             elif user_data.get('watch_dse_state') == 'awaiting_manual_input':
-                from dse_watcher import add_watched_dse
+                from .dse_watcher import add_watched_dse
                 dse_value = text.strip().upper()
                 add_watched_dse(user_id, dse_value)
                 user_states[user_id].pop('watch_dse_state', None)
@@ -2101,13 +2101,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             # === ЧАТ ПО ДСЕ ===
             elif user_data.get('dse_chat_state') == 'awaiting_manual_input':
-                from chat_manager import handle_dse_input
+                from .chat_manager import handle_dse_input
                 user_states[user_id]['dse_chat_dse_value'] = text.strip().upper()
                 user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
                 await handle_dse_input(update, context)
                 return
             elif user_data.get('dse_chat_state') in ['waiting_for_initiator_confirmation', 'in_chat']:
-                from chat_manager import handle_chat_message
+                from .chat_manager import handle_chat_message
                 await handle_chat_message(update, context)
                 return
     
@@ -2130,7 +2130,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         return
                     
                     # Проверка на существование
-                    from config import ADMIN_CREDENTIALS
+                    from config.config import ADMIN_CREDENTIALS
                     if username in ADMIN_CREDENTIALS:
                         await update.message.reply_text(
                             f"❌ Пользователь '{username}' уже существует.\n\n"
@@ -2163,7 +2163,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     telegram_name = admin_states[user_id].get('telegram_name')
                     
                     # Сохранение в config.py с привязкой к Telegram ID
-                    from config import ADMIN_CREDENTIALS, generate_password_hash, save_admin_credentials
+                    from config.config import ADMIN_CREDENTIALS, generate_password_hash, save_admin_credentials
                     password_hash = generate_password_hash(password)
                     ADMIN_CREDENTIALS[username] = password_hash
                     

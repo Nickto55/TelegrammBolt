@@ -5,7 +5,7 @@ import os
 import asyncio
 from typing import Dict, List, Set
 # Импортируем load_data из config
-from config import WATCHED_DSE_FILE, DATA_FILE, load_data as config_load_data
+from config.config import WATCHED_DSE_FILE, DATA_FILE, load_data as config_load_data
 
 # Глобальная переменная для хранения отслеживаемых ДСЕ в памяти
 # Формат: {user_id: set(dse_values)}. Храним в нижнем регистре для сравнения.
@@ -163,7 +163,7 @@ async def check_for_new_dse_and_notify(context):
                     problem = record.get('problem_type', 'Не указано')
                     desc = record.get('description', 'Нет описания')[:100] + "..." if len(
                         record.get('description', '')) > 100 else record.get('description', 'Нет описания')
-                    from user_manager import get_users_data
+                    from .user_manager import get_users_data
                     users_data = get_users_data()
                     user_info = users_data.get(data_user_id, {})
                     user_name = user_info.get('first_name', f"Пользователь {data_user_id}")

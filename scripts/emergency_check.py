@@ -93,7 +93,7 @@ print()
 # 3. Проверка config.py
 print("3️⃣  Проверка config.py...")
 try:
-    import config
+    import config.config as config
     
     checks = {
         'BOT_TOKEN': bool(getattr(config, 'BOT_TOKEN', None)),

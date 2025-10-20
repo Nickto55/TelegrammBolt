@@ -115,7 +115,7 @@ def check_config():
     print("="*50)
     
     try:
-        import config
+        import config.config as config
         
         # Проверка основных параметров
         checks = {

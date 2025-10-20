@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}500 - Ошибка сервера - BOLT{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center" style="min-height: 60vh;">
+        <div class="col-md-8 col-lg-6 my-auto">
+            <div class="card shadow-lg border-0">
+                <div class="card-body text-center p-5">
+                    <!-- Иконка ошибки -->
+                    <div class="mb-4">
+                        <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 5rem;"></i>
+                    </div>
+                    
+                    <!-- Заголовок ошибки -->
+                    <h2 class="text-danger mb-3">500 - Внутренняя ошибка сервера</h2>
+                    
+                    <!-- Сообщение -->
+                    <p class="text-muted mb-4">
+                        Произошла непредвиденная ошибка при обработке запроса. 
+                        Администратор уже уведомлен о проблеме.
+                    </p>
+                    
+                    <!-- Кнопки действий -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="javascript:history.back()" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                            <i class="bi bi-house"></i> На главную
+                        </a>
+                        <button onclick="location.reload()" class="btn btn-outline-info">
+                            <i class="bi bi-arrow-clockwise"></i> Обновить
+                        </button>
+                    </div>
+                    
+                    <!-- Дополнительная помощь -->
+                    <div class="mt-4 pt-4 border-top">
+                        <h6 class="text-muted mb-2">Что можно сделать?</h6>
+                        <ul class="list-unstyled text-start text-muted small">
+                            <li><i class="bi bi-arrow-clockwise text-info"></i> Обновите страницу</li>
+                            <li><i class="bi bi-arrow-left text-info"></i> Вернитесь на предыдущую страницу</li>
+                            <li><i class="bi bi-house text-info"></i> Перейдите на главную страницу</li>
+                            <li><i class="bi bi-clock text-info"></i> Подождите несколько минут и попробуйте снова</li>
+                            <li><i class="bi bi-person-circle text-info"></i> Обратитесь к администратору, если проблема повторяется</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

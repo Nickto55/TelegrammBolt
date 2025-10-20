@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from config import load_data, DATA_FILE, USERS_FILE
+from config.config import load_data, DATA_FILE, USERS_FILE
 
 dse_chat_states = {}
 active_chats = {}
@@ -44,7 +44,7 @@ def get_dse_records_by_dse_value(dse_value: str):
 
 async def initiate_dse_chat_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Начинает процесс поиска чата по ДСЕ. Запрашивает у пользователя номер ДСЕ."""
-    from commands import user_states
+    from .commands import user_states
     
     user = update.effective_user
     user_id = str(user.id)
@@ -67,7 +67,7 @@ async def initiate_dse_chat_search(update: Update, context: ContextTypes.DEFAULT
 
 async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает ввод номера ДСЕ пользователем."""
-    from commands import user_states
+    from .commands import user_states
     
     user = update.effective_user
     user_id = str(user.id)

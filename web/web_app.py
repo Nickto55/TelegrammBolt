@@ -16,8 +16,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from flask_cors import CORS
 
 # Импорты из существующих модулей бота
-from config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, load_data, save_data
-from user_manager import (
+from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, load_data, save_data
+from bot.user_manager import (
     has_permission, 
     get_users_data, 
     get_user_data,
@@ -27,9 +27,9 @@ from user_manager import (
     set_user_role,
     ROLES
 )
-from dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
+from bot.dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
 # chat_manager не имеет нужных функций для веб, используем свои реализации
-from pdf_generator import create_dse_pdf_report
+from bot.pdf_generator import create_dse_pdf_report
 import pandas as pd
 
 # Настройка логирования
@@ -151,7 +151,7 @@ def generate_pdf_report(options):
         
         try:
             # Создаем PDF с множественными записями
-            from pdf_generator import create_multi_dse_pdf_report
+            from bot.pdf_generator import create_multi_dse_pdf_report
             success = create_multi_dse_pdf_report(
                 selected_records, 
                 temp_file.name,
@@ -199,7 +199,7 @@ def generate_pdf_report(options):
                     
                     try:
                         # Создаем PDF для каждой записи
-                        from pdf_generator import create_single_dse_pdf_report
+                        from bot.pdf_generator import create_single_dse_pdf_report
                         success = create_single_dse_pdf_report(
                             record,
                             temp_pdf.name,
@@ -248,7 +248,7 @@ def generate_pdf_report(options):
 
 def save_users_data(users_data):
     """Сохранение данных пользователей"""
-    from config import USERS_FILE
+    from config.config import USERS_FILE
     with open(USERS_FILE, 'w', encoding='utf-8') as f:
         json.dump(users_data, f, indent=2, ensure_ascii=False)
 
@@ -466,7 +466,7 @@ def admin_auth():
         password = auth_data.get('password', '').strip()
         
         # Загружаем админ-креды из config
-        import config
+        import config.config as config
         admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
         
         # Проверка логина/пароля
@@ -480,7 +480,7 @@ def admin_auth():
                 # Регистрируем админа если его нет
                 register_user(admin_user_id, username, 'Администратор', '')
                 # Устанавливаем роль admin
-                from user_manager import set_user_role
+                from bot.user_manager import set_user_role
                 set_user_role(admin_user_id, 'admin')
             
             # Проверяем, что роль действительно admin
@@ -1377,7 +1377,7 @@ def calculate_activity_days(user_id):
 
 def send_test_notification_email(email, user_id):
     """Отправка тестового уведомления на email"""
-    from email_manager import send_email_with_pdf
+    from bot.email_manager import send_email_with_pdf
     
     # Создание тестового сообщения
     subject = "BOLT - Тестовое уведомление"

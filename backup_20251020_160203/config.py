@@ -109,6 +109,11 @@ ven_bot_data = load_config_settings_bot()
 # Экспортируем настройки для использования в других модулях
 BOT_TOKEN = ven_bot_data.get("BOT_TOKEN", "")
 BOT_USERNAME = ven_bot_data.get("BOT_USERNAME", "")  # Username бота
+
+# Flask SECRET_KEY для сессий (генерируется автоматически если отсутствует)
+import secrets
+SECRET_KEY = secrets.token_hex(32)  # Генерирует безопасный случайный ключ
+
 # Убедимся, что ADMIN_IDS всегда список
 ADMIN_IDS = ven_bot_data.get("ADMIN_IDS", [])
 if not isinstance(ADMIN_IDS, list):

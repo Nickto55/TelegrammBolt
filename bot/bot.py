@@ -1,17 +1,17 @@
 import asyncio
 import logging
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from config import BOT_TOKEN
-from commands import start, button_handler, handle_message, cancel_photo_command, createwebuser_command
-from dse_watcher import load_watched_dse_data, start_watcher_job
+from config.config import BOT_TOKEN
+from .commands import start, button_handler, handle_message, cancel_photo_command, createwebuser_command
+from .dse_watcher import load_watched_dse_data, start_watcher_job
 
 logger = logging.getLogger(__name__)
 
 
 async def chat_command(update, context):
     """Команда /chat"""
-    from chat_manager import show_chat_menu
-    from user_manager import has_permission
+    from .chat_manager import show_chat_menu
+    from .user_manager import has_permission
     user_id = str(update.effective_user.id)
 
     if has_permission(user_id, 'chat_dse'):
@@ -22,8 +22,8 @@ async def chat_command(update, context):
 
 async def end_chat_command(update, context):
     """Команда /endchat"""
-    from chat_manager import end_chat_command
-    from user_manager import has_permission
+    from .chat_manager import end_chat_command
+    from .user_manager import has_permission
     user_id = str(update.effective_user.id)
 
     if has_permission(user_id, 'chat_dse'):

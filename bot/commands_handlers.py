@@ -234,7 +234,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     elif data.startswith('watch_rm_idx_'):
         idx = int(data.split('_')[-1])
-        from dse_watcher import get_watched_dse_list, remove_watched_dse
+        from .dse_watcher import get_watched_dse_list, remove_watched_dse
         watched_list = get_watched_dse_list(user_id)
         if 0 <= idx < len(watched_list):
             dse_to_remove = watched_list[idx]
@@ -252,7 +252,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             user_states[user_id]['watch_dse_state'] = 'awaiting_manual_input'
             await query.edit_message_text("📝 Введите номер ДСЕ для отслеживания:")
         else:
-            from dse_watcher import add_watched_dse
+            from .dse_watcher import add_watched_dse
             dse_list = get_unique_dse_values()
             idx = int(idx_str)
             if 0 <= idx < len(dse_list):
@@ -263,7 +263,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # === ЧАТ ПО ДСЕ ===
     elif data == 'chat_dse_menu':
-        from chat_manager import show_chat_menu
+        from .chat_manager import show_chat_menu
         await show_chat_menu(update, context)
     
     elif data == 'chat_start_search':
@@ -276,7 +276,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             user_states[user_id]['dse_chat_state'] = 'awaiting_manual_input'
             await query.edit_message_text("📝 Введите номер ДСЕ для начала чата:")
         else:
-            from chat_manager import handle_dse_input
+            from .chat_manager import handle_dse_input
             dse_list = get_unique_dse_values()
             idx = int(idx_str)
             if 0 <= idx < len(dse_list):
@@ -285,27 +285,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_states[user_id] = user_states.get(user_id, {})
                 user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
                 # Вызываем handle_dse_input с выбранным ДСЕ
-                from chat_manager import initiate_dse_chat_search
+                from .chat_manager import initiate_dse_chat_search
                 user_states[user_id]['dse_chat_dse_value'] = dse_value
                 await handle_dse_input(update, context)
     
     # === ОБРАБОТЧИКИ ЧАТА (из chat_manager) ===
     elif data.startswith('chat_confirm_target_') or data.startswith('chat_decline_target_'):
-        from chat_manager import handle_initiator_confirmation
+        from .chat_manager import handle_initiator_confirmation
         await handle_initiator_confirmation(update, context)
     
     elif data.startswith('chat_accept_') or data.startswith('chat_decline_'):
-        from chat_manager import handle_responder_confirmation
+        from .chat_manager import handle_responder_confirmation
         await handle_responder_confirmation(update, context)
     
     elif data in ['chat_end', 'chat_back']:
-        from chat_manager import handle_chat_control
+        from .chat_manager import handle_chat_control
         await handle_chat_control(update, context)
     
     # === PDF ЭКСПОРТ ===
     elif data == 'pdf_export_menu':
         if has_permission(user_id, 'pdf_export'):
-            from pdf_generator import show_pdf_export_menu
+            from .pdf_generator import show_pdf_export_menu
             await show_pdf_export_menu(update, context)
         else:
             await query.edit_message_text("❌ У вас нет прав для экспорта PDF.")
@@ -332,7 +332,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 return
             # Обработка сообщений в чате
             elif 'dse_chat_state' in user_data:
-                from chat_manager import handle_chat_message
+                from .chat_manager import handle_chat_message
                 await handle_chat_message(update, context)
                 return
         
@@ -372,7 +372,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             # === ОТСЛЕЖИВАНИЕ ДСЕ ===
             elif user_data.get('watch_dse_state') == 'awaiting_manual_input':
-                from dse_watcher import add_watched_dse
+                from .dse_watcher import add_watched_dse
                 dse_value = text.strip().upper()
                 add_watched_dse(user_id, dse_value)
                 user_states[user_id].pop('watch_dse_state', None)
@@ -382,13 +382,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             # === ЧАТ ПО ДСЕ ===
             elif user_data.get('dse_chat_state') == 'awaiting_manual_input':
-                from chat_manager import handle_dse_input
+                from .chat_manager import handle_dse_input
                 user_states[user_id]['dse_chat_dse_value'] = text.strip().upper()
                 user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
                 await handle_dse_input(update, context)
                 return
             elif user_data.get('dse_chat_state') in ['waiting_for_initiator_confirmation', 'in_chat']:
-                from chat_manager import handle_chat_message
+                from .chat_manager import handle_chat_message
                 await handle_chat_message(update, context)
                 return
             
