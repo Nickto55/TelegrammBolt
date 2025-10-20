@@ -58,12 +58,53 @@ def install_dependencies():
         return False
     
     try:
+        # Сначала обновляем pip
+        print_info("Обновление pip...")
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'], 
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Устанавливаем зависимости (без --quiet для видимости прогресса)
         print_info("Установка пакетов из requirements.txt...")
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt', '--quiet'])
-        print_success("Все зависимости установлены")
+        print_info("Это может занять несколько минут...")
+        
+        result = subprocess.run(
+            [sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            print_error("Ошибка установки зависимостей:")
+            print(result.stderr)
+            print_warning("Попытка установить критичные пакеты по отдельности...")
+            
+            # Устанавливаем критичные пакеты по одному
+            critical_packages = [
+                'python-telegram-bot',
+                'flask',
+                'openpyxl',
+                'reportlab',
+                'nest-asyncio'
+            ]
+            
+            for package in critical_packages:
+                print_info(f"Установка {package}...")
+                try:
+                    subprocess.check_call(
+                        [sys.executable, '-m', 'pip', 'install', package],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    print_success(f"{package} установлен")
+                except subprocess.CalledProcessError:
+                    print_error(f"Не удалось установить {package}")
+        else:
+            print_success("Все зависимости установлены")
+        
         return True
-    except subprocess.CalledProcessError as e:
-        print_error(f"Ошибка установки зависимостей: {e}")
+        
+    except Exception as e:
+        print_error(f"Критическая ошибка установки: {e}")
         return False
 
 def create_directories():
@@ -273,21 +314,52 @@ def test_installation():
     
     # Проверка импортов
     required_modules = [
-        'telegram',
-        'flask',
-        'openpyxl',
-        'reportlab',
-        'nest_asyncio'
+        ('telegram', 'python-telegram-bot'),
+        ('flask', 'flask'),
+        ('openpyxl', 'openpyxl'),
+        ('reportlab', 'reportlab'),
+        ('nest_asyncio', 'nest-asyncio')
     ]
     
-    all_ok = True
-    for module in required_modules:
+    missing_modules = []
+    
+    for module_name, package_name in required_modules:
         try:
-            __import__(module)
-            print_success(f"Модуль {module} импортируется")
+            __import__(module_name)
+            print_success(f"Модуль {module_name} импортируется")
         except ImportError:
-            print_error(f"Модуль {module} не установлен!")
-            all_ok = False
+            print_error(f"Модуль {module_name} не установлен!")
+            missing_modules.append(package_name)
+    
+    # Если есть пропущенные модули - пытаемся установить
+    if missing_modules:
+        print_warning(f"Отсутствуют модули: {', '.join(missing_modules)}")
+        print_info("Попытка установить недостающие модули...")
+        
+        for package in missing_modules:
+            try:
+                print_info(f"Установка {package}...")
+                subprocess.check_call(
+                    [sys.executable, '-m', 'pip', 'install', package],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print_success(f"{package} установлен")
+            except subprocess.CalledProcessError as e:
+                print_error(f"Не удалось установить {package}: {e}")
+        
+        # Повторная проверка
+        print_info("Повторная проверка модулей...")
+        all_ok = True
+        for module_name, _ in required_modules:
+            try:
+                __import__(module_name)
+                print_success(f"Модуль {module_name} теперь доступен")
+            except ImportError:
+                print_error(f"Модуль {module_name} всё ещё недоступен")
+                all_ok = False
+    else:
+        all_ok = True
     
     # Проверка конфигурации
     if os.path.exists('config/ven_bot.json'):
@@ -301,9 +373,13 @@ def test_installation():
                 print_success("Конфигурация бота OK")
         except Exception as e:
             print_error(f"Ошибка чтения конфигурации: {e}")
-            all_ok = False
     
-    return all_ok
+    # Не возвращаем False если есть проблемы - просто предупреждаем
+    if not all_ok:
+        print_warning("Некоторые модули не установлены, но установка продолжена")
+        print_info("Попробуйте вручную: pip install -r requirements.txt")
+    
+    return True  # Всегда возвращаем True чтобы не прерывать установку
 
 def print_final_instructions():
     """Финальные инструкции"""

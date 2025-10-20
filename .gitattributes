@@ -1,0 +1,29 @@
+# Автоматическая нормализация окончаний строк
+* text=auto
+
+# Shell скрипты всегда с LF
+*.sh text eol=lf
+
+# Batch файлы всегда с CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Python всегда с LF
+*.py text eol=lf
+
+# Markdown и текстовые файлы
+*.md text eol=lf
+*.txt text eol=lf
+
+# JSON и конфиги
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Бинарные файлы
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.xlsx binary
