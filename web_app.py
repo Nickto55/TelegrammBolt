@@ -59,11 +59,29 @@ def get_all_dse():
 
 def get_dse_by_id(dse_id):
     """Получить конкретное ДСЕ по ID (фильтрация из всех записей)"""
-    records = get_all_dse_records()
-    for record in records:
-        if str(record.get('id', '')) == str(dse_id) or str(record.get('dse', '')) == str(dse_id):
-            return record
-    return None
+    try:
+        records = get_all_dse_records()
+        if not records:
+            logger.warning("get_all_dse_records() returned empty list")
+            return None
+            
+        for record in records:
+            # Проверяем оба поля: id и dse
+            record_id = str(record.get('id', ''))
+            record_dse = str(record.get('dse', ''))
+            search_id = str(dse_id)
+            
+            if record_id == search_id or record_dse == search_id:
+                logger.info(f"Found DSE: {record_dse} (id: {record_id})")
+                return record
+        
+        logger.warning(f"DSE not found: {dse_id}")
+        return None
+    except Exception as e:
+        logger.error(f"Error in get_dse_by_id({dse_id}): {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def add_dse(data):
@@ -728,24 +746,39 @@ def dse_list():
 @login_required
 def dse_detail(dse_id):
     """Детальная информация о ДСЕ"""
-    user_id = session['user_id']
+    try:
+        user_id = session['user_id']
+        
+        if not has_permission(user_id, 'view_dse'):
+            return "Доступ запрещен", 403
+        
+        dse = get_dse_by_id(dse_id)
+        if not dse:
+            return render_template('error.html', 
+                                 error="ДСЕ не найдено",
+                                 message=f"Заявка с ID '{dse_id}' не найдена в системе"), 404
+        
+        # Получить информацию о пользователе, создавшем ДСЕ
+        user_info = None
+        if dse.get('user_id'):
+            try:
+                user_info = get_user_data(str(dse['user_id']))
+            except Exception as e:
+                logger.warning(f"Не удалось получить информацию о пользователе {dse.get('user_id')}: {e}")
+                user_info = None
+        
+        return render_template('dse_detail.html', 
+                             dse=dse, 
+                             user_info=user_info,
+                             permissions=get_user_permissions(user_id))
     
-    if not has_permission(user_id, 'view_dse'):
-        return "Доступ запрещен", 403
-    
-    dse = get_dse_by_id(dse_id)
-    if not dse:
-        return "ДСЕ не найдено", 404
-    
-    # Получить информацию о пользователе, создавшем ДСЕ
-    user_info = None
-    if dse.get('user_id'):
-        user_info = get_user_data(str(dse['user_id']))
-    
-    return render_template('dse_detail.html', 
-                         dse=dse, 
-                         user_info=user_info,
-                         permissions=get_user_permissions(user_id))
+    except Exception as e:
+        logger.error(f"Ошибка при открытии ДСЕ {dse_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return render_template('error.html',
+                             error="Ошибка загрузки заявки",
+                             message=f"Не удалось загрузить заявку. Попробуйте обновить страницу."), 500
 
 
 @app.route('/dse/create', methods=['GET', 'POST'])
