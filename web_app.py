@@ -748,25 +748,32 @@ def dse_detail(dse_id):
     """Детальная информация о ДСЕ"""
     try:
         user_id = session['user_id']
+        logger.info(f"User {user_id} trying to access DSE: {dse_id}")
         
         if not has_permission(user_id, 'view_dse'):
+            logger.warning(f"User {user_id} has no permission to view DSE")
             return "Доступ запрещен", 403
         
         dse = get_dse_by_id(dse_id)
         if not dse:
+            logger.warning(f"DSE not found: {dse_id}")
             return render_template('error.html', 
-                                 error="ДСЕ не найдено",
-                                 message=f"Заявка с ID '{dse_id}' не найдена в системе"), 404
+                                 error="Заявка не найдена",
+                                 message=f"Заявка с ID '{dse_id}' не существует или была удалена."), 404
+        
+        logger.info(f"DSE found: {dse.get('dse', 'N/A')}, user_id: {dse.get('user_id', 'N/A')}")
         
         # Получить информацию о пользователе, создавшем ДСЕ
         user_info = None
         if dse.get('user_id'):
             try:
                 user_info = get_user_data(str(dse['user_id']))
+                logger.info(f"User info loaded: {user_info.get('name', 'N/A') if user_info else 'None'}")
             except Exception as e:
                 logger.warning(f"Не удалось получить информацию о пользователе {dse.get('user_id')}: {e}")
                 user_info = None
         
+        logger.info(f"Rendering dse_detail.html for DSE: {dse_id}")
         return render_template('dse_detail.html', 
                              dse=dse, 
                              user_info=user_info,
@@ -775,7 +782,7 @@ def dse_detail(dse_id):
     except Exception as e:
         logger.error(f"Ошибка при открытии ДСЕ {dse_id}: {e}")
         import traceback
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         return render_template('error.html',
                              error="Ошибка загрузки заявки",
                              message=f"Не удалось загрузить заявку. Попробуйте обновить страницу."), 500
