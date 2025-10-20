@@ -12,9 +12,59 @@
         </div>
     </div>
     
+    <!-- Быстрые действия - ПЕРЕНЕСЛИ ВВЕРХ -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% if permissions.view_dse %}
+                        <div class="col-md-3">
+                            <a href="{{ url_for('dse_list') }}" class="btn btn-outline-primary w-100 py-3">
+                                <i class="bi bi-list-ul display-6 d-block mb-2"></i>
+                                Просмотр ДСЕ
+                            </a>
+                        </div>
+                        {% endif %}
+                        
+                        {% if permissions.manage_users %}
+                        <div class="col-md-3">
+                            <a href="{{ url_for('users_management') }}" class="btn btn-outline-success w-100 py-3">
+                                <i class="bi bi-people display-6 d-block mb-2"></i>
+                                Управление пользователями
+                            </a>
+                        </div>
+                        {% endif %}
+                        
+                        {% if permissions.export_data %}
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-info w-100 py-3" onclick="exportExcel()">
+                                <i class="bi bi-file-earmark-excel display-6 d-block mb-2"></i>
+                                Экспорт Excel
+                            </button>
+                        </div>
+                        {% endif %}
+                        
+                        {% if permissions.chat_dse %}
+                        <div class="col-md-3">
+                            <a href="{{ url_for('chat') }}" class="btn btn-outline-warning w-100 py-3">
+                                <i class="bi bi-chat-left-text display-6 d-block mb-2"></i>
+                                Открыть чат
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Статистика -->
     <div class="row g-3 mb-4">
-        <div class="col-lg-3 col-md-6">
+        <div class="col-lg-4 col-md-6">
             <div class="card text-white bg-primary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -33,7 +83,7 @@
             </div>
         </div>
         
-        <div class="col-lg-3 col-md-6">
+        <div class="col-lg-4 col-md-6">
             <div class="card text-white bg-success">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -50,7 +100,7 @@
             </div>
         </div>
         
-        <div class="col-lg-3 col-md-6">
+        <div class="col-lg-4 col-md-6">
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -63,23 +113,6 @@
                 </div>
                 <div class="card-footer bg-transparent border-0">
                     <small class="text-white">Новых записей за 7 дней</small>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-lg-3 col-md-6">
-            <div class="card text-white bg-warning">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="card-subtitle mb-2">Топ проблема</h6>
-                            <h5 class="card-title mb-0">{{ stats.top_problem_type }}</h5>
-                        </div>
-                        <i class="bi bi-exclamation-triangle display-4 opacity-50"></i>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent border-0">
-                    <small class="text-white">Самый частый тип</small>
                 </div>
             </div>
         </div>
@@ -131,61 +164,13 @@
     </div>
     {% endif %}
     
-    <!-- Быстрые действия -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Быстрые действия</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        {% if permissions.add_dse %}
-                        <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3" onclick="addNewDse()">
-                                <i class="bi bi-plus-circle display-6 d-block mb-2"></i>
-                                Добавить ДСЕ
-                            </button>
-                        </div>
-                        {% endif %}
-                        
-                        {% if permissions.export_data %}
-                        <div class="col-md-3">
-                            <button class="btn btn-outline-success w-100 py-3" onclick="exportExcel()">
-                                <i class="bi bi-file-earmark-excel display-6 d-block mb-2"></i>
-                                Экспорт Excel
-                            </button>
-                        </div>
-                        
-                        <div class="col-md-3">
-                            <button class="btn btn-outline-danger w-100 py-3" onclick="generatePdf()">
-                                <i class="bi bi-file-earmark-pdf display-6 d-block mb-2"></i>
-                                Создать PDF
-                            </button>
-                        </div>
-                        {% endif %}
-                        
-                        {% if permissions.chat_dse %}
-                        <div class="col-md-3">
-                            <a href="{{ url_for('chat') }}" class="btn btn-outline-info w-100 py-3">
-                                <i class="bi bi-chat-left-text display-6 d-block mb-2"></i>
-                                Открыть чат
-                            </a>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Последние ДСЕ -->
+    <!-- Последние заявки -->
     {% if permissions.view_dse %}
     <div class="row">
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Последние ДСЕ</h5>
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Последние заявки</h5>
                     <a href="{{ url_for('dse_list') }}" class="btn btn-sm btn-primary">
                         Показать все
                     </a>
@@ -289,10 +274,16 @@ function loadRecentDse() {
                 return;
             }
             
-            // Показать последние 5
-            const recent = data.slice(0, 5);
+            // Сортируем по дате (последние сначала) и показываем последние 5
+            const sortedData = data.sort((a, b) => {
+                const dateA = new Date(a.datetime || 0);
+                const dateB = new Date(b.datetime || 0);
+                return dateB - dateA; // От новых к старым
+            });
+            
+            const recent = sortedData.slice(0, 5);
             let html = '<div class="table-responsive"><table class="table table-hover">';
-            html += '<thead><tr><th>ДСЕ</th><th>Тип проблемы</th><th>Описание</th><th>Дата</th></tr></thead><tbody>';
+            html += '<thead><tr><th>ДСЕ</th><th>Тип проблемы</th><th>Описание</th><th>Дата</th><th></th></tr></thead><tbody>';
             
             recent.forEach(dse => {
                 const description = dse.description || 'Без описания';
@@ -302,7 +293,8 @@ function loadRecentDse() {
                         <td><strong>${dse.dse || '-'}</strong></td>
                         <td><span class="badge bg-info">${dse.problem_type || 'Не указано'}</span></td>
                         <td>${shortDesc}</td>
-                        <td>${dse.datetime || '-'}</td>
+                        <td><small>${dse.datetime || '-'}</small></td>
+                        <td><a href="/dse/${dse.dse}" class="btn btn-sm btn-outline-primary">Просмотр</a></td>
                     </tr>
                 `;
             });
