@@ -16,7 +16,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from flask_cors import CORS
 
 # Импорты из существующих модулей бота
-from config_dir.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, load_data, save_data
+from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, load_data, save_data
 from bot.user_manager import (
     has_permission, 
     get_users_data, 
@@ -248,7 +248,7 @@ def generate_pdf_report(options):
 
 def save_users_data(users_data):
     """Сохранение данных пользователей"""
-    from config_dir.config import USERS_FILE
+    from config.config import USERS_FILE
     with open(USERS_FILE, 'w', encoding='utf-8') as f:
         json.dump(users_data, f, indent=2, ensure_ascii=False)
 
@@ -466,7 +466,7 @@ def admin_auth():
         password = auth_data.get('password', '').strip()
         
         # Загружаем админ-креды из config
-        import config_dir.config as config
+        import config.config as config
         admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
         
         # Проверка логина/пароля

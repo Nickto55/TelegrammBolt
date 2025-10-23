@@ -3,7 +3,7 @@ import os
 import asyncio
 from typing import Dict, List, Set
 # Импортируем load_data из config
-from config_dir.config import WATCHED_DSE_FILE, DATA_FILE, load_data as config_load_data
+from config.config import WATCHED_DSE_FILE, DATA_FILE, load_data as config_load_data
 
 # Глобальная переменная для хранения отслеживаемых ДСЕ в памяти
 # Формат: {user_id: set(dse_values)}. Храним в нижнем регистре для сравнения.

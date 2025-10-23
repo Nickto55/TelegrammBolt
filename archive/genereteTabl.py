@@ -8,14 +8,14 @@ from openpyxl.styles import PatternFill, Font
 from openpyxl.utils import get_column_letter
 
 
-import config_dir
-from user_manager import get_user_display_name
+import config
+from bot.user_manager import get_user_display_name
 
 class MainGen:
     def __init__(self):
-        self.DATA_FILE = config_dir.DATA_FILE
+        self.DATA_FILE = config.DATA_FILE
 
-        self.data = config_dir.load_data(self.DATA_FILE)
+        self.data = config.load_data(self.DATA_FILE)
 
     def main(self):
         result = []

@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from config_dir.config import load_data, DATA_FILE, USERS_FILE
+from config.config import load_data, DATA_FILE, USERS_FILE
 
 dse_chat_states = {}
 active_chats = {}

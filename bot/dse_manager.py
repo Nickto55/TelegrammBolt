@@ -1,4 +1,4 @@
-from config_dir.config import DATA_FILE, load_data
+from config.config import DATA_FILE, load_data
 
 
 def get_all_dse_records():
