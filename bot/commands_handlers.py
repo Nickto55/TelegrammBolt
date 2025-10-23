@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from datetime import datetime as dt
 
@@ -323,6 +323,40 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await show_pdf_export_menu(update, context)
         else:
             await query.edit_message_text("❌ У вас нет прав для экспорта PDF.")
+    
+    # === ПОМОЩЬ ДЛЯ ПОЛЬЗОВАТЕЛЕЙ С РОЛЬЮ 'USER' ===
+    elif data == 'qr_help':
+        help_text = (
+            "📸 Как отправить QR код:\n\n"
+            "1. Откройте камеру телефона\n"
+            "2. Сфотографируйте QR код приглашения\n"
+            "3. Отправьте фото прямо в этот чат\n"
+            "4. Бот автоматически распознает и активирует код\n\n"
+            "💡 Убедитесь что QR код четко виден на фото!"
+        )
+        await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("← Назад", callback_data='back_to_scan')]
+        ]))
+    
+    elif data == 'commands_help':
+        help_text = (
+            "🔗 Доступные команды:\n\n"
+            "/start - Главное меню\n"
+            "/invite ВАШКОД - Активировать приглашение\n"
+            "/link ВАШКОД - Привязать веб-аккаунт\n"
+            "/help - Эта справка\n\n"
+            "📱 Примеры:\n"
+            "• /invite ABC123DEF456\n"
+            "• /link XYZ789\n\n"
+            "❓ Коды предоставляет администратор"
+        )
+        await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("← Назад", callback_data='back_to_scan')]
+        ]))
+    
+    elif data == 'back_to_scan':
+        from bot.commands import show_scan_menu
+        await show_scan_menu(update, user_id)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

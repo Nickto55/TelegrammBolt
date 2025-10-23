@@ -64,10 +64,12 @@
                             {{ session.first_name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
+                            {% if session.user_role != 'user' %}
                             <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2"></i> Панель управления</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('dse_list') }}"><i class="bi bi-list-ul"></i> ДСЕ</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('reports') }}"><i class="bi bi-file-earmark-text"></i> Отчеты</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Чат</a></li>
+                            {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('scan_invite_page') }}"><i class="bi bi-qr-code-scan"></i> Сканировать QR</a></li>
                             {% if session.user_role == 'admin' %}
                             <li><hr class="dropdown-divider"></li>
@@ -75,7 +77,9 @@
                             <li><a class="dropdown-item" href="{{ url_for('invites_page') }}"><i class="bi bi-qr-code"></i> QR Приглашения</a></li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
+                            {% if session.user_role != 'user' %}
                             <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="bi bi-person"></i> Профиль</a></li>
+                            {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Выход</a></li>
                         </ul>
                     </li>

@@ -420,6 +420,29 @@ def admin_required(f):
     return decorated_function
 
 
+def user_role_required(allowed_roles):
+    """Декоратор для проверки ролей пользователей"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                return redirect(url_for('login'))
+            
+            user_role = session.get('user_role', get_user_role(session['user_id']))
+            
+            if user_role not in allowed_roles:
+                # Пользователи с ролью 'user' перенаправляются на сканирование QR
+                if user_role == 'user':
+                    return redirect(url_for('scan_invite_page'))
+                else:
+                    flash('У вас недостаточно прав для доступа к этой странице.', 'error')
+                    return redirect(url_for('dashboard'))
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
 # ============================================================================
 # МАРШРУТЫ - АВТОРИЗАЦИЯ
 # ============================================================================
@@ -561,7 +584,12 @@ def dashboard():
     """Главная панель управления"""
     try:
         user_id = session['user_id']
-        logger.info(f"Dashboard access by user_id: {user_id}")
+        user_role = session.get('user_role', get_user_role(user_id))
+        logger.info(f"Dashboard access by user_id: {user_id}, role: {user_role}")
+        
+        # Пользователи с ролью 'user' перенаправляются на страницу сканирования QR
+        if user_role == 'user':
+            return redirect(url_for('scan_invite_page'))
         
         # Получаем данные пользователя из сессии и user_manager
         users_data = get_users_data()
@@ -667,6 +695,7 @@ def update_email_subscription():
 
 @app.route('/users')
 @login_required
+@user_role_required(['admin'])
 def users_management():
     """Управление пользователями (только для админов)"""
     user_id = session['user_id']
@@ -777,6 +806,7 @@ def delete_user(user_id):
 
 @app.route('/dse')
 @login_required
+@user_role_required(['admin', 'responder', 'initiator'])
 def dse_list():
     """Список всех ДСЕ"""
     user_id = session['user_id']
@@ -1051,6 +1081,7 @@ def pdf_export_page():
 
 @app.route('/reports')
 @login_required
+@user_role_required(['admin', 'responder', 'initiator'])
 def reports():
     """Страница отчетов"""
     user_id = session['user_id']
@@ -1063,6 +1094,7 @@ def reports():
 
 @app.route('/chat')
 @login_required
+@user_role_required(['admin', 'responder', 'initiator'])
 def chat():
     """Страница чата"""
     user_id = session['user_id']

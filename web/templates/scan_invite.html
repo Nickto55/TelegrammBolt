@@ -53,7 +53,16 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header text-center">
-                    <h4><i class="bi bi-qr-code-scan"></i> Сканировать QR код приглашения</h4>
+                    <h4><i class="bi bi-qr-code-scan"></i> 
+                        {% if session.user_role == 'user' %}
+                            Добро пожаловать! Отсканируйте QR код
+                        {% else %}
+                            Сканировать QR код приглашения
+                        {% endif %}
+                    </h4>
+                    {% if session.user_role == 'user' %}
+                    <p class="text-muted mb-0">Для получения доступа к боту отсканируйте QR код приглашения</p>
+                    {% endif %}
                 </div>
                 <div class="card-body">
                     <div class="scanner-container">
@@ -98,13 +107,35 @@
             <!-- Информация -->
             <div class="card mt-4">
                 <div class="card-body">
-                    <h5><i class="bi bi-info-circle"></i> Как использовать</h5>
+                    <h5><i class="bi bi-info-circle"></i> 
+                        {% if session.user_role == 'user' %}
+                            Получение доступа
+                        {% else %}
+                            Как использовать
+                        {% endif %}
+                    </h5>
+                    {% if session.user_role == 'user' %}
+                    <div class="alert alert-info">
+                        <strong>Вы вошли с базовой ролью.</strong> Для получения полного доступа к системе:
+                    </div>
+                    {% endif %}
                     <ul>
                         <li>Включите камеру и наведите на QR код приглашения</li>
                         <li>Или введите код приглашения вручную в поле ниже</li>
                         <li>После активации вам будет назначена роль согласно приглашению</li>
                         <li>Каждое приглашение можно использовать только один раз</li>
+                        {% if session.user_role == 'user' %}
+                        <li><strong>После активации</strong> у вас появится доступ к ДСЕ, отчетам и другим функциям</li>
+                        {% endif %}
                     </ul>
+                    {% if session.user_role == 'user' %}
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            Обратитесь к администратору для получения QR кода приглашения
+                        </small>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

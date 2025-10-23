@@ -89,6 +89,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     print(f"📥 {user.first_name} ({get_user_role(user_id)}): /start")
 
+    # Получаем роль пользователя
+    user_role = get_user_role(user_id)
+    
     # Проверяем права доступа
     if has_permission(user_id, 'view_main_menu'):
         # Инициализируем данные пользователя для формы, включая фото
@@ -100,7 +103,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             'rc': '',  # Рабочий центр
             'photo_file_id': None  # Новое поле для фото
         }
-        await show_main_menu(update, user_id)
+        
+        # Пользователи с ролью 'user' видят только возможность сканирования QR
+        if user_role == 'user':
+            await show_scan_menu(update, user_id)
+        else:
+            await show_main_menu(update, user_id)
     else:
         # Пользователь без прав
         if update.callback_query:
@@ -2551,4 +2559,34 @@ async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             "❌ Ошибка обработки QR кода.\n\n"
             "Попробуйте использовать веб-интерфейс или ввести код вручную."
         )
+
+
+async def show_scan_menu(update: Update, user_id: str) -> None:
+    """Показать меню сканирования для пользователей с ролью 'user'"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    user_display_name = get_user_display_name(user_id)
+    user_role = get_user_role(user_id)
+    
+    text = (
+        f"👋 Добро пожаловать, {user_display_name}!\n\n"
+        f"📱 У вас базовая роль '{ROLES.get(user_role, user_role)}'\n\n"
+        f"🎯 Для получения полного доступа к системе отсканируйте QR код приглашения:\n\n"
+        f"• Отправьте фото с QR кодом\n"
+        f"• Или введите код командой /invite ВАШКОД\n"
+        f"• Или используйте команду /link ВАШКОД для привязки веб-аккаунта\n\n"
+        f"❓ Обратитесь к администратору для получения приглашения"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("📸 Как отправить QR фото", callback_data='qr_help')],
+        [InlineKeyboardButton("🔗 Помощь по командам", callback_data='commands_help')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup)
 
