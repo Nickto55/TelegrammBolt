@@ -1404,10 +1404,10 @@ def send_test_notification_email(email, user_id):
     # Загрузка SMTP настроек
     smtp_config = {}
     try:
-        with open('smtp_config.json', 'r', encoding='utf-8') as f:
+        with open('config/smtp_config.json', 'r', encoding='utf-8') as f:
             smtp_config = json.load(f)
     except:
-        raise Exception("SMTP настройки не найдены. Настройте smtp_config.json")
+        raise Exception("SMTP настройки не найдены. Настройте config/smtp_config.json")
     
     msg = MIMEMultipart()
     msg['From'] = smtp_config.get('from_email', 'noreply@bolt.local')

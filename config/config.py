@@ -17,11 +17,11 @@ logging.basicConfig(
 )
 
 # Файлы для хранения данных
-DATA_FILE = "bot_data.json"
-USERS_FILE = "users_data.json"
-CHAT_FILE = "chat_data.json"
-WATCHED_DSE_FILE = "watched_dse.json"  # Новый файл для отслеживания
-PHOTOS_DIR = "photos"
+DATA_FILE = "data/bot_data.json"
+USERS_FILE = "data/users_data.json"
+CHAT_FILE = "data/chat_data.json"
+WATCHED_DSE_FILE = "data/watched_dse.json"  # Новый файл для отслеживания
+PHOTOS_DIR = "data/photos"
 os.makedirs(PHOTOS_DIR, exist_ok=True) # Создаем директорию при импорте модуля
 
 
@@ -49,9 +49,9 @@ def save_data(data, filename):
 
 
 # --- Загрузка настроек бота из ven_bot.json ---
-def load_config_settings_bot(ven_bot: str = "ven_bot.json"):
+def load_config_settings_bot(ven_bot: str = "config/ven_bot.json"):
     """
-    Загружает настройки бота (токен, админы) из файла ven_bot.json.
+    Загружает настройки бота (токен, админы) из файла config/ven_bot.json.
     Если файл или поля отсутствуют, создает шаблон и запрашивает ввод (в данном случае просто помечает).
     """
     file_path = os.path.join(os.getcwd(), ven_bot)
@@ -162,7 +162,7 @@ SMTP_SETTINGS = {
 # Функция для загрузки настроек SMTP из отдельного файла (опционально)
 def load_smtp_config():
     """Загружает настройки SMTP из отдельного файла (опционально)"""
-    smtp_file = "smtp_config.json"
+    smtp_file = "config/smtp_config.json"
     
     if os.path.exists(smtp_file):
         try:
@@ -186,7 +186,7 @@ if not load_smtp_config():
         "FROM_NAME": "Бот учета ДСЕ"
     }
     
-    smtp_file = "smtp_config.json"
+    smtp_file = "config/smtp_config.json"
     if not os.path.exists(smtp_file):
         try:
             save_data(smtp_template, smtp_file)
