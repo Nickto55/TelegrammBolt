@@ -1,5 +1,19 @@
-# Этот файл содержит недостающие обработчики, которые были удалены из commands.py
-# Нужно добавить эти функции обратно в commands.py
+from telegram import Update
+from telegram.ext import ContextTypes
+from datetime import datetime as dt
+
+from bot.commands import show_main_menu, user_states, show_application_menu, show_problem_types, show_rc_types, \
+    show_dse_list_menu, show_all_dse_records, start_interactive_dse_search, select_dse_from_search, start_dse_search, \
+    show_dse_statistics, show_admin_menu, show_users_list, start_change_role_process, admin_states, start_data_export, \
+    send_file_to_chat, request_email_address, test_smtp_connection, show_nicknames_menu, show_users_for_nickname, \
+    show_nicknames_list, start_nickname_input, remove_nickname_confirm, show_watched_dse_menu, start_add_watched_dse, \
+    start_remove_watched_dse, show_watched_dse_list, start_dse_chat_search_with_selection, dse_view_states, \
+    show_search_results, handle_dse_search_input, show_role_selection_menu, send_file_by_email
+from bot.dse_manager import get_unique_dse_values
+from bot.user_manager import has_permission, get_user_role, set_user_role, ROLES, get_all_users, check_nickname_exists, \
+    set_user_nickname
+from config.config import PROBLEM_TYPES, RC_TYPES, save_data, load_data
+
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик всех нажатий на кнопки"""

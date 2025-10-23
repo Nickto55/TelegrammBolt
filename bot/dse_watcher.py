@@ -1,5 +1,3 @@
-# dse_watcher.py
-
 import json
 import os
 import asyncio
