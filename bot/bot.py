@@ -1,9 +1,9 @@
 import asyncio
 import logging
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from config.config import BOT_TOKEN
 from .commands import start, button_handler, handle_message, cancel_photo_command, createwebuser_command
 from .dse_watcher import load_watched_dse_data, start_watcher_job
+from config.config import BOT_TOKEN
+from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,9 @@ async def post_init(application) -> None:
         logger.info("⏱️  Задача DSE Watcher запланирована")
 
         # Запуск интеграции с монитором
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
         from monitor_integration import start_monitor_integration
         await start_monitor_integration(application)
         logger.info("📊 Интеграция монитора запущена")

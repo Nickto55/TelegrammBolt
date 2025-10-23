@@ -1,7 +1,7 @@
 # user_manager.py
 import json
 import os
-from config.config import USERS_FILE, ADMIN_IDS
+from config_dir.config import USERS_FILE, ADMIN_IDS
 
 # Роли пользователей
 ROLES = {

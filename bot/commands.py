@@ -8,16 +8,16 @@ from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email import encoders
 import mimetypes
-
-import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-
 from config.config import load_data, save_data, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR
 from .dse_manager import get_all_dse_records, search_dse_records, get_unique_dse_values
 from .user_manager import (register_user, get_user_role, has_permission, set_user_role, ROLES, get_all_users,
                          set_user_nickname, remove_user_nickname, get_user_nickname, get_user_display_name,
                          check_nickname_exists, get_all_nicknames)
+
+import telegram
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+
 import os
 print(str(os.urandom(32)))
 # Глобальные переменные
