@@ -116,8 +116,8 @@ class BotMonitorIntegration:
     def update_stats(self):
         """Обновление статистики"""
         try:
-            from user_manager import get_all_users
-            from dse_manager import get_all_dse_records
+            from bot.user_manager import get_all_users
+            from bot.dse_manager import get_all_dse_records
             
             users = get_all_users()
             dse_records = get_all_dse_records()
