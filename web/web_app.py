@@ -49,9 +49,16 @@ static_dir = os.path.join(web_dir, 'static')
 app = Flask(__name__, 
             template_folder=template_dir,
             static_folder=static_dir)
-app.secret_key = os.urandom(32)  # Для production используйте фиксированный ключ из config
+
+# Используем SECRET_KEY из config (постоянный ключ для всех workers)
+from config.config import SECRET_KEY
+app.secret_key = SECRET_KEY
+
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['SESSION_COOKIE_SECURE'] = False  # Установите True если используете HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # CORS для API
 CORS(app)
@@ -455,9 +462,12 @@ def telegram_auth():
         
         logger.info(f"User {user_id} logged in via Telegram")
         
+        redirect_url = url_for('dashboard')
+        logger.info(f"Redirecting to: {redirect_url}")
+        
         return jsonify({
             'success': True,
-            'redirect': url_for('dashboard')
+            'redirect': redirect_url
         })
     
     except Exception as e:
@@ -507,9 +517,12 @@ def admin_auth():
             
             logger.info(f"Admin {username} logged in via credentials")
             
+            redirect_url = url_for('dashboard')
+            logger.info(f"Redirecting to: {redirect_url}")
+            
             return jsonify({
                 'success': True,
-                'redirect': url_for('dashboard')
+                'redirect': redirect_url
             })
         else:
             return jsonify({'error': 'Неверный логин или пароль'}), 401
