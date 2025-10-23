@@ -1404,7 +1404,9 @@ def send_test_notification_email(email, user_id):
     # Загрузка SMTP настроек
     smtp_config = {}
     try:
-        with open('config/smtp_config.json', 'r', encoding='utf-8') as f:
+        from config.config import CONFIG_DIR
+        smtp_file = CONFIG_DIR / "smtp_config.json"
+        with open(smtp_file, 'r', encoding='utf-8') as f:
             smtp_config = json.load(f)
     except:
         raise Exception("SMTP настройки не найдены. Настройте config/smtp_config.json")

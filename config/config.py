@@ -3,6 +3,10 @@ import json
 import logging
 import os
 from datetime import datetime as dt
+from pathlib import Path
+
+# Получаем корневую директорию проекта (на уровень выше config/)
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Отключение лишних логов
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -16,12 +20,19 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# Файлы для хранения данных
-DATA_FILE = "data/bot_data.json"
-USERS_FILE = "data/users_data.json"
-CHAT_FILE = "data/chat_data.json"
-WATCHED_DSE_FILE = "data/watched_dse.json"  # Новый файл для отслеживания
-PHOTOS_DIR = "data/photos"
+# Файлы для хранения данных (абсолютные пути)
+DATA_DIR = BASE_DIR / "data"
+CONFIG_DIR = BASE_DIR / "config"
+
+# Создаём директории если не существуют
+DATA_DIR.mkdir(exist_ok=True)
+CONFIG_DIR.mkdir(exist_ok=True)
+
+DATA_FILE = str(DATA_DIR / "bot_data.json")
+USERS_FILE = str(DATA_DIR / "users_data.json")
+CHAT_FILE = str(DATA_DIR / "chat_data.json")
+WATCHED_DSE_FILE = str(DATA_DIR / "watched_dse.json")
+PHOTOS_DIR = str(DATA_DIR / "photos")
 os.makedirs(PHOTOS_DIR, exist_ok=True) # Создаем директорию при импорте модуля
 
 
@@ -49,12 +60,17 @@ def save_data(data, filename):
 
 
 # --- Загрузка настроек бота из ven_bot.json ---
-def load_config_settings_bot(ven_bot: str = "config/ven_bot.json"):
+def load_config_settings_bot(ven_bot: str = None):
     """
     Загружает настройки бота (токен, админы) из файла config/ven_bot.json.
     Если файл или поля отсутствуют, создает шаблон и запрашивает ввод (в данном случае просто помечает).
     """
-    file_path = os.path.join(os.getcwd(), ven_bot)
+    if ven_bot is None:
+        file_path = CONFIG_DIR / "ven_bot.json"
+    else:
+        file_path = Path(ven_bot)
+    
+    file_path = str(file_path)  # Конвертируем в строку для совместимости
 
     # Шаблон данных
     ven_bot_data = {
@@ -162,7 +178,7 @@ SMTP_SETTINGS = {
 # Функция для загрузки настроек SMTP из отдельного файла (опционально)
 def load_smtp_config():
     """Загружает настройки SMTP из отдельного файла (опционально)"""
-    smtp_file = "config/smtp_config.json"
+    smtp_file = str(CONFIG_DIR / "smtp_config.json")
     
     if os.path.exists(smtp_file):
         try:
@@ -186,7 +202,7 @@ if not load_smtp_config():
         "FROM_NAME": "Бот учета ДСЕ"
     }
     
-    smtp_file = "config/smtp_config.json"
+    smtp_file = str(CONFIG_DIR / "smtp_config.json")
     if not os.path.exists(smtp_file):
         try:
             save_data(smtp_template, smtp_file)
