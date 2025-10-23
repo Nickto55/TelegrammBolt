@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import logging
+import traceback
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import parse_qs
@@ -39,8 +40,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Определяем пути для Flask (относительно файла web_app.py)
+web_dir = os.path.dirname(os.path.abspath(__file__))
+template_dir = os.path.join(web_dir, 'templates')
+static_dir = os.path.join(web_dir, 'static')
+
 # Инициализация Flask
-app = Flask(__name__)
+app = Flask(__name__, 
+            template_folder=template_dir,
+            static_folder=static_dir)
 app.secret_key = os.urandom(32)  # Для production используйте фиксированный ключ из config
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -482,12 +490,12 @@ def admin_auth():
                 # Устанавливаем роль admin
                 from bot.user_manager import set_user_role
                 set_user_role(admin_user_id, 'admin')
+            else:
+                # Пользователь существует - убедимся что у него роль admin
+                from bot.user_manager import set_user_role
+                set_user_role(admin_user_id, 'admin')
             
-            # Проверяем, что роль действительно admin
-            if get_user_role(admin_user_id) != 'admin':
-                return jsonify({'error': 'У пользователя нет прав администратора'}), 403
-            
-            # Сохранение данных в сессию
+            # Сохранение данных в сессию (не проверяем get_user_role, т.к. только что установили)
             session.permanent = True
             session['user_id'] = admin_user_id
             session['user_role'] = 'admin'
@@ -526,53 +534,68 @@ def logout():
 @login_required
 def dashboard():
     """Главная панель управления"""
-    user_id = session['user_id']
+    try:
+        user_id = session['user_id']
+        logger.info(f"Dashboard access by user_id: {user_id}")
+        
+        # Получаем данные пользователя из сессии и user_manager
+        users_data = get_users_data()
+        user_data = users_data.get(user_id, {
+            'username': session.get('username', ''),
+            'first_name': session.get('first_name', ''),
+            'last_name': session.get('last_name', ''),
+            'role': get_user_role(user_id)
+        })
+        
+        # Статистика
+        dse_data = get_all_dse()
+        
+        # Подсчёт активных пользователей
+        active_users = len([u for u in users_data.values() if u.get('role') != 'banned'])
+        
+        # Подсчёт записей по типам проблем
+        problem_types = {}
+        for record in dse_data:
+            problem_type = record.get('problem_type', 'Неизвестно')
+            problem_types[problem_type] = problem_types.get(problem_type, 0) + 1
+        
+        # Подсчёт записей за последние 7 дней
+        from datetime import datetime, timedelta
+        recent_date = datetime.now() - timedelta(days=7)
+        recent_dse = 0
+        for record in dse_data:
+            try:
+                record_date = datetime.strptime(record.get('datetime', ''), '%Y-%m-%d %H:%M:%S')
+                if record_date >= recent_date:
+                    recent_dse += 1
+            except:
+                pass
+        
+        # Безопасное определение top_problem_type
+        top_problem_type = 'Нет данных'
+        if problem_types:
+            try:
+                top_problem_type = max(problem_types.items(), key=lambda x: x[1])[0]
+            except:
+                pass
+        
+        stats = {
+            'total_dse': len(dse_data),
+            'active_users': active_users,
+            'recent_dse': recent_dse,
+            'problem_types': problem_types,
+            'top_problem_type': top_problem_type
+        }
+        
+        return render_template('dashboard.html', 
+                             user=user_data,
+                             stats=stats,
+                             permissions=get_user_permissions(user_id))
     
-    # Получаем данные пользователя из сессии и user_manager
-    users_data = get_users_data()
-    user_data = users_data.get(user_id, {
-        'username': session.get('username', ''),
-        'first_name': session.get('first_name', ''),
-        'last_name': session.get('last_name', ''),
-        'role': get_user_role(user_id)
-    })
-    
-    # Статистика
-    dse_data = get_all_dse()
-    
-    # Подсчёт активных пользователей
-    active_users = len([u for u in users_data.values() if u.get('role') != 'banned'])
-    
-    # Подсчёт записей по типам проблем
-    problem_types = {}
-    for record in dse_data:
-        problem_type = record.get('problem_type', 'Неизвестно')
-        problem_types[problem_type] = problem_types.get(problem_type, 0) + 1
-    
-    # Подсчёт записей за последние 7 дней
-    from datetime import datetime, timedelta
-    recent_date = datetime.now() - timedelta(days=7)
-    recent_dse = 0
-    for record in dse_data:
-        try:
-            record_date = datetime.strptime(record.get('datetime', ''), '%Y-%m-%d %H:%M:%S')
-            if record_date >= recent_date:
-                recent_dse += 1
-        except:
-            pass
-    
-    stats = {
-        'total_dse': len(dse_data),
-        'active_users': active_users,
-        'recent_dse': recent_dse,
-        'problem_types': problem_types,
-        'top_problem_type': max(problem_types.items(), key=lambda x: x[1])[0] if problem_types else 'Нет данных'
-    }
-    
-    return render_template('dashboard.html', 
-                         user=user_data,
-                         stats=stats,
-                         permissions=get_user_permissions(user_id))
+    except Exception as e:
+        logger.error(f"Dashboard error: {e}", exc_info=True)
+        # Возвращаем простую страницу с ошибкой вместо редиректа
+        return f"<h1>Ошибка загрузки панели</h1><p>{str(e)}</p><pre>{traceback.format_exc()}</pre>", 500
 
 
 @app.route('/profile')
