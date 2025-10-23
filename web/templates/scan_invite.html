@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Сканировать QR - BOLT{% endblock %}
+
+{% block extra_head %}
+<style>
+    .scanner-container {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+    .camera-preview {
+        width: 100%;
+        height: 300px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        background: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .camera-preview video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .scanner-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 200px;
+        height: 200px;
+        border: 2px solid #0d6efd;
+        border-radius: 8px;
+        box-shadow: 0 0 0 1000px rgba(0,0,0,0.3);
+    }
+    .manual-input {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #dee2e6;
+    }
+    .result-message {
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h4><i class="bi bi-qr-code-scan"></i> Сканировать QR код приглашения</h4>
+                </div>
+                <div class="card-body">
+                    <div class="scanner-container">
+                        <!-- Камера -->
+                        <div class="camera-preview" id="cameraPreview">
+                            <div class="text-center">
+                                <i class="bi bi-camera-video fs-1 text-muted"></i>
+                                <p class="text-muted mt-2">Нажмите "Включить камеру" для сканирования QR кода</p>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-3">
+                            <button class="btn btn-primary" id="startCameraBtn" onclick="startCamera()">
+                                <i class="bi bi-camera-video"></i> Включить камеру
+                            </button>
+                            <button class="btn btn-secondary d-none" id="stopCameraBtn" onclick="stopCamera()">
+                                <i class="bi bi-camera-video-off"></i> Выключить камеру
+                            </button>
+                        </div>
+
+                        <!-- Ручной ввод кода -->
+                        <div class="manual-input">
+                            <h5 class="text-center">Или введите код вручную</h5>
+                            <form id="manualCodeForm">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="manualCode" 
+                                           placeholder="Введите код приглашения" 
+                                           style="text-transform: uppercase;">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="bi bi-check-circle"></i> Активировать
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Результат -->
+                        <div id="resultContainer" class="result-message"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Информация -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h5><i class="bi bi-info-circle"></i> Как использовать</h5>
+                    <ul>
+                        <li>Включите камеру и наведите на QR код приглашения</li>
+                        <li>Или введите код приглашения вручную в поле ниже</li>
+                        <li>После активации вам будет назначена роль согласно приглашению</li>
+                        <li>Каждое приглашение можно использовать только один раз</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Подключаем библиотеку для QR сканирования -->
+<script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let qrScanner = null;
+let isScanning = false;
+
+// Функция запуска камеры
+async function startCamera() {
+    try {
+        const videoElement = document.createElement('video');
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        videoElement.style.objectFit = 'cover';
+        
+        const cameraPreview = document.getElementById('cameraPreview');
+        cameraPreview.innerHTML = '';
+        cameraPreview.appendChild(videoElement);
+        
+        // Добавляем overlay для сканирования
+        const overlay = document.createElement('div');
+        overlay.className = 'scanner-overlay';
+        cameraPreview.appendChild(overlay);
+        
+        // Инициализируем QR сканер
+        qrScanner = new QrScanner(
+            videoElement,
+            result => handleScanResult(result.data),
+            {
+                onDecodeError: error => {
+                    // Игнорируем ошибки декодирования (нормально когда QR не в кадре)
+                },
+                highlightScanRegion: false,
+                highlightCodeOutline: true,
+            }
+        );
+        
+        await qrScanner.start();
+        
+        isScanning = true;
+        document.getElementById('startCameraBtn').classList.add('d-none');
+        document.getElementById('stopCameraBtn').classList.remove('d-none');
+        
+        showMessage('Камера включена. Наведите на QR код приглашения.', 'info');
+        
+    } catch (error) {
+        console.error('Ошибка запуска камеры:', error);
+        showMessage('Ошибка доступа к камере. Проверьте разрешения браузера.', 'danger');
+    }
+}
+
+// Функция остановки камеры
+function stopCamera() {
+    if (qrScanner) {
+        qrScanner.stop();
+        qrScanner.destroy();
+        qrScanner = null;
+    }
+    
+    isScanning = false;
+    
+    const cameraPreview = document.getElementById('cameraPreview');
+    cameraPreview.innerHTML = `
+        <div class="text-center">
+            <i class="bi bi-camera-video fs-1 text-muted"></i>
+            <p class="text-muted mt-2">Камера выключена</p>
+        </div>
+    `;
+    
+    document.getElementById('startCameraBtn').classList.remove('d-none');
+    document.getElementById('stopCameraBtn').classList.add('d-none');
+    
+    showMessage('Камера выключена.', 'secondary');
+}
+
+// Обработка результата сканирования
+function handleScanResult(data) {
+    console.log('QR код отсканирован:', data);
+    
+    // Ищем код приглашения в URL
+    let inviteCode = null;
+    
+    // Проверяем разные форматы:
+    // 1. https://t.me/bot?start=invite_CODE
+    const urlMatch = data.match(/start=invite_([A-Z0-9]+)/i);
+    if (urlMatch) {
+        inviteCode = urlMatch[1].toUpperCase();
+    }
+    // 2. Просто код
+    else if (/^[A-Z0-9]{12}$/i.test(data.trim())) {
+        inviteCode = data.trim().toUpperCase();
+    }
+    
+    if (inviteCode) {
+        stopCamera();
+        activateInvite(inviteCode);
+    } else {
+        showMessage('QR код не содержит корректное приглашение.', 'warning');
+    }
+}
+
+// Активация приглашения
+function activateInvite(inviteCode) {
+    showMessage('Активируем приглашение...', 'info');
+    
+    fetch('/api/scan-invite', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            invite_code: inviteCode
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage(
+                `✅ ${data.message}`, 
+                'success'
+            );
+            
+            // Перенаправляем на дашборд через 3 секунды
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 3000);
+        } else {
+            showMessage(`❌ ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showMessage('Ошибка активации приглашения.', 'danger');
+    });
+}
+
+// Показать сообщение
+function showMessage(message, type) {
+    const container = document.getElementById('resultContainer');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+// Обработка формы ручного ввода
+document.getElementById('manualCodeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const code = document.getElementById('manualCode').value.trim().toUpperCase();
+    if (code) {
+        if (isScanning) {
+            stopCamera();
+        }
+        activateInvite(code);
+    } else {
+        showMessage('Введите код приглашения.', 'warning');
+    }
+});
+
+// Автоматическое преобразование к верхнему регистру при вводе
+document.getElementById('manualCode').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+
+// Очистка при закрытии страницы
+window.addEventListener('beforeunload', function() {
+    if (qrScanner) {
+        qrScanner.stop();
+        qrScanner.destroy();
+    }
+});
+</script>
+{% endblock %}

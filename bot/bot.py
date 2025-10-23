@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from .commands import start, button_handler, handle_message, cancel_photo_command, createwebuser_command
+from .commands import start, button_handler, handle_message, cancel_photo_command, createwebuser_command, scan_command, invite_command, link_command, qr_photo_handler
 from .dse_watcher import load_watched_dse_data, start_watcher_job
 from config.config import BOT_TOKEN
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
@@ -66,8 +66,12 @@ def _register_handlers(app: Application) -> None:
         CommandHandler("endchat", end_chat_command),
         CommandHandler("cancel_photo", cancel_photo_command),
         CommandHandler("createwebuser", createwebuser_command),
+        CommandHandler("scan", scan_command),
+        CommandHandler("invite", invite_command),
+        CommandHandler("link", link_command),
         CallbackQueryHandler(button_handler),
-        MessageHandler(filters.TEXT | filters.PHOTO | filters.CAPTION, handle_message),
+        MessageHandler(filters.PHOTO, qr_photo_handler),  # Отдельный обработчик для фото
+        MessageHandler(filters.TEXT | filters.CAPTION, handle_message),
     ]
     
     for handler in handlers:

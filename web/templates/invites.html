@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}QR Приглашения - BOLT{% endblock %}
+
+{% block extra_head %}
+<style>
+    .qr-code-display {
+        max-width: 200px;
+        max-height: 200px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px;
+        background: white;
+    }
+    .invite-code {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        color: #0d6efd;
+        font-size: 1.1em;
+    }
+    .expired {
+        opacity: 0.6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-qr-code"></i> QR Приглашения</h1>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createInviteModal">
+                    <i class="bi bi-plus-circle"></i> Создать приглашение
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.active_invites }}</h4>
+                            <p class="mb-0">Активные приглашения</p>
+                        </div>
+                        <i class="bi bi-qr-code-scan fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.used_invites }}</h4>
+                            <p class="mb-0">Использованные</p>
+                        </div>
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.expired_invites }}</h4>
+                            <p class="mb-0">Истекшие</p>
+                        </div>
+                        <i class="bi bi-clock-history fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ linking_stats.linked_accounts }}</h4>
+                            <p class="mb-0">Привязанные аккаунты</p>
+                        </div>
+                        <i class="bi bi-link-45deg fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Активные приглашения -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Активные приглашения</h5>
+                    <button class="btn btn-outline-danger btn-sm" onclick="cleanupExpired()">
+                        <i class="bi bi-trash"></i> Очистить истекшие
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>QR Код</th>
+                                    <th>Код приглашения</th>
+                                    <th>Роль</th>
+                                    <th>Заметка</th>
+                                    <th>Создано</th>
+                                    <th>Истекает</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for invite in active_invites %}
+                                <tr>
+                                    <td>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="showQR('{{ invite.code }}')">
+                                            <i class="bi bi-qr-code"></i> Показать QR
+                                        </button>
+                                    </td>
+                                    <td><span class="invite-code">{{ invite.code }}</span></td>
+                                    <td>
+                                        <span class="badge bg-{{ 'primary' if invite.role == 'initiator' else 'secondary' if invite.role == 'responder' else 'success' }}">
+                                            {{ roles[invite.role] }}
+                                        </span>
+                                    </td>
+                                    <td>{{ invite.note or '-' }}</td>
+                                    <td>{{ invite.created_at[:19].replace('T', ' ') }}</td>
+                                    <td>{{ invite.expires_at[:19].replace('T', ' ') }}</td>
+                                    <td>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteInvite('{{ invite.code }}')">
+                                            <i class="bi bi-trash"></i> Удалить
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Нет активных приглашений</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Использованные приглашения -->
+    {% if used_invites %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Использованные приглашения</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Код</th>
+                                    <th>Роль</th>
+                                    <th>Использован</th>
+                                    <th>Пользователь</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for invite in used_invites %}
+                                <tr>
+                                    <td><span class="invite-code">{{ invite.code }}</span></td>
+                                    <td>
+                                        <span class="badge bg-{{ 'primary' if invite.role == 'initiator' else 'secondary' if invite.role == 'responder' else 'success' }}">
+                                            {{ roles[invite.role] }}
+                                        </span>
+                                    </td>
+                                    <td>{{ invite.used_at[:19].replace('T', ' ') if invite.used_at else '-' }}</td>
+                                    <td>
+                                        {% if invite.used_by %}
+                                            {{ invite.used_by.first_name }} 
+                                            {% if invite.used_by.username %}(@{{ invite.used_by.username }}){% endif %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal для создания приглашения -->
+<div class="modal fade" id="createInviteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Создать приглашение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createInviteForm">
+                    <div class="mb-3">
+                        <label for="inviteRole" class="form-label">Роль пользователя</label>
+                        <select class="form-select" id="inviteRole" required>
+                            <option value="initiator">{{ roles.initiator }}</option>
+                            <option value="responder">{{ roles.responder }}</option>
+                            <option value="user">{{ roles.user }}</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="inviteHours" class="form-label">Срок действия (часов)</label>
+                        <select class="form-select" id="inviteHours">
+                            <option value="24">1 день</option>
+                            <option value="168" selected>1 неделя</option>
+                            <option value="720">30 дней</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="inviteNote" class="form-label">Заметка (необязательно)</label>
+                        <input type="text" class="form-control" id="inviteNote" placeholder="Описание приглашения">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-success" onclick="createInvite()">Создать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal для показа QR кода -->
+<div class="modal fade" id="qrModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">QR Код приглашения</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="qrCodeContainer">
+                    <!-- QR код будет вставлен здесь -->
+                </div>
+                <p class="mt-3">Код: <span id="qrInviteCode" class="invite-code"></span></p>
+                <p class="text-muted small">Пользователь может отсканировать этот QR код или ввести код вручную в Telegram боте</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="downloadQR()">
+                    <i class="bi bi-download"></i> Скачать QR
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentQRData = null;
+
+function createInvite() {
+    const form = document.getElementById('createInviteForm');
+    const role = document.getElementById('inviteRole').value;
+    const hours = document.getElementById('inviteHours').value;
+    const note = document.getElementById('inviteNote').value;
+    
+    const data = {
+        role: role,
+        expires_hours: parseInt(hours),
+        note: note
+    };
+    
+    fetch('/api/invites/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Закрываем модальное окно создания
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createInviteModal'));
+            modal.hide();
+            
+            // Показываем QR код
+            currentQRData = data;
+            showQRFromData(data);
+            
+            // Обновляем страницу через 2 секунды
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            alert('Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка создания приглашения');
+    });
+}
+
+function showQR(inviteCode) {
+    // Генерируем QR код для существующего приглашения
+    fetch('/api/invites/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            regenerate_qr: inviteCode
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.qr_code) {
+            showQRFromData({
+                invite_code: inviteCode,
+                qr_code: data.qr_code
+            });
+        }
+    })
+    .catch(error => {
+        // Fallback - создаем простой QR код на клиенте
+        const url = `https://t.me/${BOT_USERNAME}?start=invite_${inviteCode}`;
+        document.getElementById('qrCodeContainer').innerHTML = 
+            `<div class="alert alert-info">QR код: ${inviteCode}<br>URL: ${url}</div>`;
+        document.getElementById('qrInviteCode').textContent = inviteCode;
+        
+        const modal = new bootstrap.Modal(document.getElementById('qrModal'));
+        modal.show();
+    });
+}
+
+function showQRFromData(data) {
+    document.getElementById('qrCodeContainer').innerHTML = 
+        `<img src="${data.qr_code}" alt="QR Code" class="qr-code-display">`;
+    document.getElementById('qrInviteCode').textContent = data.invite_code;
+    
+    currentQRData = data;
+    
+    const modal = new bootstrap.Modal(document.getElementById('qrModal'));
+    modal.show();
+}
+
+function downloadQR() {
+    if (currentQRData && currentQRData.qr_code) {
+        const link = document.createElement('a');
+        link.download = `invite_${currentQRData.invite_code}.png`;
+        link.href = currentQRData.qr_code;
+        link.click();
+    }
+}
+
+function deleteInvite(inviteCode) {
+    if (confirm('Вы уверены, что хотите удалить это приглашение?')) {
+        fetch(`/api/invites/${inviteCode}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ошибка удаления приглашения');
+        });
+    }
+}
+
+function cleanupExpired() {
+    if (confirm('Очистить все истекшие приглашения?')) {
+        fetch('/api/invites/cleanup', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ошибка очистки приглашений');
+        });
+    }
+}
+</script>
+{% endblock %}

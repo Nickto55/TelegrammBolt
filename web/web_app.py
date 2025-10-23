@@ -31,6 +31,15 @@ from bot.user_manager import (
 from bot.dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
 # chat_manager не имеет нужных функций для веб, используем свои реализации
 from bot.pdf_generator import create_dse_pdf_report
+# Новые модули для QR кодов и привязки аккаунтов
+from bot.invite_manager import (
+    create_invite, generate_qr_code, get_active_invites, get_used_invites, 
+    get_invite_stats, delete_invite, cleanup_expired_invites
+)
+from bot.account_linking import (
+    create_web_user, find_web_user_by_email, generate_linking_code_for_web_user,
+    authenticate_web_user, get_linking_stats, get_all_web_users
+)
 import pandas as pd
 
 # Настройка логирования
@@ -1736,6 +1745,225 @@ def show_url():
     
     return html
 
+
+# ============================================================================
+# API ДЛЯ QR КОДОВ И ПРИГЛАШЕНИЙ
+# ============================================================================
+
+@app.route('/invites')
+@login_required
+@admin_required
+def invites_page():
+    """Страница управления приглашениями"""
+    user_id = session.get('user_id')
+    
+    # Получаем статистику
+    stats = get_invite_stats(user_id)
+    
+    # Получаем активные и использованные приглашения
+    active_invites = get_active_invites(user_id)
+    used_invites = get_used_invites(user_id)
+    
+    # Статистика привязки аккаунтов
+    linking_stats = get_linking_stats()
+    
+    return render_template('invites.html', 
+                         stats=stats,
+                         active_invites=active_invites,
+                         used_invites=used_invites,
+                         linking_stats=linking_stats,
+                         roles=ROLES)
+
+@app.route('/api/invites/create', methods=['POST'])
+@login_required
+@admin_required
+def create_invite_api():
+    """API для создания приглашения"""
+    user_id = session.get('user_id')
+    
+    try:
+        data = request.get_json()
+        role = data.get('role', 'initiator')
+        expires_hours = int(data.get('expires_hours', 168))  # 7 дней по умолчанию
+        note = data.get('note', '')
+        
+        # Проверяем что роль валидна и не admin
+        if role not in ROLES or role == 'admin':
+            return jsonify({"success": False, "error": "Недопустимая роль для приглашения"})
+        
+        # Создаем приглашение
+        result = create_invite(user_id, role, expires_hours, note)
+        
+        if result["success"]:
+            # Генерируем QR код
+            invite_code = result["invite_code"]
+            qr_data = generate_qr_code(invite_code)
+            
+            return jsonify({
+                "success": True,
+                "invite_code": invite_code,
+                "qr_code": qr_data["base64"],
+                "qr_url": qr_data["url"],
+                "role": role,
+                "role_name": ROLES[role],
+                "expires_hours": expires_hours,
+                "note": note
+            })
+        else:
+            return jsonify(result)
+            
+    except Exception as e:
+        logger.error(f"Error creating invite: {e}")
+        return jsonify({"success": False, "error": "Ошибка создания приглашения"})
+
+@app.route('/api/invites/<invite_code>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_invite_api(invite_code):
+    """API для удаления приглашения"""
+    user_id = session.get('user_id')
+    
+    try:
+        result = delete_invite(invite_code, user_id)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error deleting invite: {e}")
+        return jsonify({"success": False, "error": "Ошибка удаления приглашения"})
+
+@app.route('/api/invites/cleanup', methods=['POST'])
+@login_required
+@admin_required
+def cleanup_invites_api():
+    """API для очистки истекших приглашений"""
+    try:
+        cleaned_count = cleanup_expired_invites()
+        return jsonify({
+            "success": True,
+            "message": f"Очищено истекших приглашений: {cleaned_count}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up invites: {e}")
+        return jsonify({"success": False, "error": "Ошибка очистки приглашений"})
+
+@app.route('/scan-invite')
+@login_required
+def scan_invite_page():
+    """Страница сканирования приглашений"""
+    return render_template('scan_invite.html')
+
+@app.route('/api/scan-invite', methods=['POST'])
+@login_required
+def scan_invite_api():
+    """API для активации приглашения по коду"""
+    user_id = session.get('user_id')
+    
+    try:
+        data = request.get_json()
+        invite_code = data.get('invite_code', '').strip().upper()
+        
+        if not invite_code:
+            return jsonify({"success": False, "error": "Код приглашения не указан"})
+        
+        # Получаем данные пользователя из сессии
+        username = session.get('username', '')
+        first_name = session.get('first_name', '')
+        last_name = session.get('last_name', '')
+        
+        # Используем приглашение
+        from bot.invite_manager import use_invite
+        result = use_invite(invite_code, user_id, username, first_name, last_name)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error using invite: {e}")
+        return jsonify({"success": False, "error": "Ошибка активации приглашения"})
+
+# ============================================================================
+# API ДЛЯ ПРИВЯЗКИ АККАУНТОВ
+# ============================================================================
+
+@app.route('/link-account')
+def link_account_page():
+    """Страница привязки аккаунтов"""
+    return render_template('link_account.html')
+
+@app.route('/api/account/create-web', methods=['POST'])
+def create_web_account_api():
+    """API для создания веб-аккаунта"""
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        first_name = data.get('first_name', '').strip()
+        last_name = data.get('last_name', '').strip()
+        
+        if not email or not password or not first_name:
+            return jsonify({"success": False, "error": "Заполните все обязательные поля"})
+        
+        # Простое хеширование пароля (в продакшне использовать bcrypt)
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        # Создаем веб-пользователя
+        web_user_id = create_web_user(email, password_hash, first_name, last_name)
+        
+        if web_user_id:
+            # Генерируем код привязки
+            link_code = generate_linking_code_for_web_user(web_user_id)
+            
+            return jsonify({
+                "success": True,
+                "message": "Аккаунт создан! Используйте код для привязки Telegram аккаунта",
+                "link_code": link_code,
+                "web_user_id": web_user_id
+            })
+        else:
+            return jsonify({"success": False, "error": "Email уже используется"})
+            
+    except Exception as e:
+        logger.error(f"Error creating web account: {e}")
+        return jsonify({"success": False, "error": "Ошибка создания аккаунта"})
+
+@app.route('/api/account/generate-link-code', methods=['POST'])
+def generate_link_code_api():
+    """API для генерации кода привязки для существующего веб-аккаунта"""
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({"success": False, "error": "Введите email и пароль"})
+        
+        # Простое хеширование пароля
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        # Аутентификация
+        web_user_id, user_data = authenticate_web_user(email, password_hash)
+        
+        if not web_user_id:
+            return jsonify({"success": False, "error": "Неверный email или пароль"})
+        
+        # Проверяем что аккаунт еще не привязан
+        if user_data.get('telegram_id'):
+            return jsonify({"success": False, "error": "Аккаунт уже привязан к Telegram"})
+        
+        # Генерируем код привязки
+        link_code = generate_linking_code_for_web_user(web_user_id)
+        
+        return jsonify({
+            "success": True,
+            "message": "Код привязки сгенерирован",
+            "link_code": link_code
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating link code: {e}")
+        return jsonify({"success": False, "error": "Ошибка генерации кода"})
 
 # ============================================================================
 # ЗАПУСК ПРИЛОЖЕНИЯ

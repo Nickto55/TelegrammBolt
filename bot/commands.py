@@ -40,6 +40,45 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except:
         pass
 
+    # Проверяем параметры команды start (для приглашений)
+    if context.args:
+        start_param = context.args[0]
+        
+        # Обработка приглашения
+        if start_param.startswith('invite_'):
+            from bot.invite_manager import parse_invite_from_start_command, use_invite
+            invite_code = parse_invite_from_start_command(start_param)
+            
+            if invite_code:
+                # Используем приглашение
+                result = use_invite(
+                    invite_code, 
+                    int(user_id), 
+                    user.username, 
+                    user.first_name, 
+                    user.last_name
+                )
+                
+                if result["success"]:
+                    await update.message.reply_text(
+                        f"🎉 {result['message']}\n\n"
+                        f"Добро пожаловать в систему! Теперь вы можете пользоваться ботом."
+                    )
+                    # Показываем главное меню
+                    user_states[user_id] = {
+                        'application': '',
+                        'dse': '',
+                        'problem_type': '',
+                        'description': '',
+                        'rc': '',
+                        'photo_file_id': None
+                    }
+                    await show_main_menu(update, user_id)
+                    return
+                else:
+                    await update.message.reply_text(f"❌ {result['error']}")
+                    return
+
     # Регистрируем пользователя
     user_data = register_user(
         user_id,
@@ -2304,4 +2343,212 @@ async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYP
             return
     
     await update.message.reply_text("Нечего отменять.")
+
+
+# ============================================================================
+# КОМАНДЫ ДЛЯ QR КОДОВ И ПРИВЯЗКИ АККАУНТОВ
+# ============================================================================
+
+async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /scan - инструкция по сканированию QR кодов"""
+    user_id = str(update.effective_user.id)
+    
+    await update.message.reply_text(
+        "📱 <b>Сканирование QR кодов</b>\n\n"
+        "Для активации приглашения с QR кода:\n\n"
+        "🔸 <b>Способ 1:</b> Веб-сканер\n"
+        "Откройте веб-интерфейс → Сканировать QR\n\n"
+        "🔸 <b>Способ 2:</b> Ручной ввод кода\n"
+        "Введите команду <code>/invite КОДПРИГЛАШЕНИЯ</code>\n\n"
+        "🔸 <b>Способ 3:</b> Отправьте фото QR кода\n"
+        "Просто отправьте фото с QR кодом в этот чат\n\n"
+        "💡 <i>QR коды создают администраторы для приглашения новых пользователей</i>",
+        parse_mode='HTML'
+    )
+
+
+async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /invite CODE - активировать приглашение по коду"""
+    user_id = str(update.effective_user.id)
+    user = update.effective_user
+    
+    if not context.args:
+        await update.message.reply_text(
+            "❓ <b>Использование:</b> <code>/invite КОДПРИГЛАШЕНИЯ</code>\n\n"
+            "Пример: <code>/invite ABC123XYZ789</code>",
+            parse_mode='HTML'
+        )
+        return
+    
+    invite_code = context.args[0].strip().upper()
+    
+    # Используем приглашение
+    from bot.invite_manager import use_invite
+    result = use_invite(
+        invite_code, 
+        int(user_id), 
+        user.username, 
+        user.first_name, 
+        user.last_name
+    )
+    
+    if result["success"]:
+        await update.message.reply_text(
+            f"🎉 {result['message']}\n\n"
+            f"Добро пожаловать в систему! Теперь вы можете пользоваться ботом."
+        )
+        # Показываем главное меню
+        user_states[user_id] = {
+            'application': '',
+            'dse': '',
+            'problem_type': '',
+            'description': '',
+            'rc': '',
+            'photo_file_id': None
+        }
+        await show_main_menu(update, user_id)
+    else:
+        await update.message.reply_text(f"❌ {result['error']}")
+
+
+async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /link CODE - привязать веб-аккаунт к Telegram"""
+    user_id = str(update.effective_user.id)
+    user = update.effective_user
+    
+    if not context.args:
+        await update.message.reply_text(
+            "❓ <b>Использование:</b> <code>/link КОДПРИВЯЗКИ</code>\n\n"
+            "Пример: <code>/link ABC123</code>\n\n"
+            "<i>Код привязки можно получить на веб-сайте в разделе 'Привязка аккаунтов'</i>",
+            parse_mode='HTML'
+        )
+        return
+    
+    link_code = context.args[0].strip().upper()
+    
+    # Привязываем аккаунт
+    from bot.account_linking import link_telegram_account
+    result = link_telegram_account(
+        link_code,
+        int(user_id),
+        user.username,
+        user.first_name,
+        user.last_name
+    )
+    
+    if result["success"]:
+        await update.message.reply_text(
+            f"🔗 {result['message']}\n\n"
+            f"Теперь вы можете входить на веб-сайт используя свой email и пароль, "
+            f"а также пользоваться ботом с назначенной ролью."
+        )
+        # Обновляем главное меню с новой ролью
+        if user_id in user_states:
+            await show_main_menu(update, user_id)
+    else:
+        await update.message.reply_text(f"❌ {result['error']}")
+
+
+async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик фото с QR кодами"""
+    user_id = str(update.effective_user.id)
+    user = update.effective_user
+    
+    if not update.message.photo:
+        return
+    
+    try:
+        # Получаем фото в максимальном разрешении
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+        
+        # Скачиваем фото во временный файл
+        import tempfile
+        import os
+        from pyzbar import pyzbar
+        from PIL import Image
+        import requests
+        
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
+            # Скачиваем файл
+            response = requests.get(file.file_path)
+            temp_file.write(response.content)
+            temp_path = temp_file.name
+        
+        try:
+            # Открываем изображение и ищем QR коды
+            image = Image.open(temp_path)
+            decoded_objects = pyzbar.decode(image)
+            
+            if not decoded_objects:
+                await update.message.reply_text("❌ QR код не найден на изображении.")
+                return
+            
+            # Обрабатываем первый найденный QR код
+            qr_data = decoded_objects[0].data.decode('utf-8')
+            
+            # Ищем код приглашения в QR данных
+            invite_code = None
+            
+            # Проверяем разные форматы:
+            # 1. https://t.me/bot?start=invite_CODE
+            import re
+            url_match = re.search(r'start=invite_([A-Z0-9]+)', qr_data, re.IGNORECASE)
+            if url_match:
+                invite_code = url_match.group(1).upper()
+            # 2. Просто код
+            elif re.match(r'^[A-Z0-9]{12}$', qr_data.strip(), re.IGNORECASE):
+                invite_code = qr_data.strip().upper()
+            
+            if invite_code:
+                # Используем приглашение
+                from bot.invite_manager import use_invite
+                result = use_invite(
+                    invite_code, 
+                    int(user_id), 
+                    user.username, 
+                    user.first_name, 
+                    user.last_name
+                )
+                
+                if result["success"]:
+                    await update.message.reply_text(
+                        f"🎉 QR код успешно отсканирован!\n\n"
+                        f"{result['message']}\n\n"
+                        f"Добро пожаловать в систему!"
+                    )
+                    # Показываем главное меню
+                    user_states[user_id] = {
+                        'application': '',
+                        'dse': '',
+                        'problem_type': '',
+                        'description': '',
+                        'rc': '',
+                        'photo_file_id': None
+                    }
+                    await show_main_menu(update, user_id)
+                else:
+                    await update.message.reply_text(f"❌ {result['error']}")
+            else:
+                await update.message.reply_text(
+                    "❌ QR код не содержит корректное приглашение.\n\n"
+                    f"Найденные данные: {qr_data[:100]}..."
+                )
+        
+        finally:
+            # Удаляем временный файл
+            os.unlink(temp_path)
+            
+    except ImportError:
+        await update.message.reply_text(
+            "❌ Функция сканирования QR кодов недоступна.\n\n"
+            "Используйте веб-интерфейс или введите код вручную командой /invite"
+        )
+    except Exception as e:
+        print(f"Error processing QR code: {e}")
+        await update.message.reply_text(
+            "❌ Ошибка обработки QR кода.\n\n"
+            "Попробуйте использовать веб-интерфейс или ввести код вручную."
+        )
 

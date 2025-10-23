@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Привязка аккаунтов - BOLT{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h4><i class="bi bi-link-45deg"></i> Привязка аккаунтов</h4>
+                    <p class="text-muted mb-0">Свяжите ваш веб-аккаунт с Telegram</p>
+                </div>
+                <div class="card-body">
+                    <!-- Табы -->
+                    <ul class="nav nav-pills mb-3" id="linkTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="create-tab" data-bs-toggle="pill" 
+                                    data-bs-target="#create" type="button" role="tab">
+                                Создать аккаунт
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="existing-tab" data-bs-toggle="pill" 
+                                    data-bs-target="#existing" type="button" role="tab">
+                                Есть аккаунт
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="linkTabsContent">
+                        <!-- Создание нового аккаунта -->
+                        <div class="tab-pane fade show active" id="create" role="tabpanel">
+                            <form id="createAccountForm">
+                                <div class="mb-3">
+                                    <label for="createEmail" class="form-label">Email *</label>
+                                    <input type="email" class="form-control" id="createEmail" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="createPassword" class="form-label">Пароль *</label>
+                                    <input type="password" class="form-control" id="createPassword" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="createFirstName" class="form-label">Имя *</label>
+                                    <input type="text" class="form-control" id="createFirstName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="createLastName" class="form-label">Фамилия</label>
+                                    <input type="text" class="form-control" id="createLastName">
+                                </div>
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="bi bi-person-plus"></i> Создать аккаунт
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Существующий аккаунт -->
+                        <div class="tab-pane fade" id="existing" role="tabpanel">
+                            <form id="existingAccountForm">
+                                <div class="mb-3">
+                                    <label for="existingEmail" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="existingEmail" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="existingPassword" class="form-label">Пароль</label>
+                                    <input type="password" class="form-control" id="existingPassword" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-key"></i> Получить код привязки
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Результат -->
+                    <div id="resultContainer" class="mt-3"></div>
+                </div>
+            </div>
+
+            <!-- Информация -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h6><i class="bi bi-info-circle"></i> Как это работает</h6>
+                    <ol class="small">
+                        <li>Создайте веб-аккаунт или войдите в существующий</li>
+                        <li>Получите 6-значный код привязки</li>
+                        <li>Отправьте этот код боту в Telegram командой <code>/link ВАШКОД</code></li>
+                        <li>После успешной привязки вы сможете использовать бота с ролью из веб-аккаунта</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Создание нового аккаунта
+document.getElementById('createAccountForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('createEmail').value.trim();
+    const password = document.getElementById('createPassword').value;
+    const firstName = document.getElementById('createFirstName').value.trim();
+    const lastName = document.getElementById('createLastName').value.trim();
+    
+    if (!email || !password || !firstName) {
+        showMessage('Заполните все обязательные поля.', 'warning');
+        return;
+    }
+    
+    showMessage('Создаем аккаунт...', 'info');
+    
+    fetch('/api/account/create-web', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            email: email,
+            password: password,
+            first_name: firstName,
+            last_name: lastName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showLinkCode(data.link_code, data.message);
+        } else {
+            showMessage(`❌ ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showMessage('Ошибка создания аккаунта.', 'danger');
+    });
+});
+
+// Получение кода для существующего аккаунта
+document.getElementById('existingAccountForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('existingEmail').value.trim();
+    const password = document.getElementById('existingPassword').value;
+    
+    if (!email || !password) {
+        showMessage('Введите email и пароль.', 'warning');
+        return;
+    }
+    
+    showMessage('Проверяем данные...', 'info');
+    
+    fetch('/api/account/generate-link-code', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            email: email,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showLinkCode(data.link_code, data.message);
+        } else {
+            showMessage(`❌ ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showMessage('Ошибка получения кода.', 'danger');
+    });
+});
+
+// Показать код привязки
+function showLinkCode(code, message) {
+    const container = document.getElementById('resultContainer');
+    container.innerHTML = `
+        <div class="alert alert-success">
+            <h5>✅ ${message}</h5>
+            <hr>
+            <div class="text-center">
+                <h2 class="badge bg-primary fs-3 p-3">${code}</h2>
+            </div>
+            <hr>
+            <p class="mb-0">
+                <strong>Что делать дальше:</strong><br>
+                1. Откройте Telegram бота<br>
+                2. Отправьте команду: <code>/link ${code}</code><br>
+                3. Ваш аккаунт будет привязан к Telegram
+            </p>
+            <div class="text-center mt-3">
+                <button class="btn btn-outline-primary btn-sm" onclick="copyCode('${code}')">
+                    <i class="bi bi-clipboard"></i> Скопировать код
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Скопировать код в буфер обмена
+function copyCode(code) {
+    navigator.clipboard.writeText(code).then(function() {
+        showMessage('Код скопирован в буфер обмена!', 'success');
+    }, function(err) {
+        console.error('Ошибка копирования: ', err);
+        showMessage('Не удалось скопировать код.', 'warning');
+    });
+}
+
+// Показать сообщение
+function showMessage(message, type) {
+    const container = document.getElementById('resultContainer');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+</script>
+{% endblock %}
