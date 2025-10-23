@@ -23,10 +23,12 @@ logging.basicConfig(
 # Файлы для хранения данных (абсолютные пути)
 DATA_DIR = BASE_DIR / "data"
 CONFIG_DIR = BASE_DIR / "config"
+LOGS_DIR = BASE_DIR / "logs"
 
 # Создаём директории если не существуют
 DATA_DIR.mkdir(exist_ok=True)
 CONFIG_DIR.mkdir(exist_ok=True)
+LOGS_DIR.mkdir(exist_ok=True)
 
 DATA_FILE = str(DATA_DIR / "bot_data.json")
 USERS_FILE = str(DATA_DIR / "users_data.json")
