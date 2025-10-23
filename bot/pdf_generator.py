@@ -317,16 +317,16 @@ def create_single_dse_pdf_report(record_data, filename, options=None):
         
         # Основная информация
         info_data = [
-            ['Nomer DSE:', str(record_data.get('dse', 'N/A'))],
-            ['Tip problemy:', str(record_data.get('problem_type', 'N/A'))[:50]],
-            ['RC:', str(record_data.get('rc', 'N/A'))],
+            ['Номер ДСЕ:', str(record_data.get('dse', 'N/A'))],
+            ['Тип проблемы:', str(record_data.get('problem_type', 'N/A'))[:50]],
+            ['РЦ:', str(record_data.get('rc', 'N/A'))],
         ]
         
         if options.get('include_timestamp', True):
-            info_data.append(['Data:', str(record_data.get('datetime', 'N/A'))])
+            info_data.append(['Дата:', str(record_data.get('datetime', 'N/A'))])
         
         if options.get('include_user_info', True):
-            info_data.append(['Avtor:', f"ID: {record_data.get('user_id', 'N/A')}"])
+            info_data.append(['Автор:', f"ID: {record_data.get('user_id', 'N/A')}"])
         
         info_table = Table(info_data, colWidths=[50*mm, 120*mm])
         info_table.setStyle(TableStyle([
@@ -351,7 +351,7 @@ def create_single_dse_pdf_report(record_data, filename, options=None):
                 fontName=generator.font_bold,
                 fontSize=12
             )
-            desc_title = Paragraph("<b>Opisanie problemy:</b>", desc_style)
+            desc_title = Paragraph("<b>Описание проблемы:</b>", desc_style)
             story.append(desc_title)
             story.append(Spacer(1, 3*mm))
             
@@ -493,22 +493,22 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
             )
             
             dse_num = str(record_data.get('dse', 'N/A'))
-            record_title = Paragraph(f"Zapis {i} iz {len(records_list)}: {dse_num}", record_title_style)
+            record_title = Paragraph(f"ДСЕ {i} из {len(records_list)}: {dse_num}", record_title_style)
             story.append(record_title)
             story.append(Spacer(1, 5*mm))
             
             # Основная информация
             info_data = [
-                ['Nomer DSE:', str(record_data.get('dse', 'N/A'))],
-                ['Tip problemy:', str(record_data.get('problem_type', 'N/A'))[:50]],
-                ['RC:', str(record_data.get('rc', 'N/A'))],
+                ['Номер ДСЕ:', str(record_data.get('dse', 'N/A'))],
+                ['Тип проблемы:', str(record_data.get('problem_type', 'N/A'))[:50]],
+                ['РЦ:', str(record_data.get('rc', 'N/A'))],
             ]
             
             if options.get('include_timestamp', True):
-                info_data.append(['Data:', str(record_data.get('datetime', 'N/A'))])
+                info_data.append(['Дата:', str(record_data.get('datetime', 'N/A'))])
             
             if options.get('include_user_info', True):
-                info_data.append(['Avtor:', f"ID: {record_data.get('user_id', 'N/A')}"])
+                info_data.append(['Автор:', f"ID: {record_data.get('user_id', 'N/A')}"])
             
             info_table = Table(info_data, colWidths=[50*mm, 120*mm])
             info_table.setStyle(TableStyle([
@@ -533,7 +533,7 @@ def create_multi_dse_pdf_report(records_list, filename, options=None):
                     fontName=generator.font_bold,
                     fontSize=11
                 )
-                desc_title = Paragraph("<b>Opisanie:</b>", desc_style)
+                desc_title = Paragraph("<b>Описание:</b>", desc_style)
                 story.append(desc_title)
                 story.append(Spacer(1, 2*mm))
                 

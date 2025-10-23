@@ -56,7 +56,7 @@ app.secret_key = SECRET_KEY
 
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['SESSION_COOKIE_SECURE'] = False  # Установите True если используете HTTPS
+app.config['SESSION_COOKIE_SECURE'] = True  # Установите True если используете HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
@@ -387,8 +387,11 @@ def login_required(f):
     """Декоратор для проверки авторизации"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        logger.info(f"login_required check: session keys = {list(session.keys())}")
         if 'user_id' not in session:
+            logger.warning(f"No user_id in session, redirecting to login")
             return redirect(url_for('login'))
+        logger.info(f"login_required passed: user_id = {session.get('user_id')}")
         return f(*args, **kwargs)
     return decorated_function
 
@@ -1150,14 +1153,76 @@ def api_export_excel():
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     try:
-        file_path = 'RezultBot.xlsx'
-        return send_file(file_path, 
+        import tempfile
+        import pandas as pd
+        
+        # Получаем все данные ДСЕ
+        dse_data = get_all_dse()
+        
+        if not dse_data:
+            return jsonify({'error': 'Нет данных для экспорта'}), 400
+        
+        # Подготовка данных для Excel
+        rows = []
+        for record in dse_data:
+            # Получаем данные пользователя
+            user_info = None
+            if record.get('user_id'):
+                try:
+                    user_info = get_user_data(str(record['user_id']))
+                except:
+                    pass
+            
+            row = {
+                'ДСЕ': record.get('dse', ''),
+                'Тип проблемы': record.get('problem_type', ''),
+                'RC': record.get('rc', ''),
+                'Описание': record.get('description', ''),
+                'Дата создания': record.get('datetime', ''),
+                'Пользователь': user_info.get('name', '') if user_info else f"ID: {record.get('user_id', '')}",
+                'ID пользователя': record.get('user_id', ''),
+                'Есть фото': 'Да' if record.get('photo_file_id') or record.get('photos') else 'Нет',
+                'Отправлено на email': 'Да' if record.get('sent_to_emails') else 'Нет'
+            }
+            rows.append(row)
+        
+        # Создание DataFrame
+        df = pd.DataFrame(rows)
+        
+        # Создание временного файла
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        temp_file.close()
+        
+        # Сохранение в Excel
+        with pd.ExcelWriter(temp_file.name, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Отчет ДСЕ')
+            
+            # Настройка ширины колонок
+            worksheet = writer.sheets['Отчет ДСЕ']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        
+        logger.info(f"Excel файл создан: {temp_file.name}, записей: {len(rows)}")
+        
+        return send_file(temp_file.name, 
                         as_attachment=True,
-                        download_name=f'report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+                        download_name=f'dse_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                        
     except Exception as e:
         logger.error(f"Export error: {e}")
-        return jsonify({'error': 'Ошибка экспорта'}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Ошибка экспорта: {str(e)}'}), 500
 
 
 @app.route('/api/export/pdf', methods=['POST'])
