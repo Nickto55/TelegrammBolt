@@ -9,9 +9,13 @@ import hmac
 import json
 import logging
 import traceback
+import sys
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import parse_qs
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file, flash
 from flask_cors import CORS

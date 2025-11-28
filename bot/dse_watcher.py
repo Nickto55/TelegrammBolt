@@ -1,7 +1,12 @@
 import json
 import os
 import asyncio
+import sys
 from typing import Dict, List, Set
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 # Импортируем load_data из config
 from config.config import WATCHED_DSE_FILE, DATA_FILE, load_data as config_load_data
 

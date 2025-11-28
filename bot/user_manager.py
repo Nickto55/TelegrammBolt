@@ -1,6 +1,11 @@
 # user_manager.py
 import json
 import os
+import sys
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config.config import USERS_FILE, ADMIN_IDS
 
 # Роли пользователей

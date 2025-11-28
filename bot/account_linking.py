@@ -4,9 +4,14 @@ Account Linking Manager
 """
 import json
 import os
+import sys
 import secrets
 import string
 from datetime import datetime, timedelta
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config.config import DATA_DIR
 from bot.user_manager import get_users_data, save_users_data, register_user
 

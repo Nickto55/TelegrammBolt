@@ -1,8 +1,13 @@
 import json
 import os
+import sys
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config.config import load_data, DATA_FILE, USERS_FILE
 
 dse_chat_states = {}

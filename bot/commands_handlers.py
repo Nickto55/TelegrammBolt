@@ -1,6 +1,11 @@
+import sys
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from datetime import datetime as dt
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from bot.commands import show_main_menu, user_states, show_application_menu, show_problem_types, show_rc_types, \
     show_dse_list_menu, show_all_dse_records, start_interactive_dse_search, select_dse_from_search, start_dse_search, \
