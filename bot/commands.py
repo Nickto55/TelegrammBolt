@@ -964,31 +964,71 @@ async def start_data_export(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     
     try:
-        # Запускаем скрипт genereteTabl.py
-        process = await asyncio.create_subprocess_exec(
-            'python', 'genereteTabl.py',
-            cwd=os.getcwd(),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        import pandas as pd
+        from bot.dse_manager import get_all_dse_records
+        from bot.user_manager import get_user_data
         
-        stdout, stderr = await process.communicate()
+        # Получаем все данные ДСЕ
+        dse_data = get_all_dse_records()
         
-        if process.returncode == 0:
-            # Скрипт выполнился успешно
-            admin_states[user_id]['export_completed'] = True
-            admin_states[user_id]['export_file'] = 'RezultBot.xlsx'
-            await show_export_delivery_options(update, context)
-        else:
-            # Ошибка выполнения
-            error_msg = stderr.decode() if stderr else "Неизвестная ошибка"
+        if not dse_data:
             await update.callback_query.edit_message_text(
-                f"❌ Ошибка при генерации файла:\n{error_msg}\n\n"
-                f"Код возврата: {process.returncode}"
+                "❌ Нет данных для экспорта"
             )
-            # Очищаем состояние
             if user_id in admin_states:
                 admin_states[user_id].pop('exporting_data', None)
+            return
+        
+        # Подготовка данных для Excel
+        rows = []
+        for record in dse_data:
+            # Получаем данные пользователя
+            user_info = None
+            if record.get('user_id'):
+                try:
+                    user_info = get_user_data(str(record['user_id']))
+                except:
+                    pass
+            
+            row = {
+                'ДСЕ': record.get('dse', ''),
+                'Тип проблемы': record.get('problem_type', ''),
+                'RC': record.get('rc', ''),
+                'Описание': record.get('description', ''),
+                'Дата создания': record.get('datetime', ''),
+                'Пользователь': user_info.get('name', '') if user_info else f"ID: {record.get('user_id', '')}",
+                'ID пользователя': record.get('user_id', ''),
+                'Есть фото': 'Да' if record.get('photo_file_id') or record.get('photos') else 'Нет',
+                'Отправлено на email': 'Да' if record.get('sent_to_emails') else 'Нет'
+            }
+            rows.append(row)
+        
+        # Создание DataFrame
+        df = pd.DataFrame(rows)
+        
+        # Сохранение в Excel
+        output_file = 'RezultBot.xlsx'
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Отчет ДСЕ')
+            
+            # Настройка ширины колонок
+            worksheet = writer.sheets['Отчет ДСЕ']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        
+        # Файл создан успешно
+        admin_states[user_id]['export_completed'] = True
+        admin_states[user_id]['export_file'] = output_file
+        await show_export_delivery_options(update, context)
                 
     except Exception as e:
         await update.callback_query.edit_message_text(

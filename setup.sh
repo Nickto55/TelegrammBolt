@@ -43,6 +43,12 @@ else
     echo -e "${YELLOW}Виртуальное окружение уже существует, пропускаем...${NC}"
 fi
 
+# Создание симлинка python -> python3 в виртуальном окружении
+if [ ! -e "venv/bin/python" ]; then
+    ln -s python3 venv/bin/python
+    echo -e "${GREEN}Создан симлинк python -> python3${NC}"
+fi
+
 echo -e "${GREEN}[4/7] Установка Python зависимостей...${NC}"
 source venv/bin/activate
 pip install --upgrade pip
