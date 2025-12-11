@@ -252,15 +252,18 @@ async def show_main_menu(update: Update, user_id: str) -> None:
     if has_permission(user_id, 'watch_dse'):  # Используем новое право
         keyboard.append([InlineKeyboardButton("👀 Отслеживание ДСЕ", callback_data='watch_dse_menu')])
 
-    # === КНОПКА 8: "💬 Чат по ДСЕ" ===
+    # === КНОПКА 8: "🔔 Подписка на заявки" ===
+    keyboard.append([InlineKeyboardButton("🔔 Подписка на заявки", callback_data='subscription_menu')])
+
+    # === КНОПКА 9: "💬 Чат по ДСЕ" ===
     if has_permission(user_id, 'chat_dse'):
         keyboard.append([InlineKeyboardButton("💬 Чат по ДСЕ", callback_data='chat_dse_menu')])
 
-    # === КНОПКА 9: "📄 PDF Отчет" ===
+    # === КНОПКА 10: "📄 PDF Отчет" ===
     if has_permission(user_id, 'pdf_export'):
         keyboard.append([InlineKeyboardButton("📄 PDF Отчет", callback_data='pdf_export_menu')])
 
-    # === КНОПКА 10: "🔧 Управление пользователями" ===
+    # === КНОПКА 11: "🔧 Управление пользователями" ===
     if role == 'admin':
         keyboard.append([InlineKeyboardButton("🔧 Управление пользователями", callback_data='admin_users')])
 
@@ -1816,6 +1819,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         data_dict[user_id].append(record)
         save_data(data_dict, DATA_FILE)
         
+        # Отправляем PDF подписчикам
+        await send_dse_to_subscribers(context.application, record, user_id)
+        
         # Очищаем данные пользователя
         user_states[user_id] = {
             'application': '',
@@ -2033,6 +2039,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await query.edit_message_text(f"✅ ДСЕ {dse_value} добавлен в отслеживание!")
                 await show_watched_dse_menu(update, context)
     
+    # === ПОДПИСКА НА ЗАЯВКИ ===
+    elif data == 'subscription_menu':
+        await show_subscription_menu(update, context)
+    
+    elif data == 'subscription_add':
+        await start_add_subscription(update, context)
+    
+    elif data.startswith('subscription_delivery_'):
+        delivery_type = data.split('_')[-1]
+        await process_subscription_delivery_type(update, context, delivery_type)
+    
+    elif data == 'subscription_remove':
+        await confirm_remove_subscription(update, context)
+    
+    elif data == 'subscription_remove_confirm':
+        await remove_user_subscription(update, context)
+    
+    elif data == 'subscription_toggle':
+        await toggle_user_subscription(update, context)
+    
+    elif data == 'subscription_status':
+        await show_subscription_status(update, context)
+    
     # === ЧАТ ПО ДСЕ ===
     elif data == 'chat_dse_menu':
         from .chat_manager import show_chat_menu
@@ -2165,6 +2194,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_states[user_id].pop('waiting_for', None)
                 await update.message.reply_text(f"✅ Описание сохранено")
                 await show_application_menu(update, user_id)
+                return
+            
+            # === ПОДПИСКА НА ЗАЯВКИ ===
+            elif user_data.get('waiting_for') == 'subscription_email':
+                import re
+                email = text.strip()
+                # Простая валидация email
+                email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                
+                if re.match(email_pattern, email):
+                    from bot.subscription_manager import add_subscription
+                    delivery_type = user_data.get('subscription_delivery', 'email')
+                    
+                    if add_subscription(user_id, delivery_type, email):
+                        user_states[user_id].pop('waiting_for', None)
+                        user_states[user_id].pop('subscription_delivery', None)
+                        
+                        delivery_text = {
+                            'email': 'на Email',
+                            'both': 'в Telegram и на Email'
+                        }.get(delivery_type, 'на Email')
+                        
+                        await update.message.reply_text(
+                            f"✅ Подписка успешно создана!\n\n"
+                            f"Email: {email}\n"
+                            f"Доставка: {delivery_text}\n\n"
+                            f"Теперь вы будете автоматически получать PDF отчёт всех новых заявок."
+                        )
+                        # Показываем меню подписок через callback-обёртку
+                        from telegram import Update as TelegramUpdate
+                        # Создаём фиктивный callback_query для show_subscription_menu
+                        class FakeQuery:
+                            def __init__(self, user_id):
+                                self.from_user = type('obj', (object,), {'id': int(user_id)})
+                            async def edit_message_text(self, *args, **kwargs):
+                                await update.message.reply_text(*args, **kwargs)
+                            async def answer(self, *args, **kwargs):
+                                pass
+                        
+                        fake_update = type('obj', (object,), {'callback_query': FakeQuery(user_id)})()
+                        await show_subscription_menu(fake_update, context)
+                    else:
+                        await update.message.reply_text("❌ Ошибка создания подписки. Попробуйте позже.")
+                else:
+                    await update.message.reply_text(
+                        "❌ Некорректный email адрес.\n\n"
+                        "Введите корректный email:"
+                    )
                 return
             
             # === ПОИСК ДСЕ ===
@@ -2607,6 +2684,111 @@ async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
 
 
+async def send_dse_to_subscribers(application, record: dict, creator_user_id: str) -> None:
+    """
+    Отправить PDF отчёт новой заявки всем подписчикам
+    
+    Args:
+        application: Telegram Application instance
+        record: данные созданной заявки
+        creator_user_id: ID пользователя создавшего заявку
+    """
+    try:
+        from bot.subscription_manager import get_telegram_subscribers, get_email_subscribers
+        from bot.pdf_generator import create_dse_pdf_report
+        from bot.user_manager import get_user_data
+        import tempfile
+        import os
+        
+        # Получаем подписчиков
+        telegram_subs = get_telegram_subscribers()
+        email_subs = get_email_subscribers()
+        
+        if not telegram_subs and not email_subs:
+            return  # Нет подписчиков
+        
+        # Создаём PDF отчёт
+        pdf_bytes = create_dse_pdf_report([record])
+        
+        if not pdf_bytes:
+            print("Ошибка создания PDF для подписчиков")
+            return
+        
+        # Получаем информацию о создателе заявки
+        creator_info = get_user_data(creator_user_id)
+        creator_name = creator_info.get('name', f"ID: {creator_user_id}") if creator_info else f"ID: {creator_user_id}"
+        
+        # Формируем текст уведомления
+        notification_text = (
+            f"🔔 *Новая заявка!*\n\n"
+            f"📋 ДСЕ: {record.get('dse', 'N/A')}\n"
+            f"⚠️ Тип: {record.get('problem_type', 'N/A')}\n"
+            f"🏭 РЦ: {record.get('rc', 'N/A')}\n"
+            f"👤 Создатель: {creator_name}\n"
+            f"📅 Дата: {record.get('datetime', 'N/A')}\n\n"
+            f"📄 PDF отчёт прикреплён к сообщению"
+        )
+        
+        # Отправка в Telegram
+        for sub_user_id in telegram_subs:
+            # Не отправляем создателю заявки
+            if sub_user_id == creator_user_id:
+                continue
+            
+            try:
+                # Сохраняем PDF во временный файл
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                    tmp_file.write(pdf_bytes)
+                    tmp_path = tmp_file.name
+                
+                # Отправляем PDF как документ
+                await application.bot.send_document(
+                    chat_id=int(sub_user_id),
+                    document=open(tmp_path, 'rb'),
+                    filename=f"DSE_{record.get('dse', 'report')}.pdf",
+                    caption=notification_text,
+                    parse_mode='Markdown'
+                )
+                
+                # Удаляем временный файл
+                os.unlink(tmp_path)
+                
+                print(f"✅ PDF отправлен подписчику {sub_user_id} (Telegram)")
+            except Exception as e:
+                print(f"❌ Ошибка отправки PDF подписчику {sub_user_id}: {e}")
+        
+        # Отправка на Email
+        if email_subs:
+            try:
+                from bot.email_manager import send_dse_report_email
+                
+                for sub_info in email_subs:
+                    # Не отправляем создателю заявки
+                    if sub_info['user_id'] == creator_user_id:
+                        continue
+                    
+                    email = sub_info['email']
+                    if email:
+                        try:
+                            send_dse_report_email(
+                                recipient_email=email,
+                                dse_data=[record],
+                                subject=f"Новая заявка ДСЕ {record.get('dse', 'N/A')}"
+                            )
+                            print(f"✅ PDF отправлен подписчику {sub_info['user_id']} (Email: {email})")
+                        except Exception as e:
+                            print(f"❌ Ошибка отправки Email подписчику {email}: {e}")
+            except ImportError:
+                print("⚠️ Email manager недоступен, пропускаем email отправку")
+            except Exception as e:
+                print(f"❌ Ошибка email отправки подписчикам: {e}")
+    
+    except Exception as e:
+        print(f"❌ Ошибка отправки подписчикам: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 async def show_scan_menu(update: Update, user_id: str) -> None:
     """Показать меню сканирования для пользователей с ролью 'user'"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -2635,4 +2817,191 @@ async def show_scan_menu(update: Update, user_id: str) -> None:
         await update.callback_query.edit_message_text(text, reply_markup=reply_markup)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup)
+
+
+# === ФУНКЦИИ УПРАВЛЕНИЯ ПОДПИСКАМИ ===
+
+async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать меню управления подписками"""
+    user_id = str(update.callback_query.from_user.id)
+    
+    from bot.subscription_manager import get_subscription, is_subscribed
+    
+    subscription = get_subscription(user_id)
+    
+    if subscription and subscription.get('active'):
+        delivery_type = subscription.get('delivery_type', 'telegram')
+        delivery_text = {
+            'telegram': '📱 Telegram',
+            'email': '📧 Email',
+            'both': '📱 Telegram + 📧 Email'
+        }.get(delivery_type, delivery_type)
+        
+        status_text = (
+            f"🔔 *Статус подписки*\n\n"
+            f"✅ Подписка активна\n"
+            f"📬 Доставка: {delivery_text}\n"
+        )
+        
+        if subscription.get('email'):
+            status_text += f"📧 Email: {subscription['email']}\n"
+        
+        status_text += (
+            f"\n💡 При создании новой заявки другим пользователем вы автоматически получите PDF отчёт.\n"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🔕 Отключить подписку", callback_data='subscription_toggle')],
+            [InlineKeyboardButton("🗑️ Удалить подписку", callback_data='subscription_remove')],
+            [InlineKeyboardButton("⬅️ Главное меню", callback_data='back_to_main')]
+        ]
+    else:
+        status_text = (
+            f"🔔 *Подписка на заявки*\n\n"
+            f"❌ Подписка неактивна\n\n"
+            f"💡 Подпишитесь чтобы автоматически получать PDF отчёт всех новых заявок!\n"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("✅ Подписаться", callback_data='subscription_add')],
+            [InlineKeyboardButton("⬅️ Главное меню", callback_data='back_to_main')]
+        ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.edit_message_text(
+        status_text,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def start_add_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Начать процесс добавления подписки"""
+    keyboard = [
+        [InlineKeyboardButton("📱 Telegram", callback_data='subscription_delivery_telegram')],
+        [InlineKeyboardButton("📧 Email", callback_data='subscription_delivery_email')],
+        [InlineKeyboardButton("📱+📧 Оба", callback_data='subscription_delivery_both')],
+        [InlineKeyboardButton("⬅️ Назад", callback_data='subscription_menu')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.edit_message_text(
+        "📬 *Выберите способ доставки:*\n\n"
+        "• *Telegram* - PDF отчёт придёт в чат\n"
+        "• *Email* - PDF на вашу почту\n"
+        "• *Оба* - и в чат, и на почту",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def process_subscription_delivery_type(update: Update, context: ContextTypes.DEFAULT_TYPE, delivery_type: str) -> None:
+    """Обработать выбор типа доставки"""
+    user_id = str(update.callback_query.from_user.id)
+    
+    if delivery_type in ['email', 'both']:
+        # Запрашиваем email
+        user_states[user_id] = user_states.get(user_id, {})
+        user_states[user_id]['subscription_delivery'] = delivery_type
+        user_states[user_id]['waiting_for'] = 'subscription_email'
+        
+        await update.callback_query.edit_message_text(
+            "📧 Введите ваш email адрес:"
+        )
+    else:
+        # Telegram - сразу создаём подписку
+        from bot.subscription_manager import add_subscription
+        
+        if add_subscription(user_id, delivery_type):
+            await update.callback_query.edit_message_text(
+                "✅ Подписка успешно создана!\n\n"
+                "Теперь вы будете получать PDF отчёт всех новых заявок в Telegram."
+            )
+            await show_subscription_menu(update, context)
+        else:
+            await update.callback_query.edit_message_text(
+                "❌ Ошибка создания подписки. Попробуйте позже."
+            )
+
+
+async def confirm_remove_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Запросить подтверждение удаления подписки"""
+    keyboard = [
+        [InlineKeyboardButton("✅ Да, удалить", callback_data='subscription_remove_confirm')],
+        [InlineKeyboardButton("❌ Отмена", callback_data='subscription_menu')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.edit_message_text(
+        "⚠️ *Удаление подписки*\n\n"
+        "Вы уверены что хотите удалить подписку?\n"
+        "Эти данные будут потеряны безвозвратно.",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def remove_user_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Удалить подписку пользователя"""
+    user_id = str(update.callback_query.from_user.id)
+    
+    from bot.subscription_manager import remove_subscription
+    
+    if remove_subscription(user_id):
+        await update.callback_query.edit_message_text(
+            "✅ Подписка успешно удалена."
+        )
+    else:
+        await update.callback_query.edit_message_text(
+            "❌ Ошибка удаления подписки."
+        )
+    
+    await show_subscription_menu(update, context)
+
+
+async def toggle_user_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Переключить активность подписки"""
+    user_id = str(update.callback_query.from_user.id)
+    
+    from bot.subscription_manager import toggle_subscription
+    
+    new_status = toggle_subscription(user_id)
+    
+    if new_status:
+        text = "✅ Подписка активирована!"
+    else:
+        text = "🔕 Подписка приостановлена."
+    
+    await update.callback_query.answer(text)
+    await show_subscription_menu(update, context)
+
+
+async def show_subscription_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать статус подписки"""
+    user_id = str(update.callback_query.from_user.id)
+    
+    from bot.subscription_manager import get_subscription
+    
+    subscription = get_subscription(user_id)
+    
+    if subscription:
+        status = "✅ Активна" if subscription.get('active') else "🔕 Приостановлена"
+        delivery = subscription.get('delivery_type', 'telegram')
+        
+        text = (
+            f"🔔 *Статус подписки*\n\n"
+            f"Статус: {status}\n"
+            f"Доставка: {delivery}\n"
+        )
+        
+        if subscription.get('email'):
+            text += f"Email: {subscription['email']}\n"
+        
+        if subscription.get('created_at'):
+            text += f"Создана: {subscription['created_at'][:10]}\n"
+    else:
+        text = "❌ Подписка не найдена"
+    
+    await update.callback_query.answer(text)
+
 

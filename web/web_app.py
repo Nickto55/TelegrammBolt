@@ -2014,6 +2014,136 @@ def generate_link_code_api():
         logger.error(f"Error generating link code: {e}")
         return jsonify({"success": False, "error": "Ошибка генерации кода"})
 
+
+# ============================================================================
+# API ПОДПИСОК НА ЗАЯВКИ
+# ============================================================================
+
+@app.route('/api/subscription/status', methods=['GET'])
+@login_required
+def api_subscription_status():
+    """API: Получить статус подписки пользователя"""
+    try:
+        user_id = session['user_id']
+        
+        from bot.subscription_manager import get_subscription
+        subscription = get_subscription(user_id)
+        
+        if subscription:
+            return jsonify({
+                'success': True,
+                'subscribed': subscription.get('active', False),
+                'delivery_type': subscription.get('delivery_type'),
+                'email': subscription.get('email'),
+                'created_at': subscription.get('created_at')
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'subscribed': False
+            })
+    
+    except Exception as e:
+        logger.error(f"Error getting subscription status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/subscription/add', methods=['POST'])
+@login_required
+def api_subscription_add():
+    """API: Добавить подписку"""
+    try:
+        user_id = session['user_id']
+        data = request.json
+        
+        delivery_type = data.get('delivery_type', 'telegram')
+        email = data.get('email')
+        
+        if delivery_type not in ['telegram', 'email', 'both']:
+            return jsonify({'success': False, 'error': 'Некорректный тип доставки'}), 400
+        
+        if delivery_type in ['email', 'both'] and not email:
+            return jsonify({'success': False, 'error': 'Email обязателен для выбранного типа доставки'}), 400
+        
+        from bot.subscription_manager import add_subscription
+        
+        if add_subscription(user_id, delivery_type, email):
+            return jsonify({
+                'success': True,
+                'message': 'Подписка успешно создана'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Ошибка создания подписки'}), 500
+    
+    except Exception as e:
+        logger.error(f"Error adding subscription: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/subscription/remove', methods=['POST'])
+@login_required
+def api_subscription_remove():
+    """API: Удалить подписку"""
+    try:
+        user_id = session['user_id']
+        
+        from bot.subscription_manager import remove_subscription
+        
+        if remove_subscription(user_id):
+            return jsonify({
+                'success': True,
+                'message': 'Подписка удалена'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Подписка не найдена'}), 404
+    
+    except Exception as e:
+        logger.error(f"Error removing subscription: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/subscription/toggle', methods=['POST'])
+@login_required
+def api_subscription_toggle():
+    """API: Переключить активность подписки"""
+    try:
+        user_id = session['user_id']
+        
+        from bot.subscription_manager import toggle_subscription
+        
+        new_status = toggle_subscription(user_id)
+        
+        return jsonify({
+            'success': True,
+            'active': new_status,
+            'message': 'Подписка активирована' if new_status else 'Подписка приостановлена'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error toggling subscription: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/subscription/stats', methods=['GET'])
+@login_required
+@user_role_required(['admin'])
+def api_subscription_stats():
+    """API: Статистика подписок (только для админов)"""
+    try:
+        from bot.subscription_manager import get_subscription_stats
+        
+        stats = get_subscription_stats()
+        
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting subscription stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ============================================================================
 # ЗАПУСК ПРИЛОЖЕНИЯ
 # ============================================================================
