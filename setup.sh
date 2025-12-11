@@ -111,15 +111,69 @@ echo -e "${GREEN}[7/9] Настройка домена и SSL (опционал�
 read -p "Хотите настроить домен и SSL сертификат? (y/n): " SETUP_SSL
 if [[ $SETUP_SSL =~ ^[Yy]$ ]]; then
     read -p "Введите ваш домен (например: bot.example.com): " DOMAIN
+    
+    # Проверка DNS
+    echo -e "${YELLOW}Проверка DNS для $DOMAIN...${NC}"
+    SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || wget -qO- ifconfig.me 2>/dev/null || echo "unknown")
+    DOMAIN_IP=$(dig +short $DOMAIN 2>/dev/null | tail -n1)
+    
+    echo -e "${BLUE}IP вашего сервера: $SERVER_IP${NC}"
+    echo -e "${BLUE}IP домена $DOMAIN: ${DOMAIN_IP:-не найден}${NC}"
+    
+    if [ -z "$DOMAIN_IP" ]; then
+        echo -e "${RED}⚠️  ВНИМАНИЕ: Домен $DOMAIN не резолвится!${NC}"
+        echo -e "${YELLOW}Возможные решения:${NC}"
+        echo -e "  1. Убедитесь что домен указывает на IP: $SERVER_IP"
+        echo -e "  2. Подождите пока DNS обновится (до 24 часов)"
+        echo -e "  3. Используйте другой домен или сервис (DuckDNS, No-IP)"
+        echo ""
+        read -p "Продолжить настройку без SSL? (y/n): " CONTINUE
+        if [[ ! $CONTINUE =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Настройка SSL отменена${NC}"
+            cat > config/domain.conf <<EOF
+DOMAIN=localhost
+WEB_PORT=5000
+SSL_ENABLED=false
+EOF
+            continue
+        fi
+    elif [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
+        echo -e "${YELLOW}⚠️  IP домена ($DOMAIN_IP) не совпадает с IP сервера ($SERVER_IP)${NC}"
+        read -p "Продолжить? (y/n): " CONTINUE
+        if [[ ! $CONTINUE =~ ^[Yy]$ ]]; then
+            cat > config/domain.conf <<EOF
+DOMAIN=localhost
+WEB_PORT=5000
+SSL_ENABLED=false
+EOF
+            continue
+        fi
+    else
+        echo -e "${GREEN}✓ DNS настроен правильно${NC}"
+    fi
+    
     read -p "Введите email для Let's Encrypt: " SSL_EMAIL
     read -p "Введите порт для веб-интерфейса (по умолчанию 5000): " WEB_PORT
     WEB_PORT=${WEB_PORT:-5000}
+    
+    # Проверка открытых портов
+    echo -e "${YELLOW}Проверка firewall...${NC}"
+    if command -v ufw &> /dev/null; then
+        sudo ufw allow 80/tcp >/dev/null 2>&1
+        sudo ufw allow 443/tcp >/dev/null 2>&1
+        echo -e "${GREEN}✓ Порты 80, 443 открыты${NC}"
+    fi
     
     # Создание конфигурации nginx
     sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
 server {
     listen 80;
     server_name $DOMAIN;
+    
+    # Для проверки Let's Encrypt
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
     
     location / {
         proxy_pass http://127.0.0.1:$WEB_PORT;
@@ -133,21 +187,93 @@ EOF
     
     # Активация конфигурации
     sudo ln -sf /etc/nginx/sites-available/telegrambot /etc/nginx/sites-enabled/
-    sudo nginx -t && sudo systemctl reload nginx
+    
+    # Проверка конфигурации nginx
+    if sudo nginx -t 2>&1 | grep -q "successful"; then
+        sudo systemctl reload nginx
+        echo -e "${GREEN}✓ Nginx настроен${NC}"
+    else
+        echo -e "${RED}✗ Ошибка в конфигурации nginx${NC}"
+        sudo nginx -t
+        read -p "Нажмите Enter для продолжения..."
+    fi
     
     # Получение SSL сертификата
     echo -e "${YELLOW}Получение SSL сертификата...${NC}"
-    sudo certbot --nginx -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive
+    echo -e "${BLUE}Выберите метод получения SSL:${NC}"
+    echo "1. Автоматически через nginx (рекомендуется)"
+    echo "2. Вручную через standalone (если nginx не работает)"
+    echo "3. Пропустить SSL (использовать только HTTP)"
+    read -p "Ваш выбор (1/2/3): " SSL_METHOD
+    
+    SSL_SUCCESS=false
+    case $SSL_METHOD in
+        1)
+            if sudo certbot --nginx -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive 2>&1; then
+                SSL_SUCCESS=true
+            else
+                echo -e "${RED}✗ Не удалось получить SSL сертификат через nginx${NC}"
+                echo -e "${YELLOW}Попробуйте метод 2 (standalone) или проверьте DNS${NC}"
+            fi
+            ;;
+        2)
+            echo -e "${YELLOW}Остановка nginx для standalone режима...${NC}"
+            sudo systemctl stop nginx
+            if sudo certbot certonly --standalone -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive 2>&1; then
+                SSL_SUCCESS=true
+                # Обновляем конфигурацию nginx для SSL
+                sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+    return 301 https://\$server_name\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name $DOMAIN;
+    
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+    
+    location / {
+        proxy_pass http://127.0.0.1:$WEB_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+            else
+                echo -e "${RED}✗ Не удалось получить SSL сертификат через standalone${NC}"
+            fi
+            sudo systemctl start nginx
+            ;;
+        3)
+            echo -e "${YELLOW}SSL пропущен, используется только HTTP${NC}"
+            ;;
+    esac
     
     # Сохранение настроек
     cat > config/domain.conf <<EOF
 DOMAIN=$DOMAIN
 SSL_EMAIL=$SSL_EMAIL
 WEB_PORT=$WEB_PORT
-SSL_ENABLED=true
+SSL_ENABLED=$SSL_SUCCESS
 EOF
     
-    echo -e "${GREEN}SSL сертификат успешно установлен для $DOMAIN${NC}"
+    if [ "$SSL_SUCCESS" = true ]; then
+        echo -e "${GREEN}✓ SSL сертификат успешно установлен для $DOMAIN${NC}"
+        echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
+        
+        # Настройка автообновления SSL
+        echo -e "${YELLOW}Настройка автообновления SSL...${NC}"
+        (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sudo crontab -
+        echo -e "${GREEN}✓ Автообновление SSL настроено (проверка каждый день в 3:00)${NC}"
+    else
+        echo -e "${YELLOW}⚠️  SSL не установлен. Используйте: http://$DOMAIN${NC}"
+    fi
 else
     echo -e "${YELLOW}Настройка домена и SSL пропущена${NC}"
     cat > config/domain.conf <<EOF
@@ -262,7 +388,7 @@ cat > manage.sh <<'MGEOF'
 #!/bin/bash
 
 # =============================================================================
-# TelegrammBot - Панель Управления (X-UI Style)
+# TelegrammBot - Панель Управления 
 # =============================================================================
 
 # Цвета
