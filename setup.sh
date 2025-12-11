@@ -31,9 +31,9 @@ echo -e "${GREEN}[1/7] Обновление системы...${NC}"
 sudo apt update
 sudo apt upgrade -y
 
-echo -e "${GREEN}[2/7] Установка зависимостей...${NC}"
+echo -e "${GREEN}[2/9] Установка зависимостей...${NC}"
 sudo apt install -y python3 python3-pip python3-venv git curl wget build-essential \
-    libssl-dev libffi-dev python3-dev libzbar0 zbar-tools
+    libssl-dev libffi-dev python3-dev libzbar0 zbar-tools nginx certbot python3-certbot-nginx
 
 echo -e "${GREEN}[3/7] Создание виртуального окружения Python...${NC}"
 if [ ! -d "venv" ]; then
@@ -48,12 +48,13 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo -e "${GREEN}[5/7] Создание необходимых директорий...${NC}"
+echo -e "${GREEN}[5/9] Создание необходимых директорий...${NC}"
 mkdir -p data/photos
 mkdir -p config
+mkdir -p logs
 echo -e "${GREEN}Директории созданы${NC}"
 
-echo -e "${GREEN}[6/7] Настройка конфигурации...${NC}"
+echo -e "${GREEN}[6/9] Настройка конфигурации...${NC}"
 
 # Настройка Telegram Bot
 CONFIG_FILE="config/ven_bot.json"
@@ -105,7 +106,99 @@ EOF
     fi
 fi
 
-echo -e "${GREEN}[7/7] Создание скриптов запуска...${NC}"
+# Настройка домена и SSL
+echo -e "${GREEN}[7/9] Настройка домена и SSL (опционально)...${NC}"
+read -p "Хотите настроить домен и SSL сертификат? (y/n): " SETUP_SSL
+if [[ $SETUP_SSL =~ ^[Yy]$ ]]; then
+    read -p "Введите ваш домен (например: bot.example.com): " DOMAIN
+    read -p "Введите email для Let's Encrypt: " SSL_EMAIL
+    read -p "Введите порт для веб-интерфейса (по умолчанию 5000): " WEB_PORT
+    WEB_PORT=${WEB_PORT:-5000}
+    
+    # Создание конфигурации nginx
+    sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+    
+    location / {
+        proxy_pass http://127.0.0.1:$WEB_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+    
+    # Активация конфигурации
+    sudo ln -sf /etc/nginx/sites-available/telegrambot /etc/nginx/sites-enabled/
+    sudo nginx -t && sudo systemctl reload nginx
+    
+    # Получение SSL сертификата
+    echo -e "${YELLOW}Получение SSL сертификата...${NC}"
+    sudo certbot --nginx -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive
+    
+    # Сохранение настроек
+    cat > config/domain.conf <<EOF
+DOMAIN=$DOMAIN
+SSL_EMAIL=$SSL_EMAIL
+WEB_PORT=$WEB_PORT
+SSL_ENABLED=true
+EOF
+    
+    echo -e "${GREEN}SSL сертификат успешно установлен для $DOMAIN${NC}"
+else
+    echo -e "${YELLOW}Настройка домена и SSL пропущена${NC}"
+    cat > config/domain.conf <<EOF
+DOMAIN=localhost
+WEB_PORT=5000
+SSL_ENABLED=false
+EOF
+fi
+
+echo -e "${GREEN}[8/9] Создание systemd сервисов...${NC}"
+
+# Создание systemd сервиса для бота
+sudo tee /etc/systemd/system/telegrambot.service > /dev/null <<EOF
+[Unit]
+Description=Telegram Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$(pwd)
+ExecStart=$(pwd)/venv/bin/python3 $(pwd)/bot/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Создание systemd сервиса для веб-интерфейса
+sudo tee /etc/systemd/system/telegramweb.service > /dev/null <<EOF
+[Unit]
+Description=Telegram Bot Web Interface
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$(pwd)
+ExecStart=$(pwd)/venv/bin/python3 $(pwd)/web/web_app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+echo -e "${GREEN}Systemd сервисы созданы${NC}"
+
+echo -e "${GREEN}[9/9] Создание скриптов управления...${NC}"
 
 # Скрипт запуска бота
 cat > start_bot.sh <<'EOF'
@@ -164,17 +257,374 @@ esac
 EOF
 chmod +x start.sh
 
+# Создание панели управления
+cat > manage.sh <<'MGEOF'
+#!/bin/bash
+
+# =============================================================================
+# TelegrammBot - Панель Управления (X-UI Style)
+# =============================================================================
+
+# Цвета
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Функция очистки экрана
+clear_screen() {
+    clear
+}
+
+# Получение статуса сервиса
+get_service_status() {
+    if systemctl is-active --quiet $1; then
+        echo -e "${GREEN}●${NC} Running"
+    else
+        echo -e "${RED}●${NC} Stopped"
+    fi
+}
+
+# Получение времени работы
+get_uptime() {
+    if systemctl is-active --quiet $1; then
+        systemctl show $1 --property=ActiveEnterTimestamp --value | cut -d' ' -f1-2
+    else
+        echo "N/A"
+    fi
+}
+
+# Показать главное меню
+show_menu() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}         ${GREEN}TelegrammBot - Панель Управления${NC}              ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    # Статус сервисов
+    BOT_STATUS=$(get_service_status telegrambot)
+    WEB_STATUS=$(get_service_status telegramweb)
+    NGINX_STATUS=$(get_service_status nginx)
+    
+    echo -e "${BLUE}[Статус Сервисов]${NC}"
+    echo -e "  Telegram Bot:     $BOT_STATUS"
+    echo -e "  Web Interface:    $WEB_STATUS"
+    echo -e "  Nginx:            $NGINX_STATUS"
+    echo ""
+    
+    # Загрузка конфигурации
+    if [ -f config/domain.conf ]; then
+        source config/domain.conf
+        echo -e "${BLUE}[Конфигурация]${NC}"
+        echo -e "  Домен:            ${YELLOW}$DOMAIN${NC}"
+        echo -e "  Порт:             ${YELLOW}$WEB_PORT${NC}"
+        echo -e "  SSL:              ${YELLOW}$SSL_ENABLED${NC}"
+        echo ""
+    fi
+    
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}  ${GREEN}1.${NC} Запустить все сервисы                                ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${GREEN}2.${NC} Остановить все сервисы                               ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${GREEN}3.${NC} Перезапустить все сервисы                            ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${YELLOW}4.${NC} Управление Telegram Bot                              ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${YELLOW}5.${NC} Управление Web интерфейсом                           ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${BLUE}6.${NC} Просмотр логов                                       ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${BLUE}7.${NC} Настройка SSL/Домена                                 ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${BLUE}8.${NC} Обновить сертификат SSL                              ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${BLUE}9.${NC} Редактировать конфигурацию                           ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} ${BLUE}10.${NC} Мониторинг системы                                   ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} ${BLUE}11.${NC} Резервное копирование                                ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} ${RED}12.${NC} Удалить все данные                                   ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  ${RED}0.${NC} Выход                                                ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+# Управление ботом
+manage_bot() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}           ${GREEN}Управление Telegram Bot${NC}                      ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "1. Запустить бот"
+    echo "2. Остановить бот"
+    echo "3. Перезапустить бот"
+    echo "4. Статус бота"
+    echo "5. Логи бота (live)"
+    echo "0. Назад"
+    echo ""
+    read -p "Выберите действие: " choice
+    
+    case $choice in
+        1) sudo systemctl start telegrambot && echo -e "${GREEN}✓ Бот запущен${NC}" ;;
+        2) sudo systemctl stop telegrambot && echo -e "${YELLOW}✓ Бот остановлен${NC}" ;;
+        3) sudo systemctl restart telegrambot && echo -e "${GREEN}✓ Бот перезапущен${NC}" ;;
+        4) sudo systemctl status telegrambot ;;
+        5) sudo journalctl -u telegrambot -f ;;
+        0) return ;;
+    esac
+    read -p "Нажмите Enter для продолжения..."
+}
+
+# Управление веб-интерфейсом
+manage_web() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}           ${GREEN}Управление Web интерфейсом${NC}                   ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "1. Запустить веб-интерфейс"
+    echo "2. Остановить веб-интерфейс"
+    echo "3. Перезапустить веб-интерфейс"
+    echo "4. Статус веб-интерфейса"
+    echo "5. Логи веб-интерфейса (live)"
+    echo "0. Назад"
+    echo ""
+    read -p "Выберите действие: " choice
+    
+    case $choice in
+        1) sudo systemctl start telegramweb && echo -e "${GREEN}✓ Веб-интерфейс запущен${NC}" ;;
+        2) sudo systemctl stop telegramweb && echo -e "${YELLOW}✓ Веб-интерфейс остановлен${NC}" ;;
+        3) sudo systemctl restart telegramweb && echo -e "${GREEN}✓ Веб-интерфейс перезапущен${NC}" ;;
+        4) sudo systemctl status telegramweb ;;
+        5) sudo journalctl -u telegramweb -f ;;
+        0) return ;;
+    esac
+    read -p "Нажмите Enter для продолжения..."
+}
+
+# Просмотр логов
+view_logs() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}               ${GREEN}Просмотр логов${NC}                           ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "1. Логи Telegram Bot (последние 50 строк)"
+    echo "2. Логи Web интерфейса (последние 50 строк)"
+    echo "3. Логи Nginx (последние 50 строк)"
+    echo "4. Логи Telegram Bot (live)"
+    echo "5. Логи Web интерфейса (live)"
+    echo "0. Назад"
+    echo ""
+    read -p "Выберите действие: " choice
+    
+    case $choice in
+        1) sudo journalctl -u telegrambot -n 50 --no-pager ;;
+        2) sudo journalctl -u telegramweb -n 50 --no-pager ;;
+        3) sudo tail -n 50 /var/log/nginx/error.log ;;
+        4) sudo journalctl -u telegrambot -f ;;
+        5) sudo journalctl -u telegramweb -f ;;
+        0) return ;;
+    esac
+    read -p "Нажмите Enter для продолжения..."
+}
+
+# Настройка SSL
+setup_ssl() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}            ${GREEN}Настройка SSL/Домена${NC}                        ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    read -p "Введите ваш домен: " DOMAIN
+    read -p "Введите email для Let's Encrypt: " SSL_EMAIL
+    read -p "Введите порт веб-интерфейса (по умолчанию 5000): " WEB_PORT
+    WEB_PORT=${WEB_PORT:-5000}
+    
+    # Создание конфигурации nginx
+    sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+    
+    location / {
+        proxy_pass http://127.0.0.1:$WEB_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+    
+    sudo ln -sf /etc/nginx/sites-available/telegrambot /etc/nginx/sites-enabled/
+    sudo nginx -t && sudo systemctl reload nginx
+    
+    # Получение SSL
+    echo -e "${YELLOW}Получение SSL сертификата...${NC}"
+    sudo certbot --nginx -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive
+    
+    # Сохранение
+    cat > config/domain.conf <<EOF
+DOMAIN=$DOMAIN
+SSL_EMAIL=$SSL_EMAIL
+WEB_PORT=$WEB_PORT
+SSL_ENABLED=true
+EOF
+    
+    echo -e "${GREEN}✓ SSL успешно настроен для $DOMAIN${NC}"
+    read -p "Нажмите Enter для продолжения..."
+}
+
+# Обновление SSL
+renew_ssl() {
+    echo -e "${YELLOW}Обновление SSL сертификата...${NC}"
+    sudo certbot renew
+    echo -e "${GREEN}✓ SSL сертификат обновлен${NC}"
+    read -p "Нажмите Enter для продолжения..."
+}
+
+# Редактирование конфигурации
+edit_config() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}          ${GREEN}Редактирование конфигурации${NC}                  ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "1. Конфигурация бота (ven_bot.json)"
+    echo "2. Конфигурация SMTP (smtp_config.json)"
+    echo "3. Конфигурация домена (domain.conf)"
+    echo "0. Назад"
+    echo ""
+    read -p "Выберите файл: " choice
+    
+    case $choice in
+        1) ${EDITOR:-nano} config/ven_bot.json ;;
+        2) ${EDITOR:-nano} config/smtp_config.json ;;
+        3) ${EDITOR:-nano} config/domain.conf ;;
+        0) return ;;
+    esac
+}
+
+# Мониторинг системы
+system_monitor() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}            ${GREEN}Мониторинг системы${NC}                          ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    echo -e "${BLUE}[CPU и Память]${NC}"
+    top -bn1 | head -n 5
+    echo ""
+    
+    echo -e "${BLUE}[Использование диска]${NC}"
+    df -h | grep -E '^/dev/'
+    echo ""
+    
+    echo -e "${BLUE}[Сетевые подключения]${NC}"
+    ss -tunlp 2>/dev/null | grep -E ':(5000|80|443)' || echo "Нет активных подключений"
+    echo ""
+    
+    read -p "Нажмите Enter для продолжения..."
+}
+
+# Резервное копирование
+backup_data() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}          ${GREEN}Резервное копирование${NC}                        ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    BACKUP_DIR="backups"
+    mkdir -p $BACKUP_DIR
+    BACKUP_FILE="$BACKUP_DIR/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+    
+    echo -e "${YELLOW}Создание резервной копии...${NC}"
+    tar -czf $BACKUP_FILE config/ data/ 2>/dev/null
+    
+    if [ -f "$BACKUP_FILE" ]; then
+        echo -e "${GREEN}✓ Резервная копия создана: $BACKUP_FILE${NC}"
+        echo -e "${BLUE}Размер: $(du -h $BACKUP_FILE | cut -f1)${NC}"
+    else
+        echo -e "${RED}✗ Ошибка создания резервной копии${NC}"
+    fi
+    
+    read -p "Нажмите Enter для продолжения..."
+}
+
+# Основной цикл
+while true; do
+    show_menu
+    read -p "Выберите действие: " choice
+    
+    case $choice in
+        1)
+            echo -e "${YELLOW}Запуск всех сервисов...${NC}"
+            sudo systemctl start telegrambot telegramweb nginx
+            echo -e "${GREEN}✓ Все сервисы запущены${NC}"
+            sleep 2
+            ;;
+        2)
+            echo -e "${YELLOW}Остановка всех сервисов...${NC}"
+            sudo systemctl stop telegrambot telegramweb
+            echo -e "${YELLOW}✓ Все сервисы остановлены${NC}"
+            sleep 2
+            ;;
+        3)
+            echo -e "${YELLOW}Перезапуск всех сервисов...${NC}"
+            sudo systemctl restart telegrambot telegramweb nginx
+            echo -e "${GREEN}✓ Все сервисы перезапущены${NC}"
+            sleep 2
+            ;;
+        4) manage_bot ;;
+        5) manage_web ;;
+        6) view_logs ;;
+        7) setup_ssl ;;
+        8) renew_ssl ;;
+        9) edit_config ;;
+        10) system_monitor ;;
+        11) backup_data ;;
+        12)
+            read -p "Вы уверены? Это удалит ВСЕ данные! (yes/no): " confirm
+            if [ "$confirm" = "yes" ]; then
+                sudo systemctl stop telegrambot telegramweb
+                rm -rf data/* config/*.json
+                echo -e "${RED}✓ Данные удалены${NC}"
+            fi
+            sleep 2
+            ;;
+        0)
+            echo -e "${GREEN}Выход...${NC}"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Неверный выбор${NC}"
+            sleep 1
+            ;;
+    esac
+done
+MGEOF
+chmod +x manage.sh
+
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Установка завершена успешно!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "${YELLOW}Для запуска используйте:${NC}"
+echo -e "${YELLOW}Для управления используйте:${NC}"
+echo -e "  ${GREEN}./manage.sh${NC}       - панель управления (X-UI style)"
+echo ""
+echo -e "${YELLOW}Или традиционные команды:${NC}"
 echo -e "  ${GREEN}./start.sh${NC}        - интерактивный выбор"
 echo -e "  ${GREEN}./start_bot.sh${NC}    - только Telegram бот"
 echo -e "  ${GREEN}./start_web.sh${NC}    - только Web интерфейс"
 echo ""
+echo -e "${YELLOW}Управление через systemd:${NC}"
+echo -e "  ${CYAN}sudo systemctl start telegrambot${NC}   - запустить бота"
+echo -e "  ${CYAN}sudo systemctl start telegramweb${NC}   - запустить веб"
+echo -e "  ${CYAN}sudo systemctl enable telegrambot${NC}  - автозапуск бота"
+echo -e "  ${CYAN}sudo systemctl enable telegramweb${NC}  - автозапуск веб"
+echo ""
 echo -e "${YELLOW}Конфигурационные файлы:${NC}"
 echo -e "  ${GREEN}config/ven_bot.json${NC}     - настройки бота"
-echo -e "  ${GREEN}config/smtp_config.json${NC} - настройки email (опционально)"
+echo -e "  ${GREEN}config/smtp_config.json${NC} - настройки email"
+echo -e "  ${GREEN}config/domain.conf${NC}      - настройки домена/SSL"
 echo ""
-echo -e "${GREEN}Готово! Можете запускать проект.${NC}"
+echo -e "${GREEN}Готово! Запустите панель управления: ${CYAN}./manage.sh${NC}"
