@@ -553,7 +553,8 @@ show_menu() {
     echo -e "${CYAN}║${NC}  ${BLUE}9.${NC} Редактировать конфигурацию                           ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC} ${BLUE}10.${NC} Мониторинг системы                                   ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC} ${BLUE}11.${NC} Резервное копирование                                ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC} ${RED}12.${NC} Удалить все данные                                   ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} ${GREEN}12.${NC} Обновить с Git                                       ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} ${RED}13.${NC} Удалить все данные                                   ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}  ${RED}0.${NC} Выход                                                ${CYAN}║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
@@ -838,6 +839,93 @@ backup_data() {
     read -p "Нажмите Enter для продолжения..."
 }
 
+# Обновление с Git
+update_from_git() {
+    clear_screen
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}              ${GREEN}Обновление с Git${NC}                         ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    # Проверяем что находимся в git репозитории
+    if [ ! -d ".git" ]; then
+        echo -e "${RED}✗ Ошибка: Текущая директория не является git репозиторием${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    echo -e "${BLUE}Текущая ветка:${NC} $(git branch --show-current)"
+    echo -e "${BLUE}Последний коммит:${NC}"
+    git log -1 --oneline
+    echo ""
+    
+    read -p "Создать резервную копию перед обновлением? (y/n): " backup_choice
+    if [ "$backup_choice" = "y" ] || [ "$backup_choice" = "Y" ]; then
+        echo -e "${YELLOW}Создание резервной копии...${NC}"
+        BACKUP_DIR="backups"
+        mkdir -p $BACKUP_DIR
+        BACKUP_FILE="$BACKUP_DIR/backup_before_update_$(date +%Y%m%d_%H%M%S).tar.gz"
+        tar -czf $BACKUP_FILE config/ data/ 2>/dev/null
+        echo -e "${GREEN}✓ Резервная копия создана: $BACKUP_FILE${NC}"
+        echo ""
+    fi
+    
+    echo -e "${YELLOW}Проверка обновлений...${NC}"
+    git fetch origin
+    
+    CURRENT=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse origin/$(git branch --show-current))
+    
+    if [ "$CURRENT" = "$REMOTE" ]; then
+        echo -e "${GREEN}✓ Установлена последняя версия${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    echo -e "${YELLOW}Найдены обновления:${NC}"
+    git log HEAD..origin/$(git branch --show-current) --oneline
+    echo ""
+    
+    read -p "Продолжить обновление? (y/n): " confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        echo -e "${YELLOW}Обновление отменено${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    echo -e "${YELLOW}Остановка сервисов...${NC}"
+    sudo systemctl stop telegrambot telegramweb
+    
+    echo -e "${YELLOW}Загрузка обновлений...${NC}"
+    git pull origin $(git branch --show-current)
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Код обновлён${NC}"
+        
+        # Проверяем изменения в requirements.txt
+        if git diff HEAD@{1} HEAD --name-only | grep -q "requirements.txt"; then
+            echo -e "${YELLOW}Обновление Python зависимостей...${NC}"
+            source venv/bin/activate
+            pip install -r requirements.txt --upgrade
+        fi
+        
+        echo -e "${YELLOW}Запуск сервисов...${NC}"
+        sudo systemctl start telegrambot telegramweb
+        
+        echo ""
+        echo -e "${GREEN}✓ Обновление завершено успешно!${NC}"
+        echo -e "${BLUE}Новая версия:${NC}"
+        git log -1 --oneline
+    else
+        echo -e "${RED}✗ Ошибка при обновлении${NC}"
+        echo -e "${YELLOW}Восстановление сервисов...${NC}"
+        sudo systemctl start telegrambot telegramweb
+    fi
+    
+    echo ""
+    read -p "Нажмите Enter для продолжения..."
+}
+
 # Основной цикл
 while true; do
     show_menu
@@ -870,7 +958,8 @@ while true; do
         9) edit_config ;;
         10) system_monitor ;;
         11) backup_data ;;
-        12)
+        12) update_from_git ;;
+        13)
             read -p "Вы уверены? Это удалит ВСЕ данные! (yes/no): " confirm
             if [ "$confirm" = "yes" ]; then
                 sudo systemctl stop telegrambot telegramweb
