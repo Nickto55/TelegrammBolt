@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 TelegrammBolt Web Interface
 Веб-интерфейс для бота с авторизацией через Telegram
