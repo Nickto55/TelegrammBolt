@@ -96,6 +96,7 @@ def has_permission(user_id, permission):
         'add_dse': 'use_form',  # Только админы могут добавлять
         'edit_dse': 'admin',    # Только админы могут редактировать
         'delete_dse': 'admin',  # Только админы могут удалять
+        'manage_subscriptions': 'admin',  # Только админы управляют подписками
     }
     
     # Если используется веб-право, преобразуем его в право бота

@@ -2021,8 +2021,9 @@ def generate_link_code_api():
 
 @app.route('/api/subscription/status', methods=['GET'])
 @login_required
+@user_role_required(['admin'])
 def api_subscription_status():
-    """API: Получить статус подписки пользователя"""
+    """API: Получить статус подписки пользователя (только админы)"""
     try:
         user_id = session['user_id']
         
@@ -2050,8 +2051,9 @@ def api_subscription_status():
 
 @app.route('/api/subscription/add', methods=['POST'])
 @login_required
+@user_role_required(['admin'])
 def api_subscription_add():
-    """API: Добавить подписку"""
+    """API: Добавить подписку (только админы)"""
     try:
         user_id = session['user_id']
         data = request.json
@@ -2082,8 +2084,9 @@ def api_subscription_add():
 
 @app.route('/api/subscription/remove', methods=['POST'])
 @login_required
+@user_role_required(['admin'])
 def api_subscription_remove():
-    """API: Удалить подписку"""
+    """API: Удалить подписку (только админы)"""
     try:
         user_id = session['user_id']
         
@@ -2104,8 +2107,9 @@ def api_subscription_remove():
 
 @app.route('/api/subscription/toggle', methods=['POST'])
 @login_required
+@user_role_required(['admin'])
 def api_subscription_toggle():
-    """API: Переключить активность подписки"""
+    """API: Переключить активность подписки (только админы)"""
     try:
         user_id = session['user_id']
         

@@ -252,8 +252,9 @@ async def show_main_menu(update: Update, user_id: str) -> None:
     if has_permission(user_id, 'watch_dse'):  # Используем новое право
         keyboard.append([InlineKeyboardButton("👀 Отслеживание ДСЕ", callback_data='watch_dse_menu')])
 
-    # === КНОПКА 8: "🔔 Подписка на заявки" ===
-    keyboard.append([InlineKeyboardButton("🔔 Подписка на заявки", callback_data='subscription_menu')])
+    # === КНОПКА 8: "🔔 Подписка на заявки" (только для админов) ===
+    if has_permission(user_id, 'manage_subscriptions'):
+        keyboard.append([InlineKeyboardButton("🔔 Подписка на заявки", callback_data='subscription_menu')])
 
     # === КНОПКА 9: "💬 Чат по ДСЕ" ===
     if has_permission(user_id, 'chat_dse'):
@@ -2822,8 +2823,16 @@ async def show_scan_menu(update: Update, user_id: str) -> None:
 # === ФУНКЦИИ УПРАВЛЕНИЯ ПОДПИСКАМИ ===
 
 async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показать меню управления подписками"""
+    """Показать меню управления подписками (только для админов)"""
     user_id = str(update.callback_query.from_user.id)
+    
+    # Проверка прав доступа
+    if not has_permission(user_id, 'manage_subscriptions'):
+        await update.callback_query.edit_message_text(
+            "❌ Доступ запрещён\n\n"
+            "Управление подписками доступно только администраторам."
+        )
+        return
     
     from bot.subscription_manager import get_subscription, is_subscribed
     
@@ -2876,7 +2885,13 @@ async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def start_add_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Начать процесс добавления подписки"""
+    """Начать процесс добавления подписки (только админы)"""
+    user_id = str(update.callback_query.from_user.id)
+    
+    if not has_permission(user_id, 'manage_subscriptions'):
+        await update.callback_query.answer("❌ Доступ запрещён", show_alert=True)
+        return
+    
     keyboard = [
         [InlineKeyboardButton("📱 Telegram", callback_data='subscription_delivery_telegram')],
         [InlineKeyboardButton("📧 Email", callback_data='subscription_delivery_email')],
@@ -2896,8 +2911,12 @@ async def start_add_subscription(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def process_subscription_delivery_type(update: Update, context: ContextTypes.DEFAULT_TYPE, delivery_type: str) -> None:
-    """Обработать выбор типа доставки"""
+    """Обработать выбор типа доставки (только админы)"""
     user_id = str(update.callback_query.from_user.id)
+    
+    if not has_permission(user_id, 'manage_subscriptions'):
+        await update.callback_query.answer("❌ Доступ запрещён", show_alert=True)
+        return
     
     if delivery_type in ['email', 'both']:
         # Запрашиваем email
