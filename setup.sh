@@ -201,19 +201,25 @@ EOF
     # Получение SSL сертификата
     echo -e "${YELLOW}Получение SSL сертификата...${NC}"
     echo -e "${BLUE}Выберите метод получения SSL:${NC}"
-    echo "1. Автоматически через nginx (рекомендуется)"
-    echo "2. Вручную через standalone (если nginx не работает)"
-    echo "3. Пропустить SSL (использовать только HTTP)"
-    read -p "Ваш выбор (1/2/3): " SSL_METHOD
+    echo "1. Let's Encrypt через nginx (бесплатный, требует валидный домен)"
+    echo "2. Let's Encrypt через standalone (бесплатный, требует валидный домен)"
+    echo "3. Самоподписанный сертификат (для тестирования, без домена)"
+    echo "4. Пропустить SSL (использовать только HTTP)"
+    read -p "Ваш выбор (1/2/3/4): " SSL_METHOD
     
     SSL_SUCCESS=false
+    SELF_SIGNED=false
     case $SSL_METHOD in
         1)
             if sudo certbot --nginx -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive 2>&1; then
                 SSL_SUCCESS=true
             else
                 echo -e "${RED}✗ Не удалось получить SSL сертификат через nginx${NC}"
-                echo -e "${YELLOW}Попробуйте метод 2 (standalone) или проверьте DNS${NC}"
+                echo -e "${YELLOW}Попробуйте другой метод или проверьте DNS${NC}"
+                read -p "Создать самоподписанный сертификат вместо этого? (y/n): " CREATE_SELF
+                if [[ $CREATE_SELF =~ ^[Yy]$ ]]; then
+                    SSL_METHOD=3
+                fi
             fi
             ;;
         2)
@@ -251,6 +257,71 @@ EOF
             sudo systemctl start nginx
             ;;
         3)
+            echo -e "${YELLOW}Создание самоподписанного SSL сертификата...${NC}"
+            
+            # Создание директории для сертификатов
+            sudo mkdir -p /etc/ssl/telegrambot
+            
+            # Генерация приватного ключа и сертификата
+            echo -e "${BLUE}Введите информацию для сертификата (можно оставить пустым):${NC}"
+            read -p "Страна (RU): " SSL_COUNTRY
+            SSL_COUNTRY=${SSL_COUNTRY:-RU}
+            read -p "Регион/Область: " SSL_STATE
+            SSL_STATE=${SSL_STATE:-Moscow}
+            read -p "Город: " SSL_CITY
+            SSL_CITY=${SSL_CITY:-Moscow}
+            read -p "Организация: " SSL_ORG
+            SSL_ORG=${SSL_ORG:-TelegramBot}
+            
+            # Создание самоподписанного сертификата на 10 лет
+            sudo openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+                -keyout /etc/ssl/telegrambot/privkey.pem \
+                -out /etc/ssl/telegrambot/fullchain.pem \
+                -subj "/C=$SSL_COUNTRY/ST=$SSL_STATE/L=$SSL_CITY/O=$SSL_ORG/CN=$DOMAIN" 2>/dev/null
+            
+            if [ -f /etc/ssl/telegrambot/privkey.pem ] && [ -f /etc/ssl/telegrambot/fullchain.pem ]; then
+                echo -e "${GREEN}✓ Самоподписанный сертификат создан${NC}"
+                SSL_SUCCESS=true
+                SELF_SIGNED=true
+                
+                # Настройка nginx для самоподписанного сертификата
+                sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+    return 301 https://\$server_name\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name $DOMAIN;
+    
+    ssl_certificate /etc/ssl/telegrambot/fullchain.pem;
+    ssl_certificate_key /etc/ssl/telegrambot/privkey.pem;
+    
+    # Отключаем проверку для самоподписанных
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    location / {
+        proxy_pass http://127.0.0.1:$WEB_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+                sudo nginx -t && sudo systemctl reload nginx
+                
+                echo -e "${YELLOW}⚠️  ВНИМАНИЕ: Самоподписанный сертификат!${NC}"
+                echo -e "${YELLOW}Браузер покажет предупреждение о безопасности.${NC}"
+                echo -e "${YELLOW}Это нормально для самоподписанных сертификатов.${NC}"
+            else
+                echo -e "${RED}✗ Ошибка создания сертификата${NC}"
+            fi
+            ;;
+        4)
             echo -e "${YELLOW}SSL пропущен, используется только HTTP${NC}"
             ;;
     esac
@@ -261,13 +332,25 @@ DOMAIN=$DOMAIN
 SSL_EMAIL=$SSL_EMAIL
 WEB_PORT=$WEB_PORT
 SSL_ENABLED=$SSL_SUCCESS
+SELF_SIGNED=$SELF_SIGNED
 EOF
     
     if [ "$SSL_SUCCESS" = true ]; then
-        echo -e "${GREEN}✓ SSL сертификат успешно установлен для $DOMAIN${NC}"
-        echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
+        if [ "$SELF_SIGNED" = true ]; then
+            echo -e "${GREEN}✓ Самоподписанный SSL сертификат установлен для $DOMAIN${NC}"
+            echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
+            echo -e "${YELLOW}⚠️  Браузер будет предупреждать о безопасности${NC}"
+            echo -e "${YELLOW}Это нормально для самоподписанных сертификатов${NC}"
+            echo -e "${BLUE}Чтобы убрать предупреждение, добавьте сертификат в доверенные:${NC}"
+            echo -e "${CYAN}sudo cp /etc/ssl/telegrambot/fullchain.pem /usr/local/share/ca-certificates/telegrambot.crt${NC}"
+            echo -e "${CYAN}sudo update-ca-certificates${NC}"
+        else
+            echo -e "${GREEN}✓ SSL сертификат успешно установлен для $DOMAIN${NC}"
+            echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
+        fi
         
-        # Настройка автообновления SSL
+        # Настройка автообновления SSL только для Let's Encrypt
+        if [ "$SELF_SIGNED" != true ]; then
         echo -e "${YELLOW}Настройка автообновления SSL...${NC}"
         (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sudo crontab -
         echo -e "${GREEN}✓ Автообновление SSL настроено (проверка каждый день в 3:00)${NC}"
@@ -559,12 +642,21 @@ setup_ssl() {
     echo ""
     
     read -p "Введите ваш домен: " DOMAIN
-    read -p "Введите email для Let's Encrypt: " SSL_EMAIL
     read -p "Введите порт веб-интерфейса (по умолчанию 5000): " WEB_PORT
     WEB_PORT=${WEB_PORT:-5000}
     
-    # Создание конфигурации nginx
-    sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
+    echo ""
+    echo -e "${BLUE}Выберите тип SSL сертификата:${NC}"
+    echo "1. Let's Encrypt (бесплатный, требует валидный домен)"
+    echo "2. Самоподписанный (для тестирования, любой домен/IP)"
+    read -p "Ваш выбор (1/2): " SSL_TYPE
+    
+    case $SSL_TYPE in
+        1)
+            read -p "Введите email для Let's Encrypt: " SSL_EMAIL
+            
+            # Создание конфигурации nginx
+            sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
 server {
     listen 80;
     server_name $DOMAIN;
@@ -578,23 +670,86 @@ server {
     }
 }
 EOF
-    
-    sudo ln -sf /etc/nginx/sites-available/telegrambot /etc/nginx/sites-enabled/
-    sudo nginx -t && sudo systemctl reload nginx
-    
-    # Получение SSL
-    echo -e "${YELLOW}Получение SSL сертификата...${NC}"
-    sudo certbot --nginx -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive
-    
-    # Сохранение
-    cat > config/domain.conf <<EOF
+            
+            sudo ln -sf /etc/nginx/sites-available/telegrambot /etc/nginx/sites-enabled/
+            sudo nginx -t && sudo systemctl reload nginx
+            
+            # Получение SSL
+            echo -e "${YELLOW}Получение SSL сертификата от Let's Encrypt...${NC}"
+            if sudo certbot --nginx -d $DOMAIN --email $SSL_EMAIL --agree-tos --non-interactive; then
+                cat > config/domain.conf <<EOF
 DOMAIN=$DOMAIN
 SSL_EMAIL=$SSL_EMAIL
 WEB_PORT=$WEB_PORT
 SSL_ENABLED=true
+SELF_SIGNED=false
 EOF
+                echo -e "${GREEN}✓ SSL успешно настроен для $DOMAIN${NC}"
+            else
+                echo -e "${RED}✗ Ошибка получения SSL сертификата${NC}"
+            fi
+            ;;
+        2)
+            echo -e "${YELLOW}Создание самоподписанного SSL сертификата...${NC}"
+            
+            # Создание директории для сертификатов
+            sudo mkdir -p /etc/ssl/telegrambot
+            
+            # Генерация самоподписанного сертификата
+            sudo openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+                -keyout /etc/ssl/telegrambot/privkey.pem \
+                -out /etc/ssl/telegrambot/fullchain.pem \
+                -subj "/C=RU/ST=Moscow/L=Moscow/O=TelegramBot/CN=$DOMAIN" 2>/dev/null
+            
+            if [ -f /etc/ssl/telegrambot/privkey.pem ]; then
+                # Создание конфигурации nginx для SSL
+                sudo tee /etc/nginx/sites-available/telegrambot > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+    return 301 https://\$server_name\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name $DOMAIN;
     
-    echo -e "${GREEN}✓ SSL успешно настроен для $DOMAIN${NC}"
+    ssl_certificate /etc/ssl/telegrambot/fullchain.pem;
+    ssl_certificate_key /etc/ssl/telegrambot/privkey.pem;
+    
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    location / {
+        proxy_pass http://127.0.0.1:$WEB_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+                
+                sudo ln -sf /etc/nginx/sites-available/telegrambot /etc/nginx/sites-enabled/
+                sudo nginx -t && sudo systemctl reload nginx
+                
+                cat > config/domain.conf <<EOF
+DOMAIN=$DOMAIN
+WEB_PORT=$WEB_PORT
+SSL_ENABLED=true
+SELF_SIGNED=true
+EOF
+                
+                echo -e "${GREEN}✓ Самоподписанный SSL сертификат создан${NC}"
+                echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
+                echo -e "${YELLOW}⚠️  Браузер будет показывать предупреждение о безопасности${NC}"
+                echo -e "${YELLOW}Это нормально для самоподписанных сертификатов${NC}"
+            else
+                echo -e "${RED}✗ Ошибка создания сертификата${NC}"
+            fi
+            ;;
+    esac
+    
     read -p "Нажмите Enter для продолжения..."
 }
 
