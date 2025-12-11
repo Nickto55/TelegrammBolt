@@ -351,9 +351,10 @@ EOF
         
         # Настройка автообновления SSL только для Let's Encrypt
         if [ "$SELF_SIGNED" != true ]; then
-        echo -e "${YELLOW}Настройка автообновления SSL...${NC}"
-        (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sudo crontab -
-        echo -e "${GREEN}✓ Автообновление SSL настроено (проверка каждый день в 3:00)${NC}"
+            echo -e "${YELLOW}Настройка автообновления SSL...${NC}"
+            (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sudo crontab -
+            echo -e "${GREEN}✓ Автообновление SSL настроено (проверка каждый день в 3:00)${NC}"
+        fi
     else
         echo -e "${YELLOW}⚠️  SSL не установлен. Используйте: http://$DOMAIN${NC}"
     fi
