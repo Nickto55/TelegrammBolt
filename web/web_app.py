@@ -818,7 +818,16 @@ def dse_list():
     if not has_permission(user_id, 'view_dse'):
         return "Доступ запрещен", 403
     
-    dse_data = get_all_dse()
+    try:
+        dse_data = get_all_dse()
+        if not dse_data:
+            logger.info("No DSE data found, showing empty list")
+            dse_data = []
+    except Exception as e:
+        logger.error(f"Error loading DSE data: {e}")
+        dse_data = []
+        flash("Ошибка загрузки данных. Возможно, бот ещё не запускался.", "warning")
+    
     return render_template('dse_list.html', 
                          dse_data=dse_data,
                          permissions=get_user_permissions(user_id))
@@ -2006,6 +2015,27 @@ def generate_link_code_api():
 # ============================================================================
 
 if __name__ == '__main__':
+    # Чтение конфигурации домена
+    config_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'domain.conf')
+    web_port = 5000
+    domain = 'localhost'
+    
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            if key.strip() == 'WEB_PORT':
+                                web_port = int(value.strip())
+                            elif key.strip() == 'DOMAIN':
+                                domain = value.strip()
+            logger.info(f"Configuration loaded from {config_file}")
+        except Exception as e:
+            logger.warning(f"Could not read config: {e}, using defaults")
+    
     # Вывод информации о сервере при запуске
     info = get_server_url()
     
@@ -2019,14 +2049,16 @@ if __name__ == '__main__':
     if info['public_ip']:
         print(f"🌍 Public IP: {info['public_ip']}")
     print(f"🏠 Local IP: {info['local_ip']}")
-    print(f"🚪 Port: {info['port']}")
+    print(f"🚪 Port: {web_port}")
+    if domain != 'localhost':
+        print(f"🌐 Domain: {domain}")
     
     print("\n" + "="*60)
     print("✅ Server is ready!")
     print("="*60 + "\n")
     
     # Для разработки
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=web_port, debug=True)
     
     # Для production используйте gunicorn:
-    # gunicorn -w 4 -b 0.0.0.0:5000 web_app:app
+    # gunicorn -w 4 -b 0.0.0.0:{web_port} web_app:app
