@@ -683,9 +683,9 @@ def change_password_page():
     from bot.account_linking import get_web_user_by_telegram_id
     web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
     
-    if not web_user_id:
-        flash('Смена пароля доступна только для пользователей с веб-аккаунтом', 'error')
-        return redirect(url_for('profile'))
+    # if not web_user_id:
+    #     flash('Смена пароля доступна только для пользователей с веб-аккаунтом', 'error')
+    #     return redirect(url_for('profile'))
     
     return render_template('change_password.html')
 
