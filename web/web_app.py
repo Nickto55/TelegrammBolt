@@ -1762,14 +1762,16 @@ def send_test_notification_email(email, user_id):
     #     raise Exception("SMTP настройки не найдены. Настройте config/smtp_config.json")
     
     msg = MIMEMultipart()
-    msg['From'] = smtp_config.get('from_email', 'noreply@bolt.local')
+    from_name = smtp_config.get('FROM_NAME', 'BOLT Bot')
+    from_email = smtp_config.get('SMTP_USER', 'noreply@bolt.local')
+    msg['From'] = f"{from_name} <{from_email}>"
     msg['To'] = email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'html'))
     
-    server = smtplib.SMTP(smtp_config['smtp_server'], smtp_config['smtp_port'])
+    server = smtplib.SMTP(smtp_config['SMTP_SERVER'], smtp_config['SMTP_PORT'])
     server.starttls()
-    server.login(smtp_config['smtp_user'], smtp_config['smtp_password'])
+    server.login(smtp_config['SMTP_USER'], smtp_config['SMTP_PASSWORD'])
     server.send_message(msg)
     server.quit()
     
