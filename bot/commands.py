@@ -669,12 +669,10 @@ async def show_problem_types(update: Update, user_id: str) -> None:
 
 async def show_rc_types(update: Update, user_id: str) -> None:
     """Показать список рабочих центров (РЦ)"""
-    # Создаем кнопки
+    # Создаем кнопки - каждая кнопка на отдельной строке
     keyboard = []
-    for i in range(0, len(RC_TYPES), 2):  # 2 кнопки в строке
-        row = []
-        for j in range(i, min(i + 2, len(RC_TYPES))):
-            row.append(InlineKeyboardButton(RC_TYPES[j], callback_data=f'rc_{j}'))
+    for i in range(len(RC_TYPES)):  # Одна кнопка в строке
+        row = [InlineKeyboardButton(RC_TYPES[i], callback_data=f'rc_{i}')]
         keyboard.append(row)
 
     # Добавляем кнопку "Назад" (возвращаемся в меню заявки)
