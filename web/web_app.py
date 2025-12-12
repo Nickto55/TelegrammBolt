@@ -699,9 +699,9 @@ def api_change_password():
     # Проверяем, что пользователь авторизован через веб (имеет веб-аккаунт)
     web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
     
-    if not web_user_id:
-        return jsonify({'error': 'Смена пароля доступна только для пользователей с веб-аккаунтом'}), 400
-    
+    # if not web_user_id:
+    #     return jsonify({'error': 'Смена пароля доступна только для пользователей с веб-аккаунтом'}), 400
+    #
     data = request.json
     current_password = data.get('currentPassword', '')
     new_password = data.get('newPassword', '')
