@@ -2662,14 +2662,52 @@ async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 invite_code = qr_data.strip().upper()
             
             if invite_code:
-                # Используем приглашение
+                # Проверяем, зарегистрирован ли пользователь
+                from bot.user_manager import is_user_registered, get_user_data
+                
+                if not is_user_registered(user_id):
+                    # Пользователь не зарегистрирован - запускаем процесс регистрации с кодом приглашения
+                    registration_states[user_id] = {
+                        'step': 'ask_first_name',
+                        'username': user.username,
+                        'invite_code': invite_code
+                    }
+                    await update.message.reply_text(
+                        f"🎉 QR код успешно отсканирован!\n\n"
+                        f"Для завершения регистрации, пожалуйста, укажите ваше имя:"
+                    )
+                    return
+                
+                # Проверяем наличие имени и фамилии
+                user_data = get_user_data(user_id)
+                if not user_data.get('first_name') or not user_data.get('last_name'):
+                    # У пользователя нет полных данных - запрашиваем с кодом приглашения
+                    registration_states[user_id] = {
+                        'step': 'ask_first_name' if not user_data.get('first_name') else 'ask_last_name',
+                        'username': user.username,
+                        'first_name': user_data.get('first_name', ''),
+                        'invite_code': invite_code
+                    }
+                    if not user_data.get('first_name'):
+                        await update.message.reply_text(
+                            f"🎉 QR код успешно отсканирован!\n\n"
+                            f"Пожалуйста, укажите ваше имя:"
+                        )
+                    else:
+                        await update.message.reply_text(
+                            f"🎉 QR код успешно отсканирован!\n\n"
+                            f"Пожалуйста, укажите вашу фамилию:"
+                        )
+                    return
+                
+                # Пользователь полностью зарегистрирован - используем приглашение для обновления роли
                 from bot.invite_manager import use_invite
                 result = use_invite(
                     invite_code, 
                     int(user_id), 
                     user.username, 
-                    user.first_name, 
-                    user.last_name
+                    user_data.get('first_name'),
+                    user_data.get('last_name')
                 )
                 
                 if result["success"]:

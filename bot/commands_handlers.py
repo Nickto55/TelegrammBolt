@@ -392,19 +392,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 username = reg_state['username']
                 invite_code = reg_state.get('invite_code')
                 
-                # Регистрируем пользователя
-                from bot.user_manager import register_user
-                user_data = register_user(
-                    user_id,
-                    username,
-                    first_name,
-                    last_name
-                )
-                
                 # Удаляем состояние регистрации
                 del registration_states[user_id]
                 
-                # Если есть код приглашения, обрабатываем его
+                # Если есть код приглашения, используем его (он сам зарегистрирует пользователя)
                 if invite_code:
                     from bot.invite_manager import use_invite
                     result = use_invite(
@@ -423,16 +414,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             f"Добро пожаловать в систему!"
                         )
                     else:
+                        # Если приглашение не сработало, регистрируем с ролью по умолчанию
+                        from bot.user_manager import register_user
+                        register_user(user_id, username, first_name, last_name)
                         await update.message.reply_text(
-                            f"✅ Регистрация завершена!\n"
-                            f"Имя: {first_name} {last_name}\n\n"
-                            f"⚠️ Ошибка при обработке приглашения: {result['error']}"
+                            f"⚠️ Ошибка при обработке приглашения: {result['error']}\n\n"
+                            f"✅ Вы зарегистрированы с базовыми правами.\n"
+                            f"Имя: {first_name} {last_name}"
                         )
                 else:
+                    # Нет приглашения - регистрируем с ролью по умолчанию
+                    from bot.user_manager import register_user
+                    register_user(user_id, username, first_name, last_name)
                     await update.message.reply_text(
                         f"✅ Регистрация завершена!\n"
                         f"Имя: {first_name} {last_name}\n\n"
-                        f"Добро пожаловать в систему! Используйте /start для начала работы."
+                        f"Добро пожаловать в систему!"
                     )
                 
                 # Инициализируем состояние пользователя и показываем главное меню
@@ -444,7 +441,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     'rc': '',
                     'photo_file_id': None
                 }
-                await show_main_menu(update, user_id)
+                
+                # Проверяем роль и показываем соответствующее меню
+                from bot.user_manager import get_user_role
+                user_role = get_user_role(user_id)
+                if user_role == 'user':
+                    from bot.commands import show_scan_menu
+                    await show_scan_menu(update, user_id)
+                else:
+                    await show_main_menu(update, user_id)
                 return
         else:
             await update.message.reply_text(
