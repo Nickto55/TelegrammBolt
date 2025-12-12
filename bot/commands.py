@@ -2784,10 +2784,21 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         print(f"📧 Найдено подписчиков - Telegram: {len(telegram_subs)}, Email: {len(email_subs)}")
         
         # Создаём PDF отчёт
-        pdf_bytes = create_dse_pdf_report([record])
+        import tempfile
+        pdf_filename = create_dse_pdf_report(record)
         
-        if not pdf_bytes:
+        if not pdf_filename:
             print("❌ Ошибка создания PDF для подписчиков")
+            return
+        
+        # Читаем PDF в байты
+        try:
+            with open(pdf_filename, 'rb') as f:
+                pdf_bytes = f.read()
+            # Удаляем временный файл
+            os.remove(pdf_filename)
+        except Exception as e:
+            print(f"❌ Ошибка чтения PDF файла: {e}")
             return
         
         # Получаем информацию о создателе заявки
