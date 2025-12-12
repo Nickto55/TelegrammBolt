@@ -2814,10 +2814,10 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         if telegram_subs:
             print(f"📱 Отправка в Telegram {len(telegram_subs)} подписчикам...")
             for sub_user_id in telegram_subs:
-                # Не отправляем создателю заявки
-                if sub_user_id == creator_user_id:
-                    print(f"⏭️ Пропускаем создателя заявки: {sub_user_id}")
-                    continue
+                # Временно отключена проверка на создателя для тестирования
+                # if sub_user_id == creator_user_id:
+                #     print(f"⏭️ Пропускаем создателя заявки: {sub_user_id}")
+                #     continue
                 
                 print(f"📤 Отправка подписчику {sub_user_id}...")
                 try:
@@ -2853,10 +2853,10 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
                 from bot.email_manager import send_dse_report_email
                 
                 for sub_info in email_subs:
-                    # Не отправляем создателю заявки
-                    if sub_info['user_id'] == creator_user_id:
-                        print(f"⏭️ Пропускаем создателя заявки (Email): {sub_info['user_id']}")
-                        continue
+                    # Временно отключена проверка на создателя для тестирования
+                    # if sub_info['user_id'] == creator_user_id:
+                    #     print(f"⏭️ Пропускаем создателя заявки (Email): {sub_info['user_id']}")
+                    #     continue
                     
                     email = sub_info['email']
                     if email:
