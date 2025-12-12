@@ -1727,7 +1727,6 @@ def calculate_activity_days(user_id):
 
 def send_test_notification_email(email, user_id):
     """Отправка тестового уведомления на email"""
-    from bot.email_manager import send_email_with_pdf
     
     # Создание тестового сообщения
     subject = "BOLT - Тестовое уведомление"
