@@ -268,6 +268,81 @@ def get_all_web_users():
     return linking_data["web_users"]
 
 
+def admin_change_password(web_user_id, new_password_hash):
+    """
+    Изменить пароль веб-пользователя администратором (без проверки старого пароля)
+    Возвращает словарь с результатом операции
+    """
+    linking_data = load_linking_data()
+    
+    if web_user_id not in linking_data["web_users"]:
+        return {"success": False, "error": "Пользователь не найден"}
+    
+    # Меняем пароль
+    linking_data["web_users"][web_user_id]["password_hash"] = new_password_hash
+    linking_data["web_users"][web_user_id]["password_changed_at"] = datetime.now().isoformat()
+    linking_data["web_users"][web_user_id]["password_changed_by_admin"] = True  # Отмечаем что админ менял пароль
+    
+    save_linking_data(linking_data)
+    
+    return {"success": True, "message": "Пароль успешно изменен администратором"}
+
+
+def admin_update_email(web_user_id, new_email):
+    """
+    Изменить email веб-пользователя администратором
+    Возвращает словарь с результатом операции
+    """
+    linking_data = load_linking_data()
+    
+    if web_user_id not in linking_data["web_users"]:
+        return {"success": False, "error": "Пользователь не найден"}
+    
+    # Проверяем, не занят ли уже такой email
+    for wid, wuser in linking_data["web_users"].items():
+        if wid != web_user_id and wuser.get("email") == new_email:
+            return {"success": False, "error": "Email уже используется другим пользователем"}
+    
+    # Меняем email
+    old_email = linking_data["web_users"][web_user_id]["email"]
+    linking_data["web_users"][web_user_id]["email"] = new_email
+    linking_data["web_users"][web_user_id]["email_changed_at"] = datetime.now().isoformat()
+    
+    save_linking_data(linking_data)
+    
+    return {"success": True, "message": f"Email успешно изменен с {old_email} на {new_email}"}
+
+
+def admin_create_web_user(email, password_hash, first_name, last_name=None, role="initiator"):
+    """
+    Создать веб-пользователя администратором
+    Возвращает web_user_id или None в случае ошибки
+    """
+    linking_data = load_linking_data()
+    
+    # Проверяем, есть ли уже пользователь с таким email
+    for wid, wuser in linking_data["web_users"].items():
+        if wuser.get("email") == email:
+            return None  # Email уже занят
+    
+    # Генерируем уникальный ID для веб-пользователя
+    web_user_id = f"web_{int(datetime.now().timestamp())}"
+    
+    linking_data["web_users"][web_user_id] = {
+        "email": email,
+        "password_hash": password_hash,
+        "first_name": first_name,
+        "last_name": last_name,
+        "created_at": datetime.now().isoformat(),
+        "telegram_id": None,  # Еще не привязан
+        "role": role,
+        "created_by_admin": True  # Отмечаем что создан админом
+    }
+    
+    save_linking_data(linking_data)
+    return web_user_id
+
+
 def change_password(web_user_id, old_password_hash, new_password_hash):
     """
     Сменить пароль веб-пользователя
