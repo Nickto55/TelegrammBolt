@@ -1835,7 +1835,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         save_data(data_dict, DATA_FILE)
         
         # Отправляем PDF подписчикам
-        await send_dse_to_subscribers(context.application, record, user_id)
+        print(f"📨 Вызов send_dse_to_subscribers для заявки ДСЕ: {record.get('dse')}")
+        try:
+            await send_dse_to_subscribers(context.application, record, user_id)
+        except Exception as e:
+            print(f"❌ Ошибка при вызове send_dse_to_subscribers: {e}")
+            import traceback
+            traceback.print_exc()
         
         # Очищаем данные пользователя
         user_states[user_id] = {
@@ -2716,6 +2722,8 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         record: данные созданной заявки
         creator_user_id: ID пользователя создавшего заявку
     """
+    print(f"🔔 send_dse_to_subscribers вызвана для ДСЕ: {record.get('dse')}")
+    
     try:
         from bot.subscription_manager import get_telegram_subscribers, get_email_subscribers
         from bot.pdf_generator import create_dse_pdf_report
@@ -2723,23 +2731,35 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         import tempfile
         import os
         
+        if not application:
+            print("❌ Application не передан в send_dse_to_subscribers")
+            return
+        
         # Получаем подписчиков
         telegram_subs = get_telegram_subscribers()
         email_subs = get_email_subscribers()
         
         if not telegram_subs and not email_subs:
+            print("ℹ️ Нет активных подписчиков для рассылки")
             return  # Нет подписчиков
+        
+        print(f"📧 Найдено подписчиков - Telegram: {len(telegram_subs)}, Email: {len(email_subs)}")
         
         # Создаём PDF отчёт
         pdf_bytes = create_dse_pdf_report([record])
         
         if not pdf_bytes:
-            print("Ошибка создания PDF для подписчиков")
+            print("❌ Ошибка создания PDF для подписчиков")
             return
         
         # Получаем информацию о создателе заявки
         creator_info = get_user_data(creator_user_id)
-        creator_name = creator_info.get('name', f"ID: {creator_user_id}") if creator_info else f"ID: {creator_user_id}"
+        if creator_info:
+            creator_name = f"{creator_info.get('first_name', '')} {creator_info.get('last_name', '')}".strip()
+            if not creator_name:
+                creator_name = creator_info.get('username', f"ID: {creator_user_id}")
+        else:
+            creator_name = f"ID: {creator_user_id}"
         
         # Формируем текст уведомления
         notification_text = (
@@ -2753,45 +2773,56 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         )
         
         # Отправка в Telegram
-        for sub_user_id in telegram_subs:
-            # Не отправляем создателю заявки
-            if sub_user_id == creator_user_id:
-                continue
-            
-            try:
-                # Сохраняем PDF во временный файл
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                    tmp_file.write(pdf_bytes)
-                    tmp_path = tmp_file.name
+        if telegram_subs:
+            print(f"📱 Отправка в Telegram {len(telegram_subs)} подписчикам...")
+            for sub_user_id in telegram_subs:
+                # Не отправляем создателю заявки
+                if sub_user_id == creator_user_id:
+                    print(f"⏭️ Пропускаем создателя заявки: {sub_user_id}")
+                    continue
                 
-                # Отправляем PDF как документ
-                await application.bot.send_document(
-                    chat_id=int(sub_user_id),
-                    document=open(tmp_path, 'rb'),
-                    filename=f"DSE_{record.get('dse', 'report')}.pdf",
-                    caption=notification_text,
-                    parse_mode='Markdown'
-                )
-                
-                # Удаляем временный файл
-                os.unlink(tmp_path)
-                
-                print(f"✅ PDF отправлен подписчику {sub_user_id} (Telegram)")
-            except Exception as e:
-                print(f"❌ Ошибка отправки PDF подписчику {sub_user_id}: {e}")
+                print(f"📤 Отправка подписчику {sub_user_id}...")
+                try:
+                    # Сохраняем PDF во временный файл
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                        tmp_file.write(pdf_bytes)
+                        tmp_path = tmp_file.name
+                    
+                    # Отправляем PDF как документ
+                    await application.bot.send_document(
+                        chat_id=int(sub_user_id),
+                        document=open(tmp_path, 'rb'),
+                        filename=f"DSE_{record.get('dse', 'report')}.pdf",
+                        caption=notification_text,
+                        parse_mode='Markdown'
+                    )
+                    
+                    # Удаляем временный файл
+                    os.unlink(tmp_path)
+                    
+                    print(f"✅ PDF отправлен подписчику {sub_user_id} (Telegram)")
+                except Exception as e:
+                    print(f"❌ Ошибка отправки PDF подписчику {sub_user_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+        else:
+            print("ℹ️ Нет подписчиков Telegram")
         
         # Отправка на Email
         if email_subs:
+            print(f"📧 Отправка Email {len(email_subs)} подписчикам...")
             try:
                 from bot.email_manager import send_dse_report_email
                 
                 for sub_info in email_subs:
                     # Не отправляем создателю заявки
                     if sub_info['user_id'] == creator_user_id:
+                        print(f"⏭️ Пропускаем создателя заявки (Email): {sub_info['user_id']}")
                         continue
                     
                     email = sub_info['email']
                     if email:
+                        print(f"📤 Отправка Email на {email}...")
                         try:
                             send_dse_report_email(
                                 recipient_email=email,
@@ -2801,10 +2832,16 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
                             print(f"✅ PDF отправлен подписчику {sub_info['user_id']} (Email: {email})")
                         except Exception as e:
                             print(f"❌ Ошибка отправки Email подписчику {email}: {e}")
-            except ImportError:
-                print("⚠️ Email manager недоступен, пропускаем email отправку")
+                            import traceback
+                            traceback.print_exc()
+            except ImportError as e:
+                print(f"⚠️ Email manager недоступен: {e}")
             except Exception as e:
                 print(f"❌ Ошибка email отправки подписчикам: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("ℹ️ Нет подписчиков Email")
     
     except Exception as e:
         print(f"❌ Ошибка отправки подписчикам: {e}")
