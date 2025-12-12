@@ -410,3 +410,102 @@ def format_email_list_for_display(emails: List[str]) -> str:
         return emails[0]
     
     return "\n".join([f"  {i+1}. {email}" for i, email in enumerate(emails)])
+
+
+def send_dse_report_email(recipient_email: str, dse_data: List[Dict], subject: str = "Новая заявка ДСЕ") -> bool:
+    """
+    Отправить PDF отчёт ДСЕ на email
+    
+    Args:
+        recipient_email: Email получателя
+        dse_data: Список данных ДСЕ
+        subject: Тема письма
+    
+    Returns:
+        True если успешно, False при ошибке
+    """
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.base import MIMEBase
+    from email import encoders
+    import tempfile
+    import os
+    from datetime import datetime
+    
+    try:
+        from config.config import SMTP_SETTINGS, is_smtp_configured
+        from bot.pdf_generator import create_dse_pdf_report
+        
+        if not is_smtp_configured():
+            print("❌ SMTP не настроен")
+            return False
+        
+        # Создаём PDF
+        if not dse_data or len(dse_data) == 0:
+            print("❌ Нет данных для создания PDF")
+            return False
+        
+        record = dse_data[0]
+        pdf_filename = create_dse_pdf_report(record)
+        
+        if not pdf_filename or not os.path.exists(pdf_filename):
+            print("❌ Ошибка создания PDF для email")
+            return False
+        
+        # Настройки SMTP
+        smtp_server = SMTP_SETTINGS["SMTP_SERVER"]
+        smtp_port = SMTP_SETTINGS["SMTP_PORT"]
+        smtp_user = SMTP_SETTINGS["SMTP_USER"]
+        smtp_password = SMTP_SETTINGS["SMTP_PASSWORD"]
+        
+        # Создаём сообщение
+        msg = MIMEMultipart()
+        msg['From'] = f"{SMTP_SETTINGS['FROM_NAME']} <{smtp_user}>"
+        msg['To'] = recipient_email
+        msg['Subject'] = subject
+        
+        # Тело письма
+        body = (
+            f"Здравствуйте!\n\n"
+            f"Создана новая заявка ДСЕ:\n\n"
+            f"📋 ДСЕ: {record.get('dse', 'N/A')}\n"
+            f"⚠️ Тип проблемы: {record.get('problem_type', 'N/A')}\n"
+            f"🏭 РЦ: {record.get('rc', 'N/A')}\n"
+            f"📅 Дата: {record.get('datetime', 'N/A')}\n\n"
+            f"PDF отчёт прикреплён к письму.\n\n"
+            f"С уважением,\n{SMTP_SETTINGS['FROM_NAME']}"
+        )
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        # Прикрепляем PDF
+        with open(pdf_filename, "rb") as attachment:
+            part = MIMEBase('application', 'pdf')
+            part.set_payload(attachment.read())
+        
+        encoders.encode_base64(part)
+        pdf_name = f"DSE_{record.get('dse', 'report')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        part.add_header('Content-Disposition', f'attachment; filename="{pdf_name}"')
+        msg.attach(part)
+        
+        # Отправляем
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.set_debuglevel(0)
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_user, recipient_email, msg.as_string())
+        server.quit()
+        
+        # Удаляем временный PDF
+        try:
+            os.remove(pdf_filename)
+        except:
+            pass
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Ошибка отправки email: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
