@@ -494,10 +494,17 @@ def telegram_auth():
                 auth_data.get('last_name', '')
             )
         
+        # Проверяем роль пользователя
+        user_role = get_user_role(user_id)
+        if user_role == 'user':
+            return jsonify({
+                'error': 'Доступ запрещён. У вас базовая роль. Обратитесь к администратору для получения прав доступа.'
+            }), 403
+        
         # Сохранение данных в сессию
         session.permanent = True
         session['user_id'] = user_id
-        session['user_role'] = get_user_role(user_id)
+        session['user_role'] = user_role
         session['first_name'] = auth_data.get('first_name', '')
         session['last_name'] = auth_data.get('last_name', '')
         session['username'] = auth_data.get('username', '')
@@ -678,38 +685,67 @@ def profile():
 @app.route('/change-password')
 @login_required
 def change_password_page():
-    """Страница смены пароля"""
-    # Проверяем, что пользователь авторизован через веб (имеет веб-аккаунт)
+    """Страница смены/создания пароля"""
+    # Проверяем роль - пользователи с role='user' не должны иметь доступ
+    from bot.user_manager import get_user_role
+    user_role = get_user_role(session['user_id'])
+    
+    if user_role == 'user':
+        flash('Доступ запрещён. Обратитесь к администратору.', 'error')
+        return redirect(url_for('logout'))
+    
+    # Проверяем есть ли уже веб-аккаунт
     from bot.account_linking import get_web_user_by_telegram_id
     web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
     
-    # if not web_user_id:
-    #     flash('Смена пароля доступна только для пользователей с веб-аккаунтом', 'error')
-    #     return redirect(url_for('profile'))
+    has_password = bool(web_user_id and web_user_data and web_user_data.get('password_hash'))
+    current_username = web_user_data.get('email', '') if web_user_data else ''
     
-    return render_template('change_password.html')
+    return render_template('change_password.html', 
+                         has_password=has_password,
+                         current_username=current_username)
 
 
 @app.route('/api/profile/change-password', methods=['POST'])
 @login_required
 def api_change_password():
-    """API: Смена пароля пользователя"""
-    from bot.account_linking import get_web_user_by_telegram_id, change_password
+    """API: Смена/создание пароля пользователя"""
+    from bot.user_manager import get_user_role
+    from bot.account_linking import get_web_user_by_telegram_id, create_or_update_web_credentials
+    import hashlib
     
-    # Проверяем, что пользователь авторизован через веб (имеет веб-аккаунт)
-    web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
+    # Проверяем роль
+    user_role = get_user_role(session['user_id'])
+    if user_role == 'user':
+        return jsonify({'error': 'Доступ запрещён'}), 403
     
-    # if not web_user_id:
-    #     return jsonify({'error': 'Смена пароля доступна только для пользователей с веб-аккаунтом'}), 400
-    #
     data = request.json
+    username = data.get('username', '').strip()
     current_password = data.get('currentPassword', '')
     new_password = data.get('newPassword', '')
     
-    if not current_password or not new_password:
-        return jsonify({'error': 'Необходимо указать текущий и новый пароль'}), 400
+    if not username or not new_password:
+        return jsonify({'error': 'Необходимо указать логин и новый пароль'}), 400
     
-    result = change_password(web_user_id, current_password, new_password)
+    # Проверяем существующий веб-аккаунт
+    web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
+    
+    # Если есть веб-аккаунт с паролем, проверяем старый пароль
+    if web_user_data and web_user_data.get('password_hash'):
+        if not current_password:
+            return jsonify({'error': 'Необходимо указать текущий пароль'}), 400
+        
+        current_hash = hashlib.sha256(current_password.encode()).hexdigest()
+        if web_user_data['password_hash'] != current_hash:
+            return jsonify({'error': 'Неверный текущий пароль'}), 400
+    
+    # Создаём/обновляем креды
+    new_password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    result = create_or_update_web_credentials(
+        session['user_id'],
+        username,
+        new_password_hash
+    )
     
     if result['success']:
         return jsonify({'success': True, 'message': result['message']})

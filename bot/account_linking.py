@@ -346,16 +346,21 @@ def admin_create_web_user(email, password_hash, first_name, last_name=None, role
 def change_password(web_user_id, old_password_hash, new_password_hash):
     """
     Сменить пароль веб-пользователя
+    Если web_user_id = None, создаёт новый веб-аккаунт
     Возвращает словарь с результатом операции
     """
     linking_data = load_linking_data()
+    
+    # Если пользователя нет и старый пароль пуст - создаём новый аккаунт
+    if web_user_id is None or (web_user_id not in linking_data["web_users"] and old_password_hash == ""):
+        return {"success": False, "error": "Используйте функцию создания аккаунта"}
     
     if web_user_id not in linking_data["web_users"]:
         return {"success": False, "error": "Пользователь не найден"}
     
     # Проверяем старый пароль
-    current_password_hash = linking_data["web_users"][web_user_id]["password_hash"]
-    if current_password_hash != old_password_hash:
+    current_password_hash = linking_data["web_users"][web_user_id].get("password_hash", "")
+    if current_password_hash and current_password_hash != old_password_hash:
         return {"success": False, "error": "Неверный текущий пароль"}
     
     # Меняем пароль
@@ -365,3 +370,64 @@ def change_password(web_user_id, old_password_hash, new_password_hash):
     save_linking_data(linking_data)
     
     return {"success": True, "message": "Пароль успешно изменен"}
+
+
+def create_or_update_web_credentials(telegram_id, username, password_hash, email=None):
+    """
+    Создать или обновить веб-креды для Telegram пользователя
+    Позволяет любому пользователю (кроме role='user') создать логин/пароль
+    
+    Args:
+        telegram_id: ID пользователя в Telegram
+        username: желаемый логин
+        password_hash: хеш пароля
+        email: опциональный email
+    
+    Returns:
+        dict: результат операции
+    """
+    from bot.user_manager import get_user_role, get_user_data
+    
+    # Проверяем роль пользователя
+    user_role = get_user_role(telegram_id)
+    if user_role == 'user':
+        return {"success": False, "error": "Пользователи с ролью 'user' не могут создавать веб-аккаунты"}
+    
+    linking_data = load_linking_data()
+    
+    # Проверяем не занят ли логин
+    for web_user_id, web_user in linking_data["web_users"].items():
+        if web_user.get("email") == username and web_user.get("telegram_id") != str(telegram_id):
+            return {"success": False, "error": f"Логин '{username}' уже занят другим пользователем"}
+    
+    # Ищем существующий веб-аккаунт для этого Telegram ID
+    existing_web_user_id = None
+    for web_user_id, web_user in linking_data["web_users"].items():
+        if web_user.get("telegram_id") == str(telegram_id):
+            existing_web_user_id = web_user_id
+            break
+    
+    if existing_web_user_id:
+        # Обновляем существующий аккаунт
+        linking_data["web_users"][existing_web_user_id]["email"] = username
+        linking_data["web_users"][existing_web_user_id]["password_hash"] = password_hash
+        linking_data["web_users"][existing_web_user_id]["password_changed_at"] = datetime.now().isoformat()
+        save_linking_data(linking_data)
+        return {"success": True, "message": "Логин и пароль обновлены", "web_user_id": existing_web_user_id}
+    else:
+        # Создаём новый веб-аккаунт
+        user_data = get_user_data(telegram_id)
+        web_user_id = f"web_{int(datetime.now().timestamp())}"
+        
+        linking_data["web_users"][web_user_id] = {
+            "email": username,
+            "password_hash": password_hash,
+            "first_name": user_data.get('first_name', '') if user_data else '',
+            "last_name": user_data.get('last_name', '') if user_data else '',
+            "created_at": datetime.now().isoformat(),
+            "telegram_id": str(telegram_id),
+            "role": user_role
+        }
+        
+        save_linking_data(linking_data)
+        return {"success": True, "message": "Веб-аккаунт создан", "web_user_id": web_user_id}
