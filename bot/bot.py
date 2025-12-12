@@ -7,7 +7,8 @@ import os
 # Добавляем корневую директорию проекта в sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from bot.commands import start, button_handler, handle_message, cancel_photo_command, createwebuser_command, scan_command, invite_command, link_command, qr_photo_handler
+from bot.commands import start, button_handler, cancel_photo_command, createwebuser_command, scan_command, invite_command, link_command, qr_photo_handler
+from bot.commands_handlers import handle_message
 from bot.dse_watcher import load_watched_dse_data, start_watcher_job
 from config.config import BOT_TOKEN
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
