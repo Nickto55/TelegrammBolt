@@ -854,6 +854,155 @@ def delete_user(user_id):
         return jsonify({'error': f'Ошибка удаления: {str(e)}'}), 500
 
 
+@app.route('/api/users/<user_id>/credentials', methods=['PUT'])
+@login_required
+def update_user_credentials(user_id):
+    """API: Обновление учетных данных пользователя (только для админов)"""
+    admin_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(admin_id) != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    data = request.json
+    new_email = data.get('email')
+    new_password = data.get('password')
+    
+    # Получаем веб-пользователя по Telegram ID
+    from bot.account_linking import get_web_user_by_telegram_id, admin_update_email, admin_change_password
+    web_user_id, web_user_data = get_web_user_by_telegram_id(user_id)
+    
+    if not web_user_id:
+        return jsonify({'error': 'У пользователя нет веб-аккаунта'}), 404
+    
+    try:
+        changes_made = []
+        
+        # Обновление email если указан
+        if new_email:
+            email_result = admin_update_email(web_user_id, new_email)
+            if not email_result['success']:
+                return jsonify({'error': email_result['error']}), 400
+            changes_made.append(f"email изменен на {new_email}")
+        
+        # Обновление пароля если указан
+        if new_password:
+            import hashlib
+            password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+            password_result = admin_change_password(web_user_id, password_hash)
+            if not password_result['success']:
+                return jsonify({'error': password_result['error']}), 400
+            changes_made.append("пароль изменен")
+        
+        if not changes_made:
+            return jsonify({'error': 'Нет данных для обновления'}), 400
+        
+        # Логируем изменение учетных данных
+        log_permission_change(
+            admin_id=admin_id,
+            target_user_id=user_id,
+            old_role=get_user_role(user_id),  # Не изменяем роль
+            new_role=get_user_role(user_id),
+            old_permissions=[],  # Не изменяем права
+            new_permissions=[f"credentials_updated: {', '.join(changes_made)}"]
+        )
+        
+        logger.info(f"Admin {admin_id} updated credentials for user {user_id}: {', '.join(changes_made)}")
+        return jsonify({'success': True, 'message': f'Учетные данные обновлены: {", ".join(changes_made)}'})
+        
+    except Exception as e:
+        logger.error(f"Error updating credentials for user {user_id}: {e}")
+        return jsonify({'error': f'Ошибка обновления учетных данных: {str(e)}'}), 500
+
+
+@app.route('/api/users/<user_id>/credentials/info', methods=['GET'])
+@login_required
+def get_user_credentials_info(user_id):
+    """API: Получение информации об учетных данных пользователя (только для админов)"""
+    admin_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(admin_id) != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    try:
+        # Получаем веб-пользователя по Telegram ID
+        from bot.account_linking import get_web_user_by_telegram_id
+        web_user_id, web_user_data = get_web_user_by_telegram_id(user_id)
+        
+        if not web_user_id:
+            return jsonify({'success': False, 'error': 'У пользователя нет веб-аккаунта'}), 404
+        
+        return jsonify({
+            'success': True,
+            'web_user_id': web_user_id,
+            'email': web_user_data.get('email', ''),
+            'first_name': web_user_data.get('first_name', ''),
+            'last_name': web_user_data.get('last_name', ''),
+            'role': web_user_data.get('role', 'initiator')
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting credentials info for user {user_id}: {e}")
+        return jsonify({'error': f'Ошибка получения информации об учетных данных: {str(e)}'}), 500
+
+
+@app.route('/api/users/credentials/create', methods=['POST'])
+@login_required
+def create_user_credentials():
+    """API: Создание учетных данных для пользователя (только для админов)"""
+    admin_id = session['user_id']
+    
+    # Проверка прав администратора
+    if get_user_role(admin_id) != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    data = request.json
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    first_name = data.get('first_name', '').strip()
+    last_name = data.get('last_name', '').strip()
+    telegram_user_id = data.get('telegram_user_id')  # Опционально - для привязки к существующему Telegram аккаунту
+    role = data.get('role', 'initiator')
+    
+    if not email or not password or not first_name:
+        return jsonify({'error': 'Заполните обязательные поля: email, пароль, имя'}), 400
+    
+    try:
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        # Создаем веб-пользователя
+        from bot.account_linking import admin_create_web_user, get_all_web_users
+        web_user_id = admin_create_web_user(email, password_hash, first_name, last_name, role)
+        
+        if not web_user_id:
+            return jsonify({'error': 'Email уже используется другим пользователем'}), 400
+        
+        # Если указан Telegram ID, привязываем к нему
+        if telegram_user_id:
+            from bot.account_linking import load_linking_data, save_linking_data
+            linking_data = load_linking_data()
+            linking_data["web_users"][web_user_id]["telegram_id"] = telegram_user_id
+            
+            # Также обновляем роль в основной системе пользователей
+            from bot.user_manager import set_user_role
+            set_user_role(telegram_user_id, role)
+            
+            save_linking_data(linking_data)
+        
+        logger.info(f"Admin {admin_id} created web user {web_user_id} with email {email}")
+        return jsonify({
+            'success': True, 
+            'message': 'Веб-аккаунт создан успешно',
+            'web_user_id': web_user_id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating web user: {e}")
+        return jsonify({'error': f'Ошибка создания веб-аккаунта: {str(e)}'}), 500
+
+
 @app.route('/dse')
 @login_required
 @user_role_required(['admin', 'responder', 'initiator'])

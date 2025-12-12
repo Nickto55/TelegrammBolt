@@ -1,4 +1,4 @@
-```
+```python
 # Compiled and build artifacts
 *.pyc
 __pycache__/
@@ -6,6 +6,7 @@ __pycache__/
 # Dependencies
 .venv/
 venv/
+node_modules/
 
 # Logs and temp files
 *.log
@@ -15,12 +16,23 @@ venv/
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
 # Editors
 .vscode/
 .idea/
 
-# Original rules preserved
-*.log
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Python cache
+.mypy_cache/
+.pytest_cache/
 ```
