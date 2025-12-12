@@ -675,6 +675,48 @@ def profile():
                          subscription=user_subscription)
 
 
+@app.route('/change-password')
+@login_required
+def change_password_page():
+    """Страница смены пароля"""
+    # Проверяем, что пользователь авторизован через веб (имеет веб-аккаунт)
+    from bot.account_linking import get_web_user_by_telegram_id
+    web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
+    
+    if not web_user_id:
+        flash('Смена пароля доступна только для пользователей с веб-аккаунтом', 'error')
+        return redirect(url_for('profile'))
+    
+    return render_template('change_password.html')
+
+
+@app.route('/api/profile/change-password', methods=['POST'])
+@login_required
+def api_change_password():
+    """API: Смена пароля пользователя"""
+    from bot.account_linking import get_web_user_by_telegram_id, change_password
+    
+    # Проверяем, что пользователь авторизован через веб (имеет веб-аккаунт)
+    web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
+    
+    if not web_user_id:
+        return jsonify({'error': 'Смена пароля доступна только для пользователей с веб-аккаунтом'}), 400
+    
+    data = request.json
+    current_password = data.get('currentPassword', '')
+    new_password = data.get('newPassword', '')
+    
+    if not current_password or not new_password:
+        return jsonify({'error': 'Необходимо указать текущий и новый пароль'}), 400
+    
+    result = change_password(web_user_id, current_password, new_password)
+    
+    if result['success']:
+        return jsonify({'success': True, 'message': result['message']})
+    else:
+        return jsonify({'success': False, 'error': result['error']}), 400
+
+
 @app.route('/api/profile/email-subscription', methods=['POST'])
 @login_required
 def update_email_subscription():

@@ -266,3 +266,27 @@ def get_all_web_users():
     """Получить всех веб-пользователей"""
     linking_data = load_linking_data()
     return linking_data["web_users"]
+
+
+def change_password(web_user_id, old_password_hash, new_password_hash):
+    """
+    Сменить пароль веб-пользователя
+    Возвращает словарь с результатом операции
+    """
+    linking_data = load_linking_data()
+    
+    if web_user_id not in linking_data["web_users"]:
+        return {"success": False, "error": "Пользователь не найден"}
+    
+    # Проверяем старый пароль
+    current_password_hash = linking_data["web_users"][web_user_id]["password_hash"]
+    if current_password_hash != old_password_hash:
+        return {"success": False, "error": "Неверный текущий пароль"}
+    
+    # Меняем пароль
+    linking_data["web_users"][web_user_id]["password_hash"] = new_password_hash
+    linking_data["web_users"][web_user_id]["password_changed_at"] = datetime.now().isoformat()
+    
+    save_linking_data(linking_data)
+    
+    return {"success": True, "message": "Пароль успешно изменен"}
