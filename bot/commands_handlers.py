@@ -471,6 +471,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 from .chat_manager import handle_chat_message
                 await handle_chat_message(update, context)
                 return
+            else:
+                # Если пользователь отправил фото, но не в режиме ожидания фото
+                await update.message.reply_text(
+                    "ℹ️ Чтобы прикрепить фото к заявке, сначала нажмите кнопку 'Фото' в меню заявки."
+                )
+                return
         
         # Обработка текстовых сообщений
         if update.message.text:

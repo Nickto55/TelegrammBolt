@@ -2597,11 +2597,19 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик фото с QR кодами"""
+    """Обработчик фото с QR кодами (только для роли 'user')"""
     user_id = str(update.effective_user.id)
     user = update.effective_user
     
     if not update.message.photo:
+        return
+    
+    # Проверяем роль пользователя - QR коды сканируем только для роли 'user'
+    user_role = get_user_role(user_id)
+    if user_role != 'user':
+        # Для других ролей передаем обработку в handle_message из commands_handlers
+        from bot.commands_handlers import handle_message as commands_handler_message
+        await commands_handler_message(update, context)
         return
     
     try:
