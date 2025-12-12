@@ -49,6 +49,14 @@ def register_user(user_id, username, first_name, last_name):
             'registered': True
         }
         save_users_data(users_data)
+    else:
+        # Обновляем данные существующего пользователя
+        users_data[user_id]['username'] = username
+        if first_name:
+            users_data[user_id]['first_name'] = first_name
+        if last_name:
+            users_data[user_id]['last_name'] = last_name
+        save_users_data(users_data)
 
     return users_data[user_id]
 

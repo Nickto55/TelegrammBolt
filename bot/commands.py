@@ -30,6 +30,7 @@ print(str(os.urandom(32)))
 user_states = {}
 admin_states = {}  # Для отслеживания состояния админских операций
 dse_view_states = {}  # Для отслеживания состояния просмотра ДСЕ
+registration_states = {}  # Для отслеживания процесса регистрации
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -47,53 +48,71 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         pass
 
     # Проверяем параметры команды start (для приглашений)
+    invite_code = None
     if context.args:
         start_param = context.args[0]
         
         # Обработка приглашения
         if start_param.startswith('invite_'):
-            from bot.invite_manager import parse_invite_from_start_command, use_invite
+            from bot.invite_manager import parse_invite_from_start_command
             invite_code = parse_invite_from_start_command(start_param)
-            
-            if invite_code:
-                # Используем приглашение
-                result = use_invite(
-                    invite_code, 
-                    int(user_id), 
-                    user.username, 
-                    user.first_name, 
-                    user.last_name
-                )
-                
-                if result["success"]:
-                    await update.message.reply_text(
-                        f"🎉 {result['message']}\n\n"
-                        f"Добро пожаловать в систему! Теперь вы можете пользоваться ботом."
-                    )
-                    # Показываем главное меню
-                    user_states[user_id] = {
-                        'application': '',
-                        'dse': '',
-                        'problem_type': '',
-                        'description': '',
-                        'rc': '',
-                        'photo_file_id': None
-                    }
-                    await show_main_menu(update, user_id)
-                    return
-                else:
-                    await update.message.reply_text(f"❌ {result['error']}")
-                    return
 
-    # Регистрируем пользователя
-    user_data = register_user(
-        user_id,
-        user.username,
-        user.first_name,
-        user.last_name
-    )
+    # Проверяем, зарегистрирован ли пользователь
+    from bot.user_manager import is_user_registered, get_user_data
+    
+    if not is_user_registered(user_id):
+        # Пользователь не зарегистрирован - начинаем процесс регистрации
+        registration_states[user_id] = {
+            'step': 'ask_first_name',
+            'username': user.username,
+            'invite_code': invite_code
+        }
+        await update.message.reply_text(
+            "👋 Добро пожаловать!\n\n"
+            "Для регистрации в системе, пожалуйста, укажите ваше имя:"
+        )
+        return
+    
+    # Проверяем наличие имени и фамилии
+    user_data = get_user_data(user_id)
+    if not user_data.get('first_name') or not user_data.get('last_name'):
+        # У пользователя нет полных данных - запрашиваем
+        registration_states[user_id] = {
+            'step': 'ask_first_name' if not user_data.get('first_name') else 'ask_last_name',
+            'username': user.username,
+            'first_name': user_data.get('first_name', ''),
+            'invite_code': invite_code
+        }
+        if not user_data.get('first_name'):
+            await update.message.reply_text(
+                "Пожалуйста, укажите ваше имя:"
+            )
+        else:
+            await update.message.reply_text(
+                "Пожалуйста, укажите вашу фамилию:"
+            )
+        return
 
-    print(f"📥 {user.first_name} ({get_user_role(user_id)}): /start")
+    # Если есть код приглашения, обрабатываем его
+    if invite_code:
+        from bot.invite_manager import use_invite
+        result = use_invite(
+            invite_code, 
+            int(user_id), 
+            user.username, 
+            user_data.get('first_name'),
+            user_data.get('last_name')
+        )
+        
+        if result["success"]:
+            await update.message.reply_text(
+                f"🎉 {result['message']}\n\n"
+                f"Добро пожаловать в систему! Теперь вы можете пользоваться ботом."
+            )
+        else:
+            await update.message.reply_text(f"❌ {result['error']}")
+
+    print(f"📥 {user_data.get('first_name', 'Unknown')} ({get_user_role(user_id)}): /start")
 
     # Получаем роль пользователя
     user_role = get_user_role(user_id)
@@ -649,13 +668,10 @@ async def show_dse_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def show_problem_types(update: Update, user_id: str) -> None:
     """Показать список типов проблем"""
-    # Создаем кнопки
+    # Создаем кнопки столбиком (по одной в строке)
     keyboard = []
-    for i in range(0, len(PROBLEM_TYPES), 3):  # 3 кнопки в строке
-        row = []
-        for j in range(i, min(i + 3, len(PROBLEM_TYPES))):
-            row.append(InlineKeyboardButton(PROBLEM_TYPES[j], callback_data=f'problem_{j}'))
-        keyboard.append(row)
+    for i in range(len(PROBLEM_TYPES)):
+        keyboard.append([InlineKeyboardButton(PROBLEM_TYPES[i], callback_data=f'problem_{i}')])
 
     # Добавляем кнопку "Назад" (возвращаемся в меню заявки)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='back_to_application')])

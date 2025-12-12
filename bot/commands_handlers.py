@@ -7,7 +7,7 @@ from datetime import datetime as dt
 # Добавляем корневую директорию проекта в sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from bot.commands import show_main_menu, user_states, show_application_menu, show_problem_types, show_rc_types, \
+from bot.commands import show_main_menu, user_states, registration_states, show_application_menu, show_problem_types, show_rc_types, \
     show_dse_list_menu, show_all_dse_records, start_interactive_dse_search, select_dse_from_search, start_dse_search, \
     show_dse_statistics, show_admin_menu, show_users_list, start_change_role_process, admin_states, start_data_export, \
     send_file_to_chat, request_email_address, test_smtp_connection, show_nicknames_menu, show_users_for_nickname, \
@@ -368,6 +368,89 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """Обработчик текстовых сообщений и фото"""
     user = update.effective_user
     user_id = str(user.id)
+    
+    # === ОБРАБОТКА РЕГИСТРАЦИИ ===
+    if user_id in registration_states:
+        if update.message.text:
+            text = update.message.text.strip()
+            reg_state = registration_states[user_id]
+            
+            if reg_state['step'] == 'ask_first_name':
+                # Сохраняем имя
+                registration_states[user_id]['first_name'] = text
+                registration_states[user_id]['step'] = 'ask_last_name'
+                await update.message.reply_text(
+                    f"✅ Спасибо, {text}!\n\n"
+                    "Теперь укажите вашу фамилию:"
+                )
+                return
+            
+            elif reg_state['step'] == 'ask_last_name':
+                # Сохраняем фамилию и завершаем регистрацию
+                last_name = text
+                first_name = reg_state['first_name']
+                username = reg_state['username']
+                invite_code = reg_state.get('invite_code')
+                
+                # Регистрируем пользователя
+                from bot.user_manager import register_user
+                user_data = register_user(
+                    user_id,
+                    username,
+                    first_name,
+                    last_name
+                )
+                
+                # Удаляем состояние регистрации
+                del registration_states[user_id]
+                
+                # Если есть код приглашения, обрабатываем его
+                if invite_code:
+                    from bot.invite_manager import use_invite
+                    result = use_invite(
+                        invite_code, 
+                        int(user_id), 
+                        username, 
+                        first_name,
+                        last_name
+                    )
+                    
+                    if result["success"]:
+                        await update.message.reply_text(
+                            f"🎉 {result['message']}\n\n"
+                            f"✅ Регистрация завершена!\n"
+                            f"Имя: {first_name} {last_name}\n\n"
+                            f"Добро пожаловать в систему!"
+                        )
+                    else:
+                        await update.message.reply_text(
+                            f"✅ Регистрация завершена!\n"
+                            f"Имя: {first_name} {last_name}\n\n"
+                            f"⚠️ Ошибка при обработке приглашения: {result['error']}"
+                        )
+                else:
+                    await update.message.reply_text(
+                        f"✅ Регистрация завершена!\n"
+                        f"Имя: {first_name} {last_name}\n\n"
+                        f"Добро пожаловать в систему! Используйте /start для начала работы."
+                    )
+                
+                # Инициализируем состояние пользователя и показываем главное меню
+                user_states[user_id] = {
+                    'application': '',
+                    'dse': '',
+                    'problem_type': '',
+                    'description': '',
+                    'rc': '',
+                    'photo_file_id': None
+                }
+                await show_main_menu(update, user_id)
+                return
+        else:
+            await update.message.reply_text(
+                "⚠️ Пожалуйста, отправьте текстовое сообщение."
+            )
+            return
     
     # Проверяем, ожидается ли ввод данных
     if user_id in user_states:
