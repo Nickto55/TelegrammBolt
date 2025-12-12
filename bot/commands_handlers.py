@@ -502,6 +502,55 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await show_application_menu(update, user_id)
                 return
             
+            # === ПОДПИСКА НА ЗАЯВКИ ===
+            elif user_data.get('waiting_for') == 'subscription_email':
+                import re
+                email = text.strip()
+                # Простая валидация email
+                email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                
+                if re.match(email_pattern, email):
+                    from bot.subscription_manager import add_subscription
+                    from bot.commands import show_subscription_menu
+                    delivery_type = user_data.get('subscription_delivery', 'email')
+                    
+                    if add_subscription(user_id, delivery_type, email):
+                        user_states[user_id].pop('waiting_for', None)
+                        user_states[user_id].pop('subscription_delivery', None)
+                        
+                        delivery_text = {
+                            'email': 'на Email',
+                            'both': 'в Telegram и на Email'
+                        }.get(delivery_type, 'на Email')
+                        
+                        await update.message.reply_text(
+                            f"✅ Подписка успешно создана!\n\n"
+                            f"Email: {email}\n"
+                            f"Доставка: {delivery_text}\n\n"
+                            f"Теперь вы будете автоматически получать PDF отчёт всех новых заявок."
+                        )
+                        # Показываем меню подписок через callback-обёртку
+                        from telegram import Update as TelegramUpdate
+                        # Создаём фиктивный callback_query для show_subscription_menu
+                        class FakeQuery:
+                            def __init__(self, user_id):
+                                self.from_user = type('obj', (object,), {'id': int(user_id)})
+                            async def edit_message_text(self, *args, **kwargs):
+                                await update.message.reply_text(*args, **kwargs)
+                            async def answer(self, *args, **kwargs):
+                                pass
+                        
+                        fake_update = type('obj', (object,), {'callback_query': FakeQuery(user_id)})()
+                        await show_subscription_menu(fake_update, context)
+                    else:
+                        await update.message.reply_text("❌ Ошибка создания подписки. Попробуйте позже.")
+                else:
+                    await update.message.reply_text(
+                        "❌ Некорректный email адрес.\n\n"
+                        "Введите корректный email:"
+                    )
+                return
+            
             # === ПОИСК ДСЕ ===
             elif user_id in dse_view_states:
                 dse_state = dse_view_states[user_id]
