@@ -145,38 +145,80 @@ start_web_terminal() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
     echo ""
     
-    echo -e "${RED}⚠ ВАЖНО: Для работы веб-терминала ОБЯЗАТЕЛЬНО нужен Gunicorn!${NC}"
-    echo -e "${YELLOW}  Python встроенный сервер НЕ поддерживает WebSocket${NC}"
-    echo ""
-    
     # Проверка виртуального окружения
     if [ ! -d "$VENV_DIR" ]; then
-        echo -e "${RED}✗ Виртуальное окружение не найдено${NC}"
-        echo -e "${YELLOW}  Создаём виртуальное окружение...${NC}"
+        echo -e "${YELLOW}Виртуальное окружение не найдено. Создаём...${NC}"
         python3 -m venv $VENV_DIR
+        echo -e "${GREEN}✓ Виртуальное окружение создано${NC}"
     fi
     
     # Активация виртуального окружения
     source $VENV_DIR/bin/activate
     
-    # Проверка зависимостей
-    echo -e "${YELLOW}Проверка зависимостей...${NC}"
-    if ! pip show flask-socketio &>/dev/null || ! pip show eventlet &>/dev/null || ! pip show gunicorn &>/dev/null; then
-        echo -e "${YELLOW}Установка недостающих зависимостей...${NC}"
-        pip install -q flask-socketio python-socketio eventlet ptyprocess gunicorn
+    # Проверка и установка зависимостей
+    echo -e "${CYAN}Проверка зависимостей для веб-терминала...${NC}"
+    
+    MISSING_DEPS=()
+    
+    if ! pip show flask-socketio &>/dev/null; then
+        MISSING_DEPS+=("flask-socketio")
     fi
+    
+    if ! pip show python-socketio &>/dev/null; then
+        MISSING_DEPS+=("python-socketio")
+    fi
+    
+    if ! pip show eventlet &>/dev/null; then
+        MISSING_DEPS+=("eventlet")
+    fi
+    
+    if ! pip show ptyprocess &>/dev/null; then
+        MISSING_DEPS+=("ptyprocess")
+    fi
+    
+    if ! pip show gunicorn &>/dev/null; then
+        MISSING_DEPS+=("gunicorn")
+    fi
+    
+    if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Недостающие пакеты: ${MISSING_DEPS[*]}${NC}"
+        echo -e "${YELLOW}Установка зависимостей...${NC}"
+        pip install -q --upgrade pip
+        pip install -q flask-socketio python-socketio eventlet ptyprocess gunicorn
+        echo -e "${GREEN}✓ Все зависимости установлены${NC}"
+    else
+        echo -e "${GREEN}✓ Все зависимости уже установлены${NC}"
+    fi
+    
+    echo ""
     
     # Остановка старых процессов (включая systemd сервис)
     echo -e "${YELLOW}Остановка старых процессов...${NC}"
     sudo systemctl stop telegramweb 2>/dev/null
     sudo lsof -ti:5000 | xargs -r kill -9 2>/dev/null
     sleep 1
+    echo -e "${GREEN}✓ Старые процессы остановлены${NC}"
+    echo ""
     
     # Запуск Gunicorn с eventlet
-    echo -e "${GREEN}Запуск сервера...${NC}"
+    echo -e "${GREEN}Запуск сервера с поддержкой WebSocket...${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${WHITE}Веб-интерфейс: ${GREEN}http://0.0.0.0:5000${NC}"
-    echo -e "${WHITE}Веб-терминал:  ${GREEN}http://0.0.0.0:5000/terminal${NC}"
+    
+    # Получаем IP адрес сервера
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    HOSTNAME=$(hostname)
+    
+    echo -e "${WHITE}Сервер запущен на порту: ${GREEN}5000${NC}"
+    echo ""
+    echo -e "${YELLOW}Откройте в браузере один из адресов:${NC}"
+    echo -e "  ${GREEN}http://${SERVER_IP}:5000${NC}"
+    if [ ! -z "$HOSTNAME" ]; then
+        echo -e "  ${GREEN}http://${HOSTNAME}:5000${NC}"
+    fi
+    echo -e "  ${GREEN}http://localhost:5000${NC} ${YELLOW}(если на этом же компьютере)${NC}"
+    echo ""
+    echo -e "${CYAN}Веб-терминал:${NC}"
+    echo -e "  ${GREEN}http://${SERVER_IP}:5000/terminal${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Для остановки нажмите Ctrl+C${NC}"
     echo ""
