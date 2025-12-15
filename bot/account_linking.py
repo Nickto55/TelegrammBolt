@@ -412,7 +412,10 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
         linking_data["web_users"][existing_web_user_id]["email"] = username
         linking_data["web_users"][existing_web_user_id]["password_hash"] = password_hash
         linking_data["web_users"][existing_web_user_id]["password_changed_at"] = datetime.now().isoformat()
+        
+        # ВАЖНО: Сохраняем изменения!
         save_linking_data(linking_data)
+        
         return {"success": True, "message": "Логин и пароль обновлены", "web_user_id": existing_web_user_id}
     else:
         # Создаём новый веб-аккаунт

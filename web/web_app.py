@@ -439,32 +439,40 @@ def log_permission_change(admin_id, target_user_id, old_role, new_role, old_perm
 
 
 def load_email_subscriptions():
-    """Загрузка подписок на email"""
-    subscriptions_file = 'email_subscriptions.json'
-    if os.path.exists(subscriptions_file):
-        try:
-            with open(subscriptions_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
+    """Загрузка подписок на email из subscription_manager"""
+    from bot.subscription_manager import load_subscriptions
+    
+    subscriptions = load_subscriptions()
+    # Конвертируем формат для обратной совместимости
+    result = {}
+    for user_id, data in subscriptions.items():
+        if data.get('active') and data.get('delivery_type') in ['email', 'both']:
+            result[user_id] = {
+                'enabled': True,
+                'email': data.get('email', ''),
+                'updated_at': data.get('created_at', '')
+            }
+    return result
 
 
 def save_email_subscription(user_id, enabled, email):
-    """Сохранение подписки на email"""
-    subscriptions_file = 'email_subscriptions.json'
-    subscriptions = load_email_subscriptions()
+    """Сохранение подписки на email через subscription_manager"""
+    from bot.subscription_manager import add_subscription, remove_subscription
     
-    subscriptions[user_id] = {
-        'enabled': enabled,
-        'email': email,
-        'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    }
-    
-    with open(subscriptions_file, 'w', encoding='utf-8') as f:
-        json.dump(subscriptions, f, indent=2, ensure_ascii=False)
-    
-    logger.info(f"Email подписка обновлена для пользователя {user_id}: enabled={enabled}, email={email}")
+    if enabled:
+        # Добавляем/обновляем подписку с типом 'email'
+        success = add_subscription(user_id, delivery_type='email', email=email)
+        if success:
+            logger.info(f"Email подписка включена для пользователя {user_id}: email={email}")
+        else:
+            logger.error(f"Ошибка включения email подписки для пользователя {user_id}")
+    else:
+        # Удаляем подписку
+        success = remove_subscription(user_id)
+        if success:
+            logger.info(f"Email подписка отключена для пользователя {user_id}")
+        else:
+            logger.info(f"Подписка для пользователя {user_id} не найдена или уже отключена")
 
 
 # ============================================================================
