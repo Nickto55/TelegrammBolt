@@ -454,14 +454,16 @@ async def handle_responder_confirmation(update: Update, context: ContextTypes.DE
         initiator_user_id = dse_chat_states[initiator_user_id][
             'target_user_id']  # Это должно быть равно responder_user_id
 
+        # ВАЖНО: Сохраняем dse_value ДО перезаписи dse_chat_states
+        dse_value = dse_chat_states[initiator_user_id].get('dse', 'Unknown')
+
+        # Очищаем временное состояние поиска (теперь безопасно)
         dse_chat_states[initiator_user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
                                     'target_candidates': {}}
 
-        dse_value = dse_chat_states[initiator_user_id]['dse']
-
         # Устанавливаем активный чат со статусом 'active'
-        active_chats[initiator_user_id] = {'partner_id': target_user_id, 'status': 'active'}
-        active_chats[target_user_id] = {'partner_id': initiator_user_id, 'status': 'active'}
+        active_chats[initiator_user_id] = {'partner_id': target_user_id, 'status': 'active', 'dse': dse_value}
+        active_chats[target_user_id] = {'partner_id': initiator_user_id, 'status': 'active', 'dse': dse_value}
 
         # Очищаем временное состояние поиска
         del dse_chat_states[initiator_user_id]
