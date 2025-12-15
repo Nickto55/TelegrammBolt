@@ -682,7 +682,11 @@ async def handle_chat_callbacks(update: Update, context: ContextTypes.DEFAULT_TY
     elif callback_data.startswith('dse_chat_select_target_'):
         await handle_target_selection(update, context)
     
-    # Обработка принятия/отклонения респондента
+    # Обработка принятия/отклонения респондента (с ID пользователя)
+    elif callback_data.startswith('dse_chat_confirm_responder_') or callback_data.startswith('dse_chat_decline_responder_'):
+        await handle_responder_confirmation(update, context)
+    
+    # Обработка принятия/отклонения респондента (старый формат)
     elif callback_data.startswith('dse_chat_accept_') or callback_data.startswith('dse_chat_decline_'):
         await handle_responder_confirmation(update, context)
     
