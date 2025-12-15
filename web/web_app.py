@@ -2795,7 +2795,7 @@ if __name__ == '__main__':
     
     # Для разработки и тестирования (с поддержкой WebSocket)
     # В продакшене используйте Gunicorn через manage.sh (опция 6)
-    print("⚠️  WARNING: Используется встроенный сервер Werkzeug")
+    print(" WARNING: Используется встроенный сервер Werkzeug")
     print("   Для продакшена запустите через: ./manage.sh (опция 6)")
     print("   Или: gunicorn --worker-class eventlet -w 1 -b 0.0.0.0:{} web.web_app:app\n".format(web_port))
     
