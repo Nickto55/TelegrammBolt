@@ -2184,7 +2184,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         from .chat_manager import handle_responder_confirmation
         await handle_responder_confirmation(update, context)
     
-    elif data in ['chat_end', 'chat_back']:
+    elif data in ['chat_pause', 'chat_resume', 'chat_end', 'chat_back']:
         from .chat_manager import handle_chat_control
         await handle_chat_control(update, context)
     

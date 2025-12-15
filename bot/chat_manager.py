@@ -697,9 +697,5 @@ async def handle_chat_callbacks(update: Update, context: ContextTypes.DEFAULT_TY
             del dse_chat_states[user_id]
         await query.edit_message_text("❌ Операция отменена.")
     
-    # Управление чатом (пауза, продолжение, завершение)
-    elif callback_data in ['chat_pause', 'chat_resume', 'chat_end', 'chat_back']:
-        await handle_chat_control(update, context)
-    
     else:
         await query.edit_message_text(f"❌ Неизвестная команда: {callback_data}")
