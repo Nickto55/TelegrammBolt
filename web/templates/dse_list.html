@@ -107,17 +107,20 @@
                         <table class="table table-hover table-striped mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width: 10%;">ДСЕ</th>
-                                    <th style="width: 20%;">Тип проблемы</th>
-                                    <th style="width: 35%;">Описание</th>
-                                    <th style="width: 15%;">Пользователь</th>
-                                    <th style="width: 15%;">Дата</th>
+                                    <th style="width: 8%;">ДСЕ</th>
+                                    <th style="width: 15%;">Тип проблемы</th>
+                                    <th style="width: 8%;">Станок</th>
+                                    <th style="width: 12%;">Наладчик</th>
+                                    <th style="width: 12%;">Программист</th>
+                                    <th style="width: 25%;">Описание</th>
+                                    <th style="width: 10%;">Пользователь</th>
+                                    <th style="width: 10%;">Дата</th>
                                     <th style="width: 5%;">Действия</th>
                                 </tr>
                             </thead>
                             <tbody id="dseTableBody">
                                 <tr>
-                                    <td colspan="6" class="text-center py-4">
+                                    <td colspan="9" class="text-center py-4">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">Загрузка...</span>
                                         </div>
@@ -273,7 +276,7 @@ function displayTableView() {
     const pageData = filteredData.slice(start, end);
     
     if (pageData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Нет данных для отображения</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Нет данных для отображения</td></tr>';
         return;
     }
     
@@ -281,7 +284,10 @@ function displayTableView() {
         <tr>
             <td><strong>${item.dse || '-'}</strong></td>
             <td><span class="badge bg-info">${item.problem_type || 'Не указано'}</span></td>
-            <td>${truncateText(item.description || 'Без описания', 80)}</td>
+            <td>${item.machine_number || '-'}</td>
+            <td><small>${item.installer_fio || '-'}</small></td>
+            <td><small>${item.programmer_name || '-'}</small></td>
+            <td>${truncateText(item.description || 'Без описания', 60)}</td>
             <td><small>ID: ${item.user_id || '-'}</small></td>
             <td><small>${item.datetime || '-'}</small></td>
             <td>
@@ -316,6 +322,9 @@ function displayCardView() {
                     </h6>
                     <p class="card-text">${truncateText(item.description || 'Без описания', 100)}</p>
                     <div class="text-muted small">
+                        <div><i class="bi bi-gear"></i> Станок: ${item.machine_number || '-'}</div>
+                        <div><i class="bi bi-person-badge"></i> Наладчик: ${item.installer_fio || '-'}</div>
+                        <div><i class="bi bi-code-slash"></i> Программист: ${item.programmer_name || '-'}</div>
                         <div><i class="bi bi-person"></i> ID: ${item.user_id || '-'}</div>
                         <div><i class="bi bi-calendar"></i> ${item.datetime || '-'}</div>
                     </div>
@@ -422,7 +431,7 @@ function exportToExcel() {
 
 function showError(message) {
     const tbody = document.getElementById('dseTableBody');
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${message}</td></tr>`;
 }
 </script>
 {% endblock %}

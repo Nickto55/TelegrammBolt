@@ -44,14 +44,15 @@ def create_invite(admin_id, role, expires_hours=168, note=""):
     """
     Создать приглашение
     :param admin_id: ID администратора создающего приглашение
-    :param role: Роль которая будет назначена (не может быть 'admin')
+    :param role: Роль которая будет назначена (только 'initiator' или 'responder')
     :param expires_hours: Количество часов до истечения (по умолчанию 7 дней)
     :param note: Заметка для приглашения
     :return: dict с кодом приглашения и данными
     """
-    # Проверяем что роль валидна и не admin
-    if role not in ROLES or role == 'admin':
-        return {"success": False, "error": "Недопустимая роль для приглашения"}
+    # QR коды могут добавлять только инициаторов и ответчиков
+    allowed_roles = ['initiator', 'responder']
+    if role not in allowed_roles:
+        return {"success": False, "error": f"QR коды могут создавать только роли: {', '.join(allowed_roles)}"}
     
     invites_data = load_invites_data()
     
@@ -84,9 +85,13 @@ def generate_qr_code(invite_code, format='PNG'):
     :param format: Формат изображения ('PNG', 'JPEG')
     :return: Base64 encoded изображение или путь к файлу
     """
+    # Получаем информацию о приглашении для включения роли
+    invite_info = get_invite_info(invite_code)
+    role_suffix = f"_{invite_info.get('role', '')}" if invite_info else ""
+    
     # URL для сканирования (используем имя бота из конфига)
     from config.config import BOT_USERNAME
-    invite_url = f"https://t.me/{BOT_USERNAME}?start=invite_{invite_code}"
+    invite_url = f"https://t.me/{BOT_USERNAME}?start=invite_{invite_code}{role_suffix}"
     
     # Создаем QR код
     qr = qrcode.QRCode(

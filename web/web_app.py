@@ -687,6 +687,79 @@ def admin_auth():
         return jsonify({'error': 'Ошибка авторизации'}), 500
 
 
+@app.route('/auth/qr', methods=['POST'])
+def qr_auth():
+    """Обработка авторизации через QR код приглашения"""
+    try:
+        auth_data = request.json
+        invite_code = auth_data.get('invite_code', '').strip().upper()
+        
+        if not invite_code:
+            return jsonify({'error': 'Код приглашения не указан'}), 400
+        
+        # Проверяем и используем приглашение
+        from bot.invite_manager import use_invite, get_invite_info
+        
+        # Сначала проверяем, существует ли приглашение
+        invite_info = get_invite_info(invite_code)
+        if not invite_info:
+            return jsonify({'error': 'Неверный код приглашения'}), 404
+        
+        if invite_info.get('used'):
+            return jsonify({'error': 'Код приглашения уже использован'}), 400
+        
+        # Генерируем временный user_id для веб-пользователя
+        import uuid
+        temp_user_id = f'web_{uuid.uuid4().hex[:8]}'
+        
+        # Используем приглашение
+        result = use_invite(
+            invite_code,
+            temp_user_id,
+            username='',
+            first_name='Веб-пользователь',
+            last_name=''
+        )
+        
+        if not result.get('success'):
+            return jsonify({'error': result.get('message', 'Ошибка активации приглашения')}), 400
+        
+        # Регистрируем пользователя
+        register_user(temp_user_id, '', 'Веб-пользователь', '')
+        
+        # Устанавливаем роль из приглашения
+        from bot.user_manager import set_user_role
+        assigned_role = result.get('role', 'user')  # Роль из приглашения
+        set_user_role(temp_user_id, assigned_role)
+        
+        # Сохранение данных в сессию
+        session.permanent = True
+        session['user_id'] = temp_user_id
+        session['user_role'] = assigned_role  # Роль из приглашения
+        session['first_name'] = 'Веб-пользователь'
+        session['last_name'] = ''
+        session['username'] = ''
+        session['photo_url'] = ''
+        session['auth_type'] = 'qr'
+        session['telegram_linked'] = False  # Telegram не подключен
+        
+        logger.info(f"User {temp_user_id} logged in via QR code: {invite_code}")
+        
+        redirect_url = url_for('dashboard')
+        
+        return jsonify({
+            'success': True,
+            'redirect': redirect_url,
+            'message': 'Вход выполнен. Для получения полных прав подключите Telegram аккаунт.'
+        })
+    
+    except Exception as e:
+        logger.error(f"QR auth error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Ошибка авторизации через QR код'}), 500
+
+
 @app.route('/logout')
 def logout():
     """Выход из системы"""
@@ -706,10 +779,6 @@ def dashboard():
         user_id = session['user_id']
         user_role = session.get('user_role', get_user_role(user_id))
         logger.info(f"Dashboard access by user_id: {user_id}, role: {user_role}")
-        
-        # Пользователи с ролью 'user' перенаправляются на страницу сканирования QR
-        if user_role == 'user':
-            return redirect(url_for('scan_invite_page'))
         
         # Получаем данные пользователя из сессии и user_manager
         users_data = get_users_data()
@@ -763,7 +832,8 @@ def dashboard():
         return render_template('dashboard.html', 
                              user=user_data,
                              stats=stats,
-                             permissions=get_user_permissions(user_id))
+                             permissions=get_user_permissions(user_id),
+                             bot_username=get_bot_username())
     
     except Exception as e:
         logger.error(f"Dashboard error: {e}", exc_info=True)
@@ -923,10 +993,24 @@ def update_user_permissions(user_id):
     if not new_role or new_role not in ROLES:
         return jsonify({'error': 'Некорректная роль'}), 400
     
-    # Получение старых данных для логирования
+    # Проверяем, является ли пользователь веб-пользователем без Telegram
     users = get_users_data()
-    old_role = users.get(user_id, {}).get('role', 'user')
-    old_permissions = users.get(user_id, {}).get('permissions', [])
+    target_user = users.get(user_id, {})
+    
+    # Если user_id начинается с 'web_' - это пользователь, вошедший через QR код
+    if user_id.startswith('web_'):
+        # Проверяем, подключен ли Telegram
+        # Если нет подключенного Telegram аккаунта, ограничиваем роли initiator/responder
+        allowed_web_roles = ['user', 'initiator', 'responder']
+        if new_role not in allowed_web_roles:
+            return jsonify({
+                'error': 'Невозможно назначить роль администратора пользователю без подключенного Telegram аккаунта. '
+                         'Доступные роли: Инициатор, Ответчик. Для роли администратора требуется подключение Telegram.'
+            }), 400
+    
+    # Получение старых данных для логирования
+    old_role = target_user.get('role', 'user')
+    old_permissions = target_user.get('permissions', [])
     
     # Обновление роли
     set_user_role(user_id, new_role)
@@ -1231,6 +1315,9 @@ def create_dse():
             problem_type = request.form.get('problem_type', '').strip()
             rc = request.form.get('rc', '').strip()
             description = request.form.get('description', '').strip()
+            machine_number = request.form.get('machine_number', '').strip()
+            installer_fio = request.form.get('installer_fio', '').strip()
+            programmer_name = request.form.get('programmer_name', '').strip()
             
             # Валидация
             if not dse_number:
@@ -1247,6 +1334,27 @@ def create_dse():
                                      rc_types=RC_TYPES,
                                      permissions=get_user_permissions(user_id))
             
+            if not machine_number:
+                return render_template('create_dse.html',
+                                     error="Номер станка обязателен",
+                                     problem_types=PROBLEM_TYPES,
+                                     rc_types=RC_TYPES,
+                                     permissions=get_user_permissions(user_id))
+            
+            if not installer_fio:
+                return render_template('create_dse.html',
+                                     error="ФИО Наладчика обязательно",
+                                     problem_types=PROBLEM_TYPES,
+                                     rc_types=RC_TYPES,
+                                     permissions=get_user_permissions(user_id))
+            
+            if not programmer_name:
+                return render_template('create_dse.html',
+                                     error="ФИО Программиста обязательно",
+                                     problem_types=PROBLEM_TYPES,
+                                     rc_types=RC_TYPES,
+                                     permissions=get_user_permissions(user_id))
+            
             # Создаем запись
             from datetime import datetime
             record = {
@@ -1254,6 +1362,9 @@ def create_dse():
                 'problem_type': problem_type,
                 'rc': rc,
                 'description': description,
+                'machine_number': machine_number,
+                'installer_fio': installer_fio,
+                'programmer_name': programmer_name,
                 'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'user_id': user_id,
                 'photo_file_id': None,

@@ -76,6 +76,48 @@
                             <small class="form-text text-muted">Необязательное поле</small>
                         </div>
 
+                        <!-- Номер станка -->
+                        <div class="mb-3">
+                            <label for="machine_number" class="form-label fw-bold">
+                                <i class="bi bi-gear"></i> Номер станка <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="machine_number" 
+                                   name="machine_number" 
+                                   placeholder="Введите номер станка" 
+                                   required>
+                            <small class="form-text text-muted">Обязательное поле</small>
+                        </div>
+
+                        <!-- ФИО Наладчика -->
+                        <div class="mb-3">
+                            <label for="installer_fio" class="form-label fw-bold">
+                                <i class="bi bi-person-badge"></i> ФИО Наладчика <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="installer_fio" 
+                                   name="installer_fio" 
+                                   placeholder="Введите ФИО наладчика" 
+                                   required>
+                            <small class="form-text text-muted">Обязательное поле</small>
+                        </div>
+
+                        <!-- ФИО Программиста -->
+                        <div class="mb-3">
+                            <label for="programmer_name" class="form-label fw-bold">
+                                <i class="bi bi-code-slash"></i> ФИО Программиста <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="programmer_name" 
+                                   name="programmer_name" 
+                                   placeholder="Введите ФИО программиста" 
+                                   required>
+                            <small class="form-text text-muted">Обязательное поле</small>
+                        </div>
+
                         <!-- Описание -->
                         <div class="mb-3">
                             <label for="description" class="form-label fw-bold">
@@ -112,6 +154,9 @@
                     <ul>
                         <li><strong>Номер ДСЕ</strong> - уникальный идентификатор заявки</li>
                         <li><strong>Тип проблемы</strong> - категория проблемы из предопределенного списка</li>
+                        <li><strong>Номер станка</strong> - номер станка, где возникла проблема</li>
+                        <li><strong>ФИО Наладчика</strong> - полное имя наладчика</li>
+                        <li><strong>ФИО Программиста</strong> - полное имя программиста</li>
                     </ul>
                     
                     <h6 class="mt-3">Необязательные поля:</h6>

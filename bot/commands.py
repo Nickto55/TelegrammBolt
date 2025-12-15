@@ -422,10 +422,31 @@ async def show_dse_record_detail(update: Update, context: ContextTypes.DEFAULT_T
         keyboard = [[InlineKeyboardButton("↩️ Назад к списку", callback_data='dse_view_all_0')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        # Если есть фото, отправляем его вместе с текстом
-        if record.get('photo_path'):
+        # Проверяем наличие фото (photo_file_id или photo_path)
+        photo_file_id = record.get('photo_file_id')
+        photo_path = record.get('photo_path')
+        
+        has_photo = False
+        
+        # Сначала пробуем отправить по file_id из Telegram
+        if photo_file_id:
             try:
-                photo_path = record['photo_path']
+                await update.callback_query.message.reply_photo(
+                    photo=photo_file_id,
+                    caption=text,
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                # Удаляем предыдущее сообщение
+                await update.callback_query.message.delete()
+                has_photo = True
+                return
+            except Exception as e:
+                logger.error(f"Ошибка при отправке фото по file_id {photo_file_id}: {e}")
+        
+        # Если file_id не сработал, пробуем локальный путь
+        if not has_photo and photo_path:
+            try:
                 if os.path.exists(photo_path):
                     with open(photo_path, 'rb') as photo:
                         await update.callback_query.message.reply_photo(
@@ -436,9 +457,10 @@ async def show_dse_record_detail(update: Update, context: ContextTypes.DEFAULT_T
                         )
                     # Удаляем предыдущее сообщение
                     await update.callback_query.message.delete()
+                    has_photo = True
                     return
             except Exception as e:
-                logger.error(f"Ошибка при отправке фото: {e}")
+                logger.error(f"Ошибка при отправке фото по пути {photo_path}: {e}")
         
         # Если фото нет или была ошибка, отправляем только текст
         await update.callback_query.edit_message_text(
@@ -562,41 +584,102 @@ async def show_records_for_dse(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.callback_query.edit_message_text(f"❌ Нет записей для ДСЕ: {dse_value.upper()}")
         return
 
-    # Создаем текст с деталями первой записи (или всех записей)
+    # Если только одна запись - показываем детально с фото
+    if len(records) == 1:
+        record = records[0]
+        text = f"📄 *Запись для ДСЕ: {dse_value.upper()}*\n\n"
+        text += f"📝 *Тип проблемы:* {record.get('problem_type', 'Не указано')}\n"
+        text += f"🏭 *РЦ:* {record.get('rc', 'Не указано')}\n"
+        text += f"🔧 *Номер станка:* {record.get('machine_number', 'Не указано')}\n"
+        text += f"👤 *ФИО Наладчика:* {record.get('installer_fio', 'Не указано')}\n"
+        text += f"💻 *ФИО Программиста:* {record.get('programmer_name', 'Не указано')}\n"
+        text += f"📅 *Дата:* {record.get('datetime', 'Не указано')}\n"
+        
+        if record.get('description'):
+            text += f"\n📄 *Описание:*\n{record['description']}\n"
+        
+        user_id = record.get('user_id', 'Неизвестно')
+        if user_id != 'Неизвестно':
+            user_display = get_user_display_name(user_id)
+            text += f"\n👤 *Пользователь:* {user_display}\n"
+
+        keyboard = [
+            [InlineKeyboardButton("↩️ Назад к поиску", callback_data='dse_search_interactive')],
+            [InlineKeyboardButton("📋 Все записи", callback_data='dse_view_all')],
+            [InlineKeyboardButton("⬅️ В меню", callback_data='view_dse_list')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        # Проверяем наличие фото
+        photo_file_id = record.get('photo_file_id')
+        photo_path = record.get('photo_path')
+        
+        # Пробуем отправить с фото
+        if photo_file_id:
+            try:
+                await update.callback_query.message.reply_photo(
+                    photo=photo_file_id,
+                    caption=text,
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                await update.callback_query.message.delete()
+                return
+            except Exception as e:
+                logger.error(f"Ошибка при отправке фото по file_id: {e}")
+        
+        if photo_path and os.path.exists(photo_path):
+            try:
+                with open(photo_path, 'rb') as photo:
+                    await update.callback_query.message.reply_photo(
+                        photo=photo,
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                await update.callback_query.message.delete()
+                return
+            except Exception as e:
+                logger.error(f"Ошибка при отправке фото по пути: {e}")
+        
+        # Если фото нет или ошибка - отправляем только текст
+        await update.callback_query.edit_message_text(
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return
+
+    # Если несколько записей - показываем список
     text = f"📄 Записи для ДСЕ: {dse_value.upper()}\n\n"
+    text += f"Найдено записей: {len(records)}\n\n"
 
     for i, record in enumerate(records[:5]):  # Показываем максимум 5 записей
-        text += f"Запись #{i + 1}:\n"
+        text += f"*Запись #{i + 1}:*\n"
         text += f"Тип проблемы: {record.get('problem_type', 'Не указано')}\n"
         text += f"РЦ: {record.get('rc', 'Не указано')}\n"
-        text += f"Описание: {record.get('description', 'Нет описания')}\n"
+        text += f"Станок: {record.get('machine_number', 'Не указано')}\n"
+        text += f"Наладчик: {record.get('installer_fio', 'Не указано')}\n"
+        text += f"Программист: {record.get('programmer_name', 'Не указано')}\n"
+        
+        if record.get('description'):
+            desc = record['description'][:100] + '...' if len(record.get('description', '')) > 100 else record.get('description', '')
+            text += f"Описание: {desc}\n"
+        
         text += f"📅 Дата: {record.get('datetime', 'Не указано')}\n"
-        # Добавляем информацию о пользователе
+        
         user_id = record.get('user_id', 'Неизвестно')
         if user_id != 'Неизвестно':
             user_display = get_user_display_name(user_id)
             text += f"👤 Пользователь: {user_display}\n"
 
-        # Проверяем, есть ли фото
-        photo_file_id = record.get('photo_file_id')
-        if photo_file_id:
-            text += f"📸 Фото: Прикреплено\n"
+        if record.get('photo_file_id'):
+            text += f"📸 Фото: Есть\n"
 
-            # Отправляем фото отдельным сообщением
-            try:
-                await context.bot.send_photo(
-                    chat_id=update.callback_query.message.chat_id,
-                    photo=photo_file_id,
-                    caption=f"Фото для ДСЕ {dse_value.upper()}"
-                )
-            except Exception as e:
-                print(f"Ошибка отправки фото: {e}")
-                text += "❌ Ошибка при загрузке фото\n"
-
-        text += "\n" + "=" * 30 + "\n\n"
+        text += "\n" + "─" * 30 + "\n\n"
 
     if len(records) > 5:
-        text += f"\n... и еще {len(records) - 5} записей"
+        text += f"\n_... и еще {len(records) - 5} записей_"
 
     # Кнопки управления
     keyboard = [
@@ -607,7 +690,11 @@ async def show_records_for_dse(update: Update, context: ContextTypes.DEFAULT_TYP
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
+    await update.callback_query.edit_message_text(
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 
 async def start_dse_search(update: Update, context: ContextTypes.DEFAULT_TYPE, search_type: str) -> None:
@@ -640,25 +727,36 @@ async def show_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
             return
 
         text = f"🔍 Результаты поиска {search_title}:\n\n"
+        text += f"Найдено записей: {len(records)}\n\n"
 
         for i, record in enumerate(records[:10], 1):  # Ограничиваем 10 результатами
-            text += f"{i}. ДСЕ: {record.get('dse', 'Не указано')}\n"
-            text += f"   Тип: {record.get('problem_type', 'Не указано')}\n"
-            text += f"   РЦ: {record.get('rc', 'Не указано')}\n"
-            text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n"
-            # Проверяем, есть ли фото
+            text += f"*{i}. ДСЕ: {record.get('dse', 'Не указано')}*\n"
+            text += f"   📝 Тип: {record.get('problem_type', 'Не указано')}\n"
+            text += f"   🏭 РЦ: {record.get('rc', 'Не указано')}\n"
+            text += f"   🔧 Станок: {record.get('machine_number', 'Не указано')}\n"
+            text += f"   👤 Наладчик: {record.get('installer_fio', 'Не указано')}\n"
+            text += f"   💻 Программист: {record.get('programmer_name', 'Не указано')}\n"
+            
+            if record.get('description'):
+                desc = record['description'][:50] + '...' if len(record.get('description', '')) > 50 else record.get('description', '')
+                text += f"   📄 Описание: {desc}\n"
+            
             if record.get('photo_file_id'):
-                text += f"   📸 Фото: Прикреплено\n"
+                text += f"   📸 Фото: Есть\n"
             text += f"   📅 Дата: {record.get('datetime', 'Не указано')}\n"
             text += "\n"
 
         if len(records) > 10:
-            text += f"... и еще {len(records) - 10} записей"
+            text += f"_... и еще {len(records) - 10} записей_"
 
         keyboard = [[InlineKeyboardButton("↩️ Назад", callback_data='view_dse_list')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
+        await update.callback_query.edit_message_text(
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
 
     elif update.message:
         # Ответ через обычное сообщение
@@ -667,25 +765,36 @@ async def show_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
             return
 
         text = f"🔍 Результаты поиска {search_title}:\n\n"
+        text += f"Найдено записей: {len(records)}\n\n"
 
         for i, record in enumerate(records[:10], 1):  # Ограничиваем 10 результатами
-            text += f"{i}. ДСЕ: {record.get('dse', 'Не указано')}\n"
-            text += f"   Тип: {record.get('problem_type', 'Не указано')}\n"
-            text += f"   РЦ: {record.get('rc', 'Не указано')}\n"
-            text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n"
-            # Проверяем, есть ли фото
+            text += f"*{i}. ДСЕ: {record.get('dse', 'Не указано')}*\n"
+            text += f"   📝 Тип: {record.get('problem_type', 'Не указано')}\n"
+            text += f"   🏭 РЦ: {record.get('rc', 'Не указано')}\n"
+            text += f"   🔧 Станок: {record.get('machine_number', 'Не указано')}\n"
+            text += f"   👤 Наладчик: {record.get('installer_fio', 'Не указано')}\n"
+            text += f"   💻 Программист: {record.get('programmer_name', 'Не указано')}\n"
+            
+            if record.get('description'):
+                desc = record['description'][:50] + '...' if len(record.get('description', '')) > 50 else record.get('description', '')
+                text += f"   📄 Описание: {desc}\n"
+            
             if record.get('photo_file_id'):
-                text += f"   📸 Фото: Прикреплено\n"
+                text += f"   📸 Фото: Есть\n"
             text += f"   📅 Дата: {record.get('datetime', 'Не указано')}\n"
             text += "\n"
 
         if len(records) > 10:
-            text += f"... и еще {len(records) - 10} записей"
+            text += f"_... и еще {len(records) - 10} записей_"
 
         keyboard = [[InlineKeyboardButton("↩️ Назад", callback_data='view_dse_list')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await update.message.reply_text(text=text, reply_markup=reply_markup)
+        await update.message.reply_text(
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
 
 
 async def show_dse_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
