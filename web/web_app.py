@@ -117,24 +117,121 @@ def get_dse_by_id(dse_id):
 
 
 def add_dse(data):
-    """Заглушка для добавления ДСЕ - требует реализации"""
-    # TODO: реализовать добавление через бота или напрямую в DATA_FILE
-    logger.warning("add_dse() not fully implemented")
-    return {"success": False, "error": "Функция в разработке"}
+    """Добавление нового ДСЕ"""
+    try:
+        from config.config import load_data, save_data, DATA_FILE
+        from datetime import datetime
+        
+        # Получаем user_id из сессии
+        user_id = session.get('user_id', 'web')
+        
+        # Создаем запись
+        record = {
+            'dse': data.get('dse', ''),
+            'problem_type': data.get('problem_type', ''),
+            'rc': data.get('rc', ''),
+            'description': data.get('description', ''),
+            'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'user_id': str(user_id),
+            'photo_file_id': None
+        }
+        
+        # Загружаем данные
+        data_dict = load_data(DATA_FILE)
+        if str(user_id) not in data_dict:
+            data_dict[str(user_id)] = []
+        
+        # Добавляем запись
+        data_dict[str(user_id)].append(record)
+        
+        # Сохраняем
+        save_data(data_dict, DATA_FILE)
+        
+        logger.info(f"DSE added: {record['dse']} by user {user_id}")
+        return {"success": True, "message": "ДСЕ успешно добавлен"}
+    except Exception as e:
+        logger.error(f"Error in add_dse: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 def update_dse(dse_id, data):
-    """Заглушка для обновления ДСЕ - требует реализации"""
-    # TODO: реализовать обновление через бота или напрямую в DATA_FILE
-    logger.warning("update_dse() not fully implemented")
-    return {"success": False, "error": "Функция в разработке"}
+    """Обновление ДСЕ"""
+    try:
+        from config.config import load_data, save_data, DATA_FILE
+        
+        # Загружаем данные
+        data_dict = load_data(DATA_FILE)
+        
+        # Ищем и обновляем запись
+        found = False
+        for user_id in data_dict:
+            for i, record in enumerate(data_dict[user_id]):
+                if str(record.get('dse', '')) == str(dse_id) or str(i) == str(dse_id):
+                    # Обновляем поля
+                    if 'dse' in data:
+                        record['dse'] = data['dse']
+                    if 'problem_type' in data:
+                        record['problem_type'] = data['problem_type']
+                    if 'rc' in data:
+                        record['rc'] = data['rc']
+                    if 'description' in data:
+                        record['description'] = data['description']
+                    
+                    data_dict[user_id][i] = record
+                    found = True
+                    break
+            if found:
+                break
+        
+        if not found:
+            return {"success": False, "error": "ДСЕ не найден"}
+        
+        # Сохраняем
+        save_data(data_dict, DATA_FILE)
+        
+        logger.info(f"DSE updated: {dse_id}")
+        return {"success": True, "message": "ДСЕ успешно обновлен"}
+    except Exception as e:
+        logger.error(f"Error in update_dse: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 def delete_dse(dse_id):
-    """Заглушка для удаления ДСЕ - требует реализации"""
-    # TODO: реализовать удаление через бота или напрямую в DATA_FILE
-    logger.warning("delete_dse() not fully implemented")
-    return {"success": False, "error": "Функция в разработке"}
+    """Удаление ДСЕ"""
+    try:
+        from config.config import load_data, save_data, DATA_FILE
+        
+        # Загружаем данные
+        data_dict = load_data(DATA_FILE)
+        
+        # Ищем и удаляем запись
+        found = False
+        for user_id in data_dict:
+            for i, record in enumerate(data_dict[user_id]):
+                if str(record.get('dse', '')) == str(dse_id) or str(i) == str(dse_id):
+                    del data_dict[user_id][i]
+                    found = True
+                    break
+            if found:
+                break
+        
+        if not found:
+            return {"success": False, "error": "ДСЕ не найден"}
+        
+        # Сохраняем
+        save_data(data_dict, DATA_FILE)
+        
+        logger.info(f"DSE deleted: {dse_id}")
+        return {"success": True, "message": "ДСЕ успешно удален"}
+    except Exception as e:
+        logger.error(f"Error in delete_dse: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
 
 
 def get_chat_history(user_id):

@@ -132,7 +132,7 @@ class DSEPDFGenerator:
                 35*mm,  # ФИО Наладчика
                 35*mm   # ФИО Программиста
             ])
-            
+             
             # Стиль таблицы
             table.setStyle(TableStyle([
                 # Границы
