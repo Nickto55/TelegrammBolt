@@ -19,6 +19,10 @@ VENV_DIR="$PROJECT_DIR/venv"
 BOT_SERVICE="telegrambot"
 WEB_SERVICE="telegramweb"
 
+# Порты по умолчанию
+DEFAULT_WEB_PORT=5000
+DEFAULT_TERMINAL_PORT=5001
+
 # Функция очистки экрана и вывода заголовка
 show_header() {
     clear
@@ -145,6 +149,36 @@ start_web_terminal() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
     echo ""
     
+    # Выбор порта
+    echo -e "${YELLOW}Выберите порт для запуска:${NC}"
+    echo -e "  ${WHITE}1.${NC} Порт 5000 (по умолчанию)"
+    echo -e "  ${WHITE}2.${NC} Порт 8080"
+    echo -e "  ${WHITE}3.${NC} Порт 3000"
+    echo -e "  ${WHITE}4.${NC} Свой порт"
+    echo ""
+    read -p "Ваш выбор (1-4, Enter=5000): " port_choice
+    
+    WEB_PORT=$DEFAULT_WEB_PORT
+    
+    case $port_choice in
+        2) WEB_PORT=8080 ;;
+        3) WEB_PORT=3000 ;;
+        4)
+            read -p "Введите номер порта: " custom_port
+            if [[ $custom_port =~ ^[0-9]+$ ]] && [ $custom_port -ge 1024 ] && [ $custom_port -le 65535 ]; then
+                WEB_PORT=$custom_port
+            else
+                echo -e "${RED}Неверный порт. Использую 5000${NC}"
+                sleep 1
+            fi
+            ;;
+        *) WEB_PORT=5000 ;;
+    esac
+    
+    echo ""
+    echo -e "${GREEN}Выбран порт: ${WHITE}$WEB_PORT${NC}"
+    echo ""
+    
     # Проверка виртуального окружения
     if [ ! -d "$VENV_DIR" ]; then
         echo -e "${YELLOW}Виртуальное окружение не найдено. Создаём...${NC}"
@@ -193,11 +227,11 @@ start_web_terminal() {
     echo ""
     
     # Остановка старых процессов (включая systemd сервис)
-    echo -e "${YELLOW}Остановка старых процессов...${NC}"
+    echo -e "${YELLOW}Остановка старых процессов на порту $WEB_PORT...${NC}"
     sudo systemctl stop telegramweb 2>/dev/null
-    sudo lsof -ti:5000 | xargs -r kill -9 2>/dev/null
+    sudo lsof -ti:$WEB_PORT | xargs -r kill -9 2>/dev/null
     sleep 1
-    echo -e "${GREEN}✓ Старые процессы остановлены${NC}"
+    echo -e "${GREEN}✓ Порт $WEB_PORT освобожден${NC}"
     echo ""
     
     # Запуск Gunicorn с eventlet
@@ -208,24 +242,24 @@ start_web_terminal() {
     SERVER_IP=$(hostname -I | awk '{print $1}')
     HOSTNAME=$(hostname)
     
-    echo -e "${WHITE}Сервер запущен на порту: ${GREEN}5000${NC}"
+    echo -e "${WHITE}Сервер запущен на порту: ${GREEN}$WEB_PORT${NC}"
     echo ""
     echo -e "${YELLOW}Откройте в браузере один из адресов:${NC}"
-    echo -e "  ${GREEN}http://${SERVER_IP}:5000${NC}"
+    echo -e "  ${GREEN}http://${SERVER_IP}:${WEB_PORT}${NC}"
     if [ ! -z "$HOSTNAME" ]; then
-        echo -e "  ${GREEN}http://${HOSTNAME}:5000${NC}"
+        echo -e "  ${GREEN}http://${HOSTNAME}:${WEB_PORT}${NC}"
     fi
-    echo -e "  ${GREEN}http://localhost:5000${NC} ${YELLOW}(если на этом же компьютере)${NC}"
+    echo -e "  ${GREEN}http://localhost:${WEB_PORT}${NC} ${YELLOW}(если на этом же компьютере)${NC}"
     echo ""
     echo -e "${CYAN}Веб-терминал:${NC}"
-    echo -e "  ${GREEN}http://${SERVER_IP}:5000/terminal${NC}"
+    echo -e "  ${GREEN}http://${SERVER_IP}:${WEB_PORT}/terminal${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Для остановки нажмите Ctrl+C${NC}"
     echo ""
     
     cd $PROJECT_DIR
     gunicorn --worker-class eventlet -w 1 \
-        --bind 0.0.0.0:5000 \
+        --bind 0.0.0.0:$WEB_PORT \
         --access-logfile - \
         --error-logfile - \
         --log-level info \
@@ -255,8 +289,27 @@ check_status() {
     echo -e "${WHITE}Процессы:${NC}"
     ps aux | grep -E "python.*bot\.py|python.*web_app\.py|gunicorn.*web\.web_app" | grep -v grep
     echo ""
-    echo -e "${WHITE}Порты:${NC}"
-    sudo lsof -i :5000 2>/dev/null || echo "Порт 5000 свободен"
+    echo -e "${WHITE}Порты (используемые):${NC}"
+    for PORT in 5000 5001 8080 3000; do
+        local PORT_STATUS=$(sudo lsof -i :$PORT 2>/dev/null)
+        if [ -n "$PORT_STATUS" ]; then
+            echo -e "${GREEN}✓ Порт $PORT:${NC}"
+            echo "$PORT_STATUS" | grep -E "gunicorn|python|flask" | awk '{print "  "$1" (PID: "$2")"}'
+        fi
+    done
+    
+    # Проверка на свободные порты
+    local HAS_RUNNING=false
+    for PORT in 5000 5001 8080 3000; do
+        if sudo lsof -i :$PORT 2>/dev/null > /dev/null; then
+            HAS_RUNNING=true
+            break
+        fi
+    done
+    
+    if [ "$HAS_RUNNING" = false ]; then
+        echo -e "${YELLOW}⚠ Все стандартные порты (5000, 5001, 8080, 3000) свободны${NC}"
+    fi
     echo ""
     read -p "Нажмите Enter для продолжения..."
 }
@@ -462,6 +515,34 @@ setup_systemd() {
     echo -e "${YELLOW}Рабочая директория: ${WHITE}$PROJECT_DIR${NC}"
     echo ""
     
+    # Выбор порта для systemd сервиса
+    echo -e "${CYAN}Выберите порт для веб-интерфейса:${NC}"
+    echo -e "  ${WHITE}1.${NC} 5000 (по умолчанию)"
+    echo -e "  ${WHITE}2.${NC} 8080"
+    echo -e "  ${WHITE}3.${NC} 3000"
+    echo -e "  ${WHITE}4.${NC} Другой порт"
+    echo ""
+    echo -n -e "${WHITE}Выберите порт (1-4): ${NC}"
+    read port_choice
+    
+    case $port_choice in
+        1) SYSTEMD_PORT=5000 ;;
+        2) SYSTEMD_PORT=8080 ;;
+        3) SYSTEMD_PORT=3000 ;;
+        4) 
+            echo -n -e "${WHITE}Введите номер порта: ${NC}"
+            read SYSTEMD_PORT
+            ;;
+        *) 
+            echo -e "${YELLOW}Неверный выбор, используется порт 5000${NC}"
+            SYSTEMD_PORT=5000
+            ;;
+    esac
+    
+    echo ""
+    echo -e "${GREEN}✓ Выбран порт: ${WHITE}$SYSTEMD_PORT${NC}"
+    echo ""
+    
     read -p "Продолжить? (y/n): " confirm
     
     if [[ $confirm == "y" || $confirm == "Y" ]]; then
@@ -479,7 +560,7 @@ Environment="PATH=$VENV_DIR/bin"
 ExecStart=$VENV_DIR/bin/gunicorn \\
     --worker-class eventlet \\
     -w 1 \\
-    --bind 0.0.0.0:5000 \\
+    --bind 0.0.0.0:$SYSTEMD_PORT \\
     --access-logfile /var/log/telegrambolt-web.log \\
     --error-logfile /var/log/telegrambolt-web.log \\
     --log-level info \\
@@ -495,13 +576,15 @@ EOF
         sudo systemctl daemon-reload
         
         echo ""
-        echo -e "${GREEN}✓ Сервис создан${NC}"
+        echo -e "${GREEN}✓ Сервис создан с портом $SYSTEMD_PORT${NC}"
         echo ""
         echo -e "${YELLOW}Команды управления:${NC}"
         echo -e "  ${WHITE}sudo systemctl enable telegrambolt-web${NC}  - добавить в автозагрузку"
         echo -e "  ${WHITE}sudo systemctl start telegrambolt-web${NC}   - запустить"
         echo -e "  ${WHITE}sudo systemctl status telegrambolt-web${NC}  - проверить статус"
         echo -e "  ${WHITE}sudo journalctl -u telegrambolt-web -f${NC}  - просмотр логов"
+        echo ""
+        echo -e "${CYAN}Доступ к веб-интерфейсу: ${WHITE}http://YOUR_IP:$SYSTEMD_PORT${NC}"
         echo ""
     else
         echo -e "${YELLOW}Отменено${NC}"

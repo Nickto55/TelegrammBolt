@@ -2753,7 +2753,7 @@ def handle_resize(data):
 if __name__ == '__main__':
     # Чтение конфигурации домена
     config_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'domain.conf')
-    web_port = 5000
+    web_port = int(os.getenv('WEB_PORT', '5000'))  # Порт можно задать через переменную окружения
     domain = 'localhost'
     
     if os.path.exists(config_file):

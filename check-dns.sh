@@ -168,8 +168,10 @@ else
     echo "   - Dynu (https://www.dynu.com)"
     echo "   - Cloudflare (https://cloudflare.com)"
     echo ""
+    WEB_PORT=$(grep -E "^WEB_PORT=" config/domain.conf 2>/dev/null | cut -d'=' -f2 || echo "5000")
     echo "6. Временно используйте HTTP без SSL:"
-    echo -e "   ${CYAN}http://$SERVER_IP:5000${NC}"
+    echo -e "   ${CYAN}http://$SERVER_IP:${WEB_PORT}${NC}"
+    echo -e "   ${GRAY}(порт можно изменить в config/domain.conf)${NC}"
 fi
 
 echo ""

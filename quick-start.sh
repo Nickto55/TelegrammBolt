@@ -84,7 +84,9 @@ case $CHOICE in
         
         echo ""
         echo "✅ Установка завершена!"
-        echo "Доступ: http://$(hostname -I | awk '{print $1}'):5000"
+        WEB_PORT=$(grep -E "^WEB_PORT=" config/domain.conf 2>/dev/null | cut -d'=' -f2 || echo "5000")
+        echo "Доступ: http://$(hostname -I | awk '{print $1}'):${WEB_PORT}"
+        echo "Порт можно изменить в: config/domain.conf"
         ;;
     4)
         echo ""
