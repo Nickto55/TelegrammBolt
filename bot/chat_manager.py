@@ -665,3 +665,37 @@ async def show_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     В данном случае сразу запускаем процесс.
     """
     await initiate_dse_chat_search(update, context)
+
+
+async def handle_chat_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Универсальный обработчик всех callback_data связанных с чатом."""
+    query = update.callback_query
+    await query.answer()
+    
+    callback_data = query.data
+    
+    # Обработка подтверждения/отмены инициатора
+    if callback_data in ['dse_chat_confirm_initiator', 'dse_chat_cancel_initiator']:
+        await handle_initiator_confirmation(update, context)
+    
+    # Обработка выбора целевого пользователя
+    elif callback_data.startswith('dse_chat_select_target_'):
+        await handle_target_selection(update, context)
+    
+    # Обработка принятия/отклонения респондента
+    elif callback_data.startswith('dse_chat_accept_') or callback_data.startswith('dse_chat_decline_'):
+        await handle_responder_confirmation(update, context)
+    
+    # Обработка отмены
+    elif callback_data == 'dse_chat_cancel':
+        user_id = str(query.from_user.id)
+        if user_id in dse_chat_states:
+            del dse_chat_states[user_id]
+        await query.edit_message_text("❌ Операция отменена.")
+    
+    # Управление чатом (пауза, продолжение, завершение)
+    elif callback_data in ['chat_pause', 'chat_resume', 'chat_end', 'chat_back']:
+        await handle_chat_control(update, context)
+    
+    else:
+        await query.edit_message_text(f"❌ Неизвестная команда: {callback_data}")

@@ -2171,6 +2171,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await handle_dse_input(update, context)
     
     # === ОБРАБОТЧИКИ ЧАТА (из chat_manager) ===
+    elif data.startswith('dse_chat_'):
+        # Обработка всех callback от чата
+        from .chat_manager import handle_chat_callbacks
+        await handle_chat_callbacks(update, context)
+    
     elif data.startswith('chat_confirm_target_') or data.startswith('chat_decline_target_'):
         from .chat_manager import handle_initiator_confirmation
         await handle_initiator_confirmation(update, context)
