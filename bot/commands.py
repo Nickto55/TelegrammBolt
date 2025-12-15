@@ -3017,7 +3017,7 @@ async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_T
         }.get(delivery_type, delivery_type)
         
         status_text = (
-            f"🔔 *Статус подписки*\n\n"
+            f"🔔 Статус подписки\n\n"
             f"✅ Подписка активна\n"
             f"📬 Доставка: {delivery_text}\n"
         )
@@ -3036,7 +3036,7 @@ async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_T
         ]
     else:
         status_text = (
-            f"🔔 *Подписка на заявки*\n\n"
+            f"🔔 Подписка на заявки\n\n"
             f"❌ Подписка неактивна\n\n"
             f"💡 Подпишитесь чтобы автоматически получать PDF отчёт всех новых заявок!\n"
         )
@@ -3049,8 +3049,7 @@ async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_T
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
         status_text,
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+        reply_markup=reply_markup
     )
 
 
