@@ -262,8 +262,12 @@
 
     function startTerminal() {
         if (isConnected) {
+            console.log('Terminal already connected');
             return;
         }
+
+        console.log('%c🚀 Запуск веб-терминала...', 'color: #0dbc79; font-size: 14px; font-weight: bold');
+        term.writeln('\x1b[1;36m[Подключение к серверу...]\x1b[0m');
 
         // Подключаемся к WebSocket
         socket = io('/terminal', {
@@ -271,10 +275,13 @@
         });
 
         socket.on('connect', function () {
-            console.log('Connected to terminal server');
+            console.log('%c✅ WebSocket подключен', 'color: #0dbc79; font-weight: bold');
+            console.log('Transport:', socket.io.engine.transport.name);
             updateStatus(true);
+            term.writeln('\x1b[1;32m[✓ Подключено к серверу]\x1b[0m');
 
             // Запускаем терминальную сессию
+            console.log('📡 Отправка запроса на запуск терминала...');
             socket.emit('start_terminal', {
                 cols: term.cols,
                 rows: term.rows
@@ -282,12 +289,17 @@
         });
 
         socket.on('connected', function (data) {
-            console.log('Terminal ready:', data);
+            console.log('%c✅ Terminal ready:', 'color: #0dbc79; font-weight: bold', data);
         });
 
         socket.on('started', function (data) {
-            console.log('Terminal started:', data);
+            console.log('%c✅ Terminal started successfully!', 'color: #0dbc79; font-weight: bold', data);
+            console.log('Session ID:', data.session_id || 'N/A');
             term.clear();
+            term.writeln('\x1b[1;32m╔══════════════════════════════════════════════════════════╗\x1b[0m');
+            term.writeln('\x1b[1;32m║   ✓ Веб-терминал успешно запущен и готов к работе!     ║\x1b[0m');
+            term.writeln('\x1b[1;32m╚══════════════════════════════════════════════════════════╝\x1b[0m');
+            term.writeln('');
 
             // Обработка ввода пользователя
             term.onData(function (data) {
@@ -301,14 +313,20 @@
         });
 
         socket.on('error', function (data) {
-            console.error('Terminal error:', data);
-            term.writeln('\r\n\x1b[1;31mОшибка: ' + data.message + '\x1b[0m\r\n');
+            console.error('%c❌ Terminal error:', 'color: #cd3131; font-weight: bold', data);
+            term.writeln('\r\n\x1b[1;31m❌ Ошибка: ' + data.message + '\x1b[0m\r\n');
         });
 
         socket.on('disconnect', function () {
-            console.log('Disconnected from terminal server');
+            console.log('%c🔌 Disconnected from terminal server', 'color: #e5e510; font-weight: bold');
             updateStatus(false);
-            term.writeln('\r\n\x1b[1;33m[Соединение разорвано]\x1b[0m\r\n');
+            term.writeln('\r\n\x1b[1;33m[⚠ Соединение разорвано]\x1b[0m\r\n');
+        });
+
+        socket.on('connect_error', function (error) {
+            console.error('%c❌ Connection error:', 'color: #cd3131; font-weight: bold', error);
+            term.writeln('\r\n\x1b[1;31m❌ Ошибка подключения: ' + error.message + '\x1b[0m\r\n');
+            term.writeln('\x1b[1;33mПроверьте, что сервер запущен через Gunicorn с eventlet\x1b[0m\r\n');
         });
 
         // Обновляем кнопки
@@ -317,9 +335,12 @@
     }
 
     function stopTerminal() {
+        console.log('%c🛑 Остановка терминала...', 'color: #e5e510; font-size: 14px; font-weight: bold');
+        
         if (socket) {
             socket.disconnect();
             socket = null;
+            console.log('✅ Socket отключен');
         }
 
         updateStatus(false);
@@ -328,7 +349,8 @@
         document.getElementById('start-btn').disabled = false;
         document.getElementById('stop-btn').disabled = true;
 
-        term.writeln('\r\n\x1b[1;33m[Терминал остановлен]\x1b[0m\r\n');
+        term.writeln('\r\n\x1b[1;33m[🛑 Терминал остановлен]\x1b[0m\r\n');
+        console.log('%c✓ Терминал остановлен', 'color: #0dbc79');
     }
 
     function clearTerminal() {

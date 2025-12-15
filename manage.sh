@@ -49,6 +49,18 @@ check_process() {
     fi
 }
 
+# Функция проверки веб-терминала
+check_web_terminal() {
+    # Проверяем наличие gunicorn с eventlet или socketio
+    if pgrep -f "gunicorn.*eventlet.*web.web_app" > /dev/null; then
+        echo -e "${GREEN}●${NC} Готов (Gunicorn)"
+    elif pgrep -f "python.*web_app.py" > /dev/null; then
+        echo -e "${YELLOW}●${NC} Работает (dev режим)"
+    else
+        echo -e "${RED}●${NC} Остановлен"
+    fi
+}
+
 # Главное меню
 show_menu() {
     show_header
@@ -57,7 +69,7 @@ show_menu() {
     echo -e "${BLUE}│${NC}"
     echo -e "${BLUE}│${NC}  Telegram Bot:  $(get_service_status $BOT_SERVICE)"
     echo -e "${BLUE}│${NC}  Web Interface: $(get_service_status $WEB_SERVICE)"
-    echo -e "${BLUE}│${NC}  Web Terminal:  $(check_process 'socketio')"
+    echo -e "${BLUE}│${NC}  Web Terminal:  $(check_web_terminal)"
     echo -e "${BLUE}│${NC}"
     echo -e "${BLUE}└───────────────────────────────────────────────────────────┘${NC}"
     echo ""
@@ -133,6 +145,10 @@ start_web_terminal() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
     echo ""
     
+    echo -e "${RED}⚠ ВАЖНО: Для работы веб-терминала ОБЯЗАТЕЛЬНО нужен Gunicorn!${NC}"
+    echo -e "${YELLOW}  Python встроенный сервер НЕ поддерживает WebSocket${NC}"
+    echo ""
+    
     # Проверка виртуального окружения
     if [ ! -d "$VENV_DIR" ]; then
         echo -e "${RED}✗ Виртуальное окружение не найдено${NC}"
@@ -145,14 +161,16 @@ start_web_terminal() {
     
     # Проверка зависимостей
     echo -e "${YELLOW}Проверка зависимостей...${NC}"
-    if ! pip show flask-socketio &>/dev/null || ! pip show eventlet &>/dev/null; then
+    if ! pip show flask-socketio &>/dev/null || ! pip show eventlet &>/dev/null || ! pip show gunicorn &>/dev/null; then
         echo -e "${YELLOW}Установка недостающих зависимостей...${NC}"
         pip install -q flask-socketio python-socketio eventlet ptyprocess gunicorn
     fi
     
-    # Остановка старых процессов
-    echo -e "${YELLOW}Остановка старых процессов на порту 5000...${NC}"
+    # Остановка старых процессов (включая systemd сервис)
+    echo -e "${YELLOW}Остановка старых процессов...${NC}"
+    sudo systemctl stop telegramweb 2>/dev/null
     sudo lsof -ti:5000 | xargs -r kill -9 2>/dev/null
+    sleep 1
     
     # Запуск Gunicorn с eventlet
     echo -e "${GREEN}Запуск сервера...${NC}"
