@@ -35,14 +35,21 @@ def get_dse_records_by_dse_value(dse_value: str):
     all_bot_data = load_data(DATA_FILE)
     matching_records = []
 
-    for user_id, user_records in all_bot_data.items():
-        if isinstance(user_records, list):
-            for record in user_records:
-
-                if record.get('dse', '').strip().lower() == dse_value.strip().lower():
-                    record_copy = record.copy()
-                    record_copy['user_id'] = user_id
-                    matching_records.append(record_copy)
+    # Проверяем формат данных: словарь {user_id: [records]} или список [records]
+    if isinstance(all_bot_data, dict):
+        # Старый формат: словарь с user_id
+        for user_id, user_records in all_bot_data.items():
+            if isinstance(user_records, list):
+                for record in user_records:
+                    if record.get('dse', '').strip().lower() == dse_value.strip().lower():
+                        record_copy = record.copy()
+                        record_copy['user_id'] = user_id
+                        matching_records.append(record_copy)
+    elif isinstance(all_bot_data, list):
+        # Новый формат: просто список записей
+        for record in all_bot_data:
+            if record.get('dse', '').strip().lower() == dse_value.strip().lower():
+                matching_records.append(record)
 
     return matching_records
 
