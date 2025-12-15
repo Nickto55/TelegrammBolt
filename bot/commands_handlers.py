@@ -62,11 +62,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_application_menu(update, user_id)
     
     elif data == 'set_programmer':
+        print(f"DEBUG: Кнопка set_programmer нажата пользователем {user_id}")
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '', 'description': '', 
+                'rc': '', 'programmer_name': '', 'machine_number': '', 'photo_file_id': None
+            }
         user_states[user_id]['waiting_for'] = 'programmer_name'
+        print(f"DEBUG: user_states[{user_id}] = {user_states[user_id]}")
         await query.edit_message_text("Введите ФИО программиста:")
     
     elif data == 'set_machine':
+        print(f"DEBUG: Кнопка set_machine нажата пользователем {user_id}")
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '', 'description': '', 
+                'rc': '', 'programmer_name': '', 'machine_number': '', 'photo_file_id': None
+            }
         user_states[user_id]['waiting_for'] = 'machine_number'
+        print(f"DEBUG: user_states[{user_id}] = {user_states[user_id]}")
         await query.edit_message_text("Введите номер станка:")
     
     elif data == 'set_description':
@@ -522,6 +536,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 return
             
             elif user_data.get('waiting_for') == 'programmer_name':
+                print(f"DEBUG: Сохранение ФИО программиста: {text}")
                 user_states[user_id]['programmer_name'] = text
                 user_states[user_id].pop('waiting_for', None)
                 await update.message.reply_text(f"✅ ФИО программиста сохранено: {text}")
@@ -529,6 +544,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 return
             
             elif user_data.get('waiting_for') == 'machine_number':
+                print(f"DEBUG: Сохранение номера станка: {text}")
                 user_states[user_id]['machine_number'] = text
                 user_states[user_id].pop('waiting_for', None)
                 await update.message.reply_text(f"✅ Номер станка сохранён: {text}")
