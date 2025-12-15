@@ -644,8 +644,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_states[user_id]['dse_chat_state'] = 'selecting_or_manual'
                 await handle_dse_input(update, context)
                 return
-            elif user_data.get('dse_chat_state') in ['waiting_for_initiator_confirmation', 'in_chat']:
-                from .chat_manager import handle_chat_message
+            
+            # Проверяем, находится ли пользователь в активном чате
+            from .chat_manager import active_chats, handle_chat_message
+            if user_id in active_chats:
                 await handle_chat_message(update, context)
                 return
             
