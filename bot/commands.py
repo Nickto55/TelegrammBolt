@@ -1859,14 +1859,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             return
         
         user_data = user_states[user_id]
+        
+        # Получаем ФИО наладчика из данных пользователя
+        creator_data = get_user_data(user_id)
+        creator_fio = ''
+        if creator_data:
+            first_name = creator_data.get('first_name', '')
+            last_name = creator_data.get('last_name', '')
+            creator_fio = f"{first_name} {last_name}".strip()
+        
         record = {
-            'dse': user_data['dse'],
-            'problem_type': user_data['problem_type'],
-            'rc': user_data['rc'],
-            'description': user_data['description'],
+            'dse': user_data.get('dse', ''),
+            'problem_type': user_data.get('problem_type', ''),
+            'rc': user_data.get('rc', ''),
+            'description': user_data.get('description', ''),
             'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
             'user_id': user_id,
-            'photo_file_id': user_data.get('photo_file_id')
+            'photo_file_id': user_data.get('photo_file_id'),
+            'programmer_name': user_data.get('programmer_name', ''),
+            'machine_number': user_data.get('machine_number', ''),
+            'installer_fio': creator_fio
         }
         
         # Загружаем данные как словарь {user_id: [records]}
@@ -1892,12 +1904,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'problem_type': '',
             'description': '',
             'rc': '',
+            'programmer_name': '',
+            'machine_number': '',
             'photo_file_id': None
         }
         
         await query.edit_message_text(
             "✅ Заявка успешно отправлена!\n\n"
             f"ДСЕ: {record['dse']}\n"
+            f"Тип проблемы: {record['problem_type']}\n"
+            f"РЦ: {record['rc']}\n"
+            f"Номер станка: {record['machine_number']}\n"
+            f"ФИО наладчика: {record['installer_fio']}\n"
+            f"ФИО программиста: {record['programmer_name']}\n"
+            f"Описание: {record['description']}\n"
+            f"Дата: {record['datetime']}"
+        )
             f"Тип проблемы: {record['problem_type']}\n"
             f"РЦ: {record['rc']}\n"
             f"Описание: {record['description']}\n"
@@ -2854,16 +2876,16 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         
         # Формируем текст уведомления
         notification_text = (
-            f"🔔 *Новая заявка!*\n\n"
-            f"📋 ДСЕ: {record.get('dse', 'N/A')}\n"
-            f"⚠️ Тип: {record.get('problem_type', 'N/A')}\n"
-            f"🏭 РЦ: {record.get('rc', 'N/A')}\n"
-            f"🔧 Станок: {record.get('machine_number', 'N/A')}\n"
-            f"👨‍🔧 Наладчик: {record.get('installer_fio', 'N/A')}\n"
-            f"👨‍💻 Программист: {record.get('programmer_name', 'N/A')}\n"
-            f"👤 Создатель: {creator_name}\n"
-            f"📅 Дата: {record.get('datetime', 'N/A')}\n\n"
-            f"📄 PDF отчёт прикреплён к сообщению"
+            f"*Новая заявка!*\n\n"
+            f"ДСЕ: {record.get('dse', 'N/A')}\n"
+            f"Тип: {record.get('problem_type', 'N/A')}\n"
+            f"РЦ: {record.get('rc', 'N/A')}\n"
+            f"Станок: {record.get('machine_number', 'N/A')}\n"
+            f"Наладчик: {record.get('installer_fio', 'N/A')}\n"
+            f"Программист: {record.get('programmer_name', 'N/A')}\n"
+            f"Создатель: {creator_name}\n"
+            f"Дата: {record.get('datetime', 'N/A')}\n\n"
+            f"PDF отчёт прикреплён к сообщению"
         )
         
         # Отправка в Telegram
