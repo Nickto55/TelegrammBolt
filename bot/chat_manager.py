@@ -227,9 +227,13 @@ async def handle_target_selection(update: Update, context: ContextTypes.DEFAULT_
 async def request_initiator_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE, initiator_user_id: str,
                                          target_user_id: str) -> None:
     """Запрашивает подтверждение начала чата у инициатора."""
-    dse_value = dse_chat_states[initiator_user_id]['dse']
-    target_candidates = dse_chat_states[initiator_user_id]['target_candidates']
-    target_name = target_candidates[target_user_id]['name']
+    print(f"🔍 request_initiator_confirmation: dse_chat_states[{initiator_user_id}] = {dse_chat_states.get(initiator_user_id, 'NOT_FOUND')}")
+    
+    dse_value = dse_chat_states[initiator_user_id].get('dse', 'UNKNOWN')
+    target_candidates = dse_chat_states[initiator_user_id].get('target_candidates', {})
+    target_name = target_candidates.get(target_user_id, {}).get('name', f'User {target_user_id}')
+    
+    print(f"🔍 request_initiator_confirmation: dse_value = '{dse_value}', target = {target_name}")
 
     # Создаем кнопки подтверждения для инициатора
     keyboard = [
