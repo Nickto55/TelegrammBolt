@@ -2702,14 +2702,14 @@ def handle_start_terminal(data):
             output_thread.daemon = True
             output_thread.start()
             
-            emit('started', {'status': 'success'})
+            emit('started', {'status': 'success', 'session_id': session_id}, namespace='/terminal')
             logger.info(f"Terminal started for user {user_id}")
         else:
-            emit('error', {'message': 'Не удалось запустить терминал'})
+            emit('error', {'message': 'Не удалось запустить терминал'}, namespace='/terminal')
             
     except Exception as e:
         logger.error(f"Error starting terminal: {e}")
-        emit('error', {'message': str(e)})
+        emit('error', {'message': str(e)}, namespace='/terminal')
 
 
 @socketio.on('input', namespace='/terminal')
@@ -2723,11 +2723,11 @@ def handle_input(data):
             input_data = data.get('data', '')
             terminal_session.write(input_data)
         else:
-            emit('error', {'message': 'Терминальная сессия не найдена'})
+            emit('error', {'message': 'Терминальная сессия не найдена'}, namespace='/terminal')
             
     except Exception as e:
         logger.error(f"Error handling terminal input: {e}")
-        emit('error', {'message': str(e)})
+        emit('error', {'message': str(e)}, namespace='/terminal')
 
 
 @socketio.on('resize', namespace='/terminal')
