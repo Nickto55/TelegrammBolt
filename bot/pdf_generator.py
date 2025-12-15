@@ -71,14 +71,16 @@ class DSEPDFGenerator:
         :return: True если успешно, False если ошибка
         """
         try:
-            # Создаем документ
+            from reportlab.lib.pagesizes import landscape
+            
+            # Создаем документ в альбомной ориентации
             doc = SimpleDocTemplate(
                 output_filename,
-                pagesize=A4,
-                rightMargin=20*mm,
-                leftMargin=20*mm,
-                topMargin=20*mm,
-                bottomMargin=20*mm
+                pagesize=landscape(A4),
+                rightMargin=15*mm,
+                leftMargin=15*mm,
+                topMargin=15*mm,
+                bottomMargin=15*mm
             )
             
             story = []
@@ -122,13 +124,13 @@ class DSEPDFGenerator:
             
             # Создаем таблицу
             table = Table(table_data, colWidths=[
-                25*mm,  # Дата
-                20*mm,  # ДСЕ
-                35*mm,  # Наименование ДСЕ
-                15*mm,  # РЦ
-                20*mm,  # Номер станка
-                30*mm,  # ФИО Наладчика
-                30*mm   # ФИО Программиста
+                30*mm,  # Дата
+                25*mm,  # ДСЕ
+                45*mm,  # Наименование ДСЕ
+                20*mm,  # РЦ
+                25*mm,  # Номер станка
+                40*mm,  # ФИО Наладчика
+                40*mm   # ФИО Программиста
             ])
              
             # Стиль таблицы
@@ -197,7 +199,7 @@ class DSEPDFGenerator:
             for line in desc_lines[:15]:  # Максимум 15 строк
                 desc_table_data.append([line])
             
-            desc_table = Table(desc_table_data, colWidths=[170*mm])
+            desc_table = Table(desc_table_data, colWidths=[255*mm])
             desc_table.setStyle(TableStyle([
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 ('FONTNAME', (0, 0), (-1, -1), self.font_name),
