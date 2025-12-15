@@ -61,6 +61,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         user_states[user_id]['rc'] = RC_TYPES[idx]
         await show_application_menu(update, user_id)
     
+    elif data == 'set_programmer':
+        user_states[user_id]['waiting_for'] = 'programmer_name'
+        await query.edit_message_text("Введите ФИО программиста:")
+    
+    elif data == 'set_machine':
+        user_states[user_id]['waiting_for'] = 'machine_number'
+        await query.edit_message_text("Введите номер станка:")
+    
     elif data == 'set_description':
         user_states[user_id]['waiting_for'] = 'description'
         await query.edit_message_text("Введите описание проблемы:")
@@ -75,10 +83,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif data == 'send':
         # Отправка заявки
         user_data = user_states[user_id]
+        
+        # Получаем ФИО наладчика из данных пользователя
+        from bot.user_manager import get_user_data
+        creator_data = get_user_data(user_id)
+        creator_fio = ''
+        if creator_data:
+            first_name = creator_data.get('first_name', '')
+            last_name = creator_data.get('last_name', '')
+            creator_fio = f"{first_name} {last_name}".strip()
+        
         record = {
             'dse': user_data['dse'],
             'problem_type': user_data['problem_type'],
             'rc': user_data['rc'],
+            'programmer_name': user_data.get('programmer_name', ''),
+            'machine_number': user_data.get('machine_number', ''),
+            'installer_fio': creator_fio,
             'description': user_data['description'],
             'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
             'user_id': user_id,
@@ -96,6 +117,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'problem_type': '',
             'description': '',
             'rc': '',
+            'programmer_name': '',
+            'machine_number': '',
             'photo_file_id': None
         }
         
@@ -104,6 +127,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"ДСЕ: {record['dse']}\n"
             f"Тип проблемы: {record['problem_type']}\n"
             f"РЦ: {record['rc']}\n"
+            f"ФИО программиста: {record['programmer_name']}\n"
+            f"Номер станка: {record['machine_number']}\n"
+            f"ФИО наладчика: {record['installer_fio']}\n"
             f"Описание: {record['description']}\n"
             f"📅 Дата: {record['datetime']}"
         )
@@ -492,6 +518,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_states[user_id]['dse'] = text
                 user_states[user_id].pop('waiting_for', None)
                 await update.message.reply_text(f"✅ ДСЕ сохранён: {text}")
+                await show_application_menu(update, user_id)
+                return
+            
+            elif user_data.get('waiting_for') == 'programmer_name':
+                user_states[user_id]['programmer_name'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ ФИО программиста сохранено: {text}")
+                await show_application_menu(update, user_id)
+                return
+            
+            elif user_data.get('waiting_for') == 'machine_number':
+                user_states[user_id]['machine_number'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ Номер станка сохранён: {text}")
                 await show_application_menu(update, user_id)
                 return
             

@@ -148,7 +148,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def show_application_menu(update: Update, user_id: str) -> None:
     """Показать меню заполнения заявки"""
-    # Убедимся, что поле photo_file_id существует у уже существующих пользователей
+    # Убедимся, что все поля существует у уже существующих пользователей
     if user_id not in user_states:
         user_states[user_id] = {
             'application': '',
@@ -156,13 +156,19 @@ async def show_application_menu(update: Update, user_id: str) -> None:
             'problem_type': '',
             'description': '',
             'rc': '',
-            'photo_file_id': None
+            'photo_file_id': None,
+            'programmer_name': '',
+            'machine_number': ''
         }
     else:
         if 'photo_file_id' not in user_states[user_id]:
             user_states[user_id]['photo_file_id'] = None
         if 'rc' not in user_states[user_id]:
             user_states[user_id]['rc'] = ''
+        if 'programmer_name' not in user_states[user_id]:
+            user_states[user_id]['programmer_name'] = ''
+        if 'machine_number' not in user_states[user_id]:
+            user_states[user_id]['machine_number'] = ''
 
     user_data = user_states.get(user_id, {
         'application': '',
@@ -177,6 +183,8 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     dse_text = f"ДСЕ ✅" if user_data['dse'] else "ДСЕ"
     problem_text = f"Вид проблемы ✅" if user_data['problem_type'] else "Вид проблемы"
     rc_text = f"РЦ ✅" if user_data['rc'] else "РЦ"
+    programmer_text = f"ФИО программиста ✅" if user_data.get('programmer_name') else "ФИО программиста"
+    machine_text = f"Номер станка ✅" if user_data.get('machine_number') else "Номер станка"
     desc_text = f"Описание вопроса ✅" if user_data['description'] else "Описание вопроса"
     photo_text = f"Фото ✅" if user_data['photo_file_id'] else "Фото (необязательно)"
 
@@ -185,12 +193,15 @@ async def show_application_menu(update: Update, user_id: str) -> None:
         [InlineKeyboardButton(dse_text, callback_data='set_dse')],
         [InlineKeyboardButton(problem_text, callback_data='set_problem')],
         [InlineKeyboardButton(rc_text, callback_data='set_rc')],
+        [InlineKeyboardButton(programmer_text, callback_data='set_programmer')],
+        [InlineKeyboardButton(machine_text, callback_data='set_machine')],
         [InlineKeyboardButton(desc_text, callback_data='set_description')],
-        [InlineKeyboardButton(photo_text, callback_data='set_photo')],  # Новая кнопка
+        [InlineKeyboardButton(photo_text, callback_data='set_photo')],
     ]
 
-    # Кнопки отправки и возврата, если основные поля заполнены (теперь включая RC)
-    if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
+    # Кнопки отправки и возврата, если основные поля заполнены (включая новые обязательные поля)
+    if (user_data['dse'] and user_data['problem_type'] and user_data['rc'] and 
+        user_data.get('programmer_name') and user_data.get('machine_number') and user_data['description']):
         keyboard.append([InlineKeyboardButton("💾 Сохранить заявку", callback_data='send')])
         keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
 
@@ -204,10 +215,13 @@ async def show_application_menu(update: Update, user_id: str) -> None:
         f"• {dse_text}\n"
         f"• {problem_text}\n"
         f"• {rc_text}\n"
+        f"• {programmer_text}\n"
+        f"• {machine_text}\n"
         f"• {desc_text}\n"
         f"• {photo_text}\n\n"
     )
-    if user_data['dse'] and user_data['problem_type'] and user_data['rc'] and user_data['description']:
+    if (user_data['dse'] and user_data['problem_type'] and user_data['rc'] and 
+        user_data.get('programmer_name') and user_data.get('machine_number') and user_data['description']):
         welcome_text += "✅ Все обязательные поля заполнены! Теперь можно сохранить заявку."
     else:
         welcome_text += "❗ Заполните все обязательные поля, чтобы сохранить заявку."
@@ -228,6 +242,8 @@ async def show_main_menu(update: Update, user_id: str) -> None:
             'problem_type': '',
             'description': '',
             'rc': '',
+            'programmer_name': '',
+            'machine_number': '',
             'photo_file_id': None  # Инициализируем поле для фото
         }
     else:
@@ -2816,6 +2832,9 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
             f"📋 ДСЕ: {record.get('dse', 'N/A')}\n"
             f"⚠️ Тип: {record.get('problem_type', 'N/A')}\n"
             f"🏭 РЦ: {record.get('rc', 'N/A')}\n"
+            f"🔧 Станок: {record.get('machine_number', 'N/A')}\n"
+            f"👨‍🔧 Наладчик: {record.get('installer_fio', 'N/A')}\n"
+            f"👨‍💻 Программист: {record.get('programmer_name', 'N/A')}\n"
             f"👤 Создатель: {creator_name}\n"
             f"📅 Дата: {record.get('datetime', 'N/A')}\n\n"
             f"📄 PDF отчёт прикреплён к сообщению"

@@ -94,59 +94,52 @@ class DSEPDFGenerator:
                 encoding='utf-8'
             )
             
-            title = Paragraph("ОТЧЕТ ПО ЗАЯВКЕ ДСЕ".encode('utf-8').decode('utf-8'), title_style)
+            title = Paragraph("ОТЧЕТ".encode('utf-8').decode('utf-8'), title_style)
             story.append(title)
             story.append(Spacer(1, 10*mm))
             
-            # Создаем таблицу как на изображении
-            # Верхняя часть таблицы
+            # Создаем горизонтальную таблицу с заголовками слева
             table_data = []
             
-            # Заголовки
-            headers = ['№ п/п', 'Дата', 'Деталь', 'Наименование ДСЕ', 'Номер УП', 'ФИО Наладчика', 'ФИО Программиста']
-            # Убеждаемся, что все заголовки в правильной кодировке
-            headers = [str(header) for header in headers]
-            table_data.append(headers)
+            # Извлекаем дату из datetime
+            date_str = record_data.get('datetime', '').split()[0] if record_data.get('datetime') else ''
             
-            # Строка с данными
-            row_data = [
-                '1',  # № п/п
-                record_data.get('datetime', '').split()[0] if record_data.get('datetime') else '',  # Дата
-                str(record_data.get('dse', '')),  # Деталь (ДСЕ)
-                str(record_data.get('problem_type', '')),  # Наименование ДСЕ (Тип проблемы)
-                str(record_data.get('rc', '')),  # Номер УП (РЦ)
-                str(record_data.get('user_display', '')),  # ФИО Наладчика
-                ''  # ФИО Программиста (пустое)
-            ]
-            # Убеждаемся, что все данные в правильной кодировке
-            row_data = [str(item) for item in row_data]
-            table_data.append(row_data)
+            # Формируем строки: [Заголовок, Значение]
+            table_data.append(['Дата', str(date_str)])
+            table_data.append(['ДСЕ', str(record_data.get('dse', ''))])
+            table_data.append(['Наименование ДСЕ', str(record_data.get('problem_type', ''))])
+            table_data.append(['РЦ', str(record_data.get('rc', ''))])
+            table_data.append(['Номер станка', str(record_data.get('machine_number', ''))])
+            table_data.append(['ФИО Наладчика', str(record_data.get('installer_fio', ''))])
+            table_data.append(['ФИО Программиста', str(record_data.get('programmer_name', ''))])
             
-            # Создаем таблицу
+            # Создаем таблицу с двумя колонками: заголовок и значение
             table = Table(table_data, colWidths=[
-                15*mm,  # № п/п
-                25*mm,  # Дата
-                25*mm,  # Деталь
-                50*mm,  # Наименование ДСЕ
-                25*mm,  # Номер УП
-                35*mm,  # ФИО Наладчика
-                35*mm   # ФИО Программиста
+                60*mm,  # Заголовок
+                110*mm  # Значение
             ])
              
-            # Стиль таблицы
+            # Стиль таблицы - горизонтальная с выделением заголовков
             table.setStyle(TableStyle([
                 # Границы
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 
-                # Заголовки
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ('FONTNAME', (0, 0), (-1, 0), self.font_bold),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                # Заголовки (левая колонка)
+                ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+                ('FONTNAME', (0, 0), (0, -1), self.font_bold),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
                 
-                # Данные
-                ('FONTNAME', (0, 1), (-1, -1), self.font_name),
+                # Значения (правая колонка)
+                ('FONTNAME', (1, 0), (1, -1), self.font_name),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                
+                # Общие настройки
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ]))
             
             story.append(table)
