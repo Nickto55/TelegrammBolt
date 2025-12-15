@@ -175,6 +175,9 @@ async def show_application_menu(update: Update, user_id: str) -> None:
         'dse': '',
         'problem_type': '',
         'description': '',
+        'rc': '',
+        'programmer_name': '',
+        'machine_number': '',
         'time': str(dt.now()),
         'photo_file_id': None
     })
