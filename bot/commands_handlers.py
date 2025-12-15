@@ -29,6 +29,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user = query.from_user
     user_id = str(user.id)
     
+    print(f"DEBUG: Получен callback_data='{data}' от пользователя {user_id}")
+    
     # === ГЛАВНОЕ МЕНЮ ===
     if data == 'back_to_main':
         await show_main_menu(update, user_id)
