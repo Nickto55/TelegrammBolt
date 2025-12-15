@@ -1804,6 +1804,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         user_states[user_id]['rc'] = RC_TYPES[idx]
         await show_application_menu(update, user_id)
     
+    elif data == 'set_programmer':
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '',
+                'description': '', 'rc': '', 'programmer_name': '', 
+                'machine_number': '', 'photo_file_id': None
+            }
+        user_states[user_id]['waiting_for'] = 'programmer_name'
+        await query.edit_message_text("Введите ФИО программиста:")
+    
+    elif data == 'set_machine':
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'problem_type': '',
+                'description': '', 'rc': '', 'programmer_name': '', 
+                'machine_number': '', 'photo_file_id': None
+            }
+        user_states[user_id]['waiting_for'] = 'machine_number'
+        await query.edit_message_text("Введите номер станка:")
+    
     elif data == 'set_description':
         if user_id not in user_states:
             user_states[user_id] = {

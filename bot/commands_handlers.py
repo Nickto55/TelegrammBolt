@@ -23,13 +23,14 @@ from config.config import PROBLEM_TYPES, RC_TYPES, save_data, load_data
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик всех нажатий на кнопки"""
     query = update.callback_query
-    await query.answer()
     
     data = query.data
     user = query.from_user
     user_id = str(user.id)
     
-    print(f"DEBUG: Получен callback_data='{data}' от пользователя {user_id}")
+    print(f"🔘 DEBUG: Получен callback_data='{data}' от пользователя {user_id}")
+    
+    await query.answer()
     
     # === ГЛАВНОЕ МЕНЮ ===
     if data == 'back_to_main':
