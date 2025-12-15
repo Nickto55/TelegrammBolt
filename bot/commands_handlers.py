@@ -17,7 +17,7 @@ from bot.commands import show_main_menu, user_states, registration_states, show_
 from bot.dse_manager import get_unique_dse_values
 from bot.user_manager import has_permission, get_user_role, set_user_role, ROLES, get_all_users, check_nickname_exists, \
     set_user_nickname
-from config.config import PROBLEM_TYPES, RC_TYPES, save_data, load_data
+from config.config import PROBLEM_TYPES, RC_TYPES, save_data, load_data, DATA_FILE
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -101,7 +101,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Отправка заявки
         user_data = user_states[user_id]
         
-        # Получаем ФИО наладчика из данных пользователя
+        # Получаем ФИО наладчика из данных пользователя 
         from bot.user_manager import get_user_data
         creator_data = get_user_data(user_id)
         creator_fio = ''
@@ -123,9 +123,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'photo_file_id': user_data.get('photo_file_id')
         }
         
-        data_list = load_data()
+        data_list = load_data(DATA_FILE)
+        if not isinstance(data_list, list):
+            data_list = []
         data_list.append(record)
-        save_data(data_list)
+        save_data(data_list, DATA_FILE)
         
         # Очищаем данные пользователя
         user_states[user_id] = {

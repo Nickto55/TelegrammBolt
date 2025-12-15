@@ -98,48 +98,59 @@ class DSEPDFGenerator:
             story.append(title)
             story.append(Spacer(1, 10*mm))
             
-            # Создаем горизонтальную таблицу с заголовками слева
+            # Создаем горизонтальную таблицу (заголовки сверху, данные снизу)
             table_data = []
             
             # Извлекаем дату из datetime
             date_str = record_data.get('datetime', '').split()[0] if record_data.get('datetime') else ''
             
-            # Формируем строки: [Заголовок, Значение]
-            table_data.append(['Дата', str(date_str)])
-            table_data.append(['ДСЕ', str(record_data.get('dse', ''))])
-            table_data.append(['Наименование ДСЕ', str(record_data.get('problem_type', ''))])
-            table_data.append(['РЦ', str(record_data.get('rc', ''))])
-            table_data.append(['Номер станка', str(record_data.get('machine_number', ''))])
-            table_data.append(['ФИО Наладчика', str(record_data.get('installer_fio', ''))])
-            table_data.append(['ФИО Программиста', str(record_data.get('programmer_name', ''))])
+            # Заголовки (первая строка)
+            headers = ['Дата', 'ДСЕ', 'Наименование ДСЕ', 'РЦ', 'Номер станка', 'ФИО Наладчика', 'ФИО Программиста']
+            table_data.append(headers)
             
-            # Создаем таблицу с двумя колонками: заголовок и значение
+            # Данные (вторая строка)
+            data_row = [
+                str(date_str),
+                str(record_data.get('dse', '')),
+                str(record_data.get('problem_type', '')),
+                str(record_data.get('rc', '')),
+                str(record_data.get('machine_number', '')),
+                str(record_data.get('installer_fio', '')),
+                str(record_data.get('programmer_name', ''))
+            ]
+            table_data.append(data_row)
+            
+            # Создаем таблицу
             table = Table(table_data, colWidths=[
-                60*mm,  # Заголовок
-                110*mm  # Значение
+                25*mm,  # Дата
+                20*mm,  # ДСЕ
+                35*mm,  # Наименование ДСЕ
+                15*mm,  # РЦ
+                20*mm,  # Номер станка
+                30*mm,  # ФИО Наладчика
+                30*mm   # ФИО Программиста
             ])
              
-            # Стиль таблицы - горизонтальная с выделением заголовков
+            # Стиль таблицы
             table.setStyle(TableStyle([
                 # Границы
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 
-                # Заголовки (левая колонка)
-                ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
-                ('FONTNAME', (0, 0), (0, -1), self.font_bold),
-                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                
-                # Значения (правая колонка)
-                ('FONTNAME', (1, 0), (1, -1), self.font_name),
-                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-                
-                # Общие настройки
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                # Заголовки (первая строка)
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ('FONTNAME', (0, 0), (-1, 0), self.font_bold),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 8),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                
+                # Данные (вторая строка)
+                ('FONTNAME', (0, 1), (-1, 1), self.font_name),
+                
+                # Отступы
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ]))
             
             story.append(table)
