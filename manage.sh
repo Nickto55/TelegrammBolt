@@ -76,9 +76,10 @@ show_menu() {
     echo -e "${YELLOW}│${NC}  ${WHITE}8.${NC} Просмотр логов веб"
     echo -e "${YELLOW}│${NC}  ${WHITE}9.${NC} Проверка статуса"
     echo -e "${YELLOW}│${NC}"
-    echo -e "${YELLOW}│${NC}  ${WHITE}10.${NC} Обновить зависимости"
-    echo -e "${YELLOW}│${NC}  ${WHITE}11.${NC} Тест веб-терминала"
-    echo -e "${YELLOW}│${NC}  ${WHITE}12.${NC} Настройка systemd сервиса"
+    echo -e "${YELLOW}│${NC}  ${WHITE}10.${NC} Обновить проект (git pull)"
+    echo -e "${YELLOW}│${NC}  ${WHITE}11.${NC} Обновить зависимости"
+    echo -e "${YELLOW}│${NC}  ${WHITE}12.${NC} Тест веб-терминала"
+    echo -e "${YELLOW}│${NC}  ${WHITE}13.${NC} Настройка systemd сервиса"
     echo -e "${YELLOW}│${NC}"
     echo -e "${YELLOW}│${NC}  ${WHITE}0.${NC} Выход"
     echo -e "${YELLOW}│${NC}"
@@ -196,6 +197,100 @@ check_status() {
     echo ""
     echo -e "${WHITE}Порты:${NC}"
     sudo lsof -i :5000 2>/dev/null || echo "Порт 5000 свободен"
+    echo ""
+    read -p "Нажмите Enter для продолжения..."
+}
+
+update_project() {
+    show_header
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}  Обновление проекта${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+    
+    # Проверка git
+    if ! command -v git &> /dev/null; then
+        echo -e "${RED}✗ Git не установлен${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    # Проверка наличия git репозитория
+    if [ ! -d "$PROJECT_DIR/.git" ]; then
+        echo -e "${YELLOW}⚠ Это не git репозиторий${NC}"
+        echo -e "${YELLOW}  Обновление через git недоступно${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    echo -e "${YELLOW}Текущая ветка:${NC} $(git branch --show-current)"
+    echo -e "${YELLOW}Последний коммит:${NC} $(git log -1 --oneline)"
+    echo ""
+    
+    # Проверка изменений
+    if [ -n "$(git status --porcelain)" ]; then
+        echo -e "${YELLOW}⚠ Обнаружены локальные изменения:${NC}"
+        git status --short
+        echo ""
+        read -p "Продолжить обновление? Локальные изменения могут быть потеряны (y/n): " confirm
+        if [[ ! $confirm =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Отменено${NC}"
+            read -p "Нажмите Enter для продолжения..."
+            return
+        fi
+    fi
+    
+    echo -e "${CYAN}Остановка сервисов...${NC}"
+    sudo systemctl stop $BOT_SERVICE $WEB_SERVICE 2>/dev/null
+    
+    echo -e "${CYAN}Обновление кода из репозитория...${NC}"
+    git fetch origin
+    
+    # Показать что будет обновлено
+    if [ -n "$(git log HEAD..origin/$(git branch --show-current) --oneline)" ]; then
+        echo -e "${GREEN}Доступные обновления:${NC}"
+        git log HEAD..origin/$(git branch --show-current) --oneline --decorate --color
+        echo ""
+    else
+        echo -e "${GREEN}✓ Проект уже актуален${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    read -p "Применить обновления? (y/n): " confirm
+    if [[ $confirm =~ ^[Yy]$ ]]; then
+        git pull origin $(git branch --show-current)
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ Код обновлен${NC}"
+            echo ""
+            
+            # Обновление зависимостей
+            echo -e "${CYAN}Обновление зависимостей...${NC}"
+            if [ -d "$VENV_DIR" ]; then
+                source $VENV_DIR/bin/activate
+            fi
+            pip install -q --upgrade pip
+            pip install -q -r requirements.txt --upgrade
+            echo -e "${GREEN}✓ Зависимости обновлены${NC}"
+            echo ""
+            
+            # Перезапуск сервисов
+            echo -e "${CYAN}Перезапуск сервисов...${NC}"
+            sudo systemctl daemon-reload
+            sudo systemctl start $BOT_SERVICE $WEB_SERVICE 2>/dev/null
+            echo -e "${GREEN}✓ Сервисы перезапущены${NC}"
+            echo ""
+            
+            echo -e "${GREEN}✓ Обновление завершено!${NC}"
+        else
+            echo -e "${RED}✗ Ошибка при обновлении${NC}"
+            echo -e "${YELLOW}Попробуйте вручную: git pull${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Отменено${NC}"
+    fi
+    
     echo ""
     read -p "Нажмите Enter для продолжения..."
 }
@@ -370,9 +465,10 @@ while true; do
         7) view_bot_logs ;;
         8) view_web_logs ;;
         9) check_status ;;
-        10) update_dependencies ;;
-        11) test_terminal ;;
-        12) setup_systemd ;;
+        10) update_project ;;
+        11) update_dependencies ;;
+        12) test_terminal ;;
+        13) setup_systemd ;;
         0) 
             echo -e "${GREEN}Выход...${NC}"
             exit 0

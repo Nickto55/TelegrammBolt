@@ -2793,8 +2793,10 @@ if __name__ == '__main__':
     print("Server is ready!")
     print("="*60 + "\n")
     
-    # Для разработки (с поддержкой WebSocket)
-    socketio.run(app, host='0.0.0.0', port=web_port, debug=True)
+    # Для разработки и тестирования (с поддержкой WebSocket)
+    # В продакшене используйте Gunicorn через manage.sh (опция 6)
+    print("⚠️  WARNING: Используется встроенный сервер Werkzeug")
+    print("   Для продакшена запустите через: ./manage.sh (опция 6)")
+    print("   Или: gunicorn --worker-class eventlet -w 1 -b 0.0.0.0:{} web.web_app:app\n".format(web_port))
     
-    # Для production используйте gunicorn с eventlet:
-    # gunicorn -w 1 -k eventlet -b 0.0.0.0:{web_port} web_app:app
+    socketio.run(app, host='0.0.0.0', port=web_port, debug=True, allow_unsafe_werkzeug=True)
