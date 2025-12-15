@@ -1920,11 +1920,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"Описание: {record['description']}\n"
             f"Дата: {record['datetime']}"
         )
-            f"Тип проблемы: {record['problem_type']}\n"
-            f"РЦ: {record['rc']}\n"
-            f"Описание: {record['description']}\n"
-            f"📅 Дата: {record['datetime']}"
-        )
         await show_main_menu(update, user_id)
     
     elif data == 'send_application_email':
