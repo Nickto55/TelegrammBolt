@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file, flash
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 # Импорты из существующих модулей бота
 from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, load_data, save_data
@@ -76,6 +77,12 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # CORS для API
 CORS(app)
+
+# Инициализация SocketIO для веб-терминала
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# Импортируем менеджер терминалов
+from web.terminal_manager import terminal_manager
 
 # Добавляем функцию now() в Jinja2 для использования в шаблонах
 app.jinja_env.globals['now'] = datetime.now
@@ -2597,6 +2604,149 @@ def api_subscription_stats():
 
 
 # ============================================================================
+# ВЕБ-ТЕРМИНАЛ
+# ============================================================================
+
+@app.route('/terminal')
+@login_required
+def terminal():
+    """Страница веб-терминала"""
+    try:
+        # Проверяем права доступа (только для админов)
+        user_id = session.get('user_id')
+        user_role = get_user_role(user_id)
+        
+        if user_role not in ['admin', 'owner']:
+            flash('У вас нет доступа к терминалу', 'error')
+            return redirect(url_for('dashboard'))
+        
+        return render_template('terminal.html', 
+                             username=session.get('username', 'User'))
+    except Exception as e:
+        logger.error(f"Error loading terminal page: {e}")
+        flash('Ошибка загрузки терминала', 'error')
+        return redirect(url_for('dashboard'))
+
+
+# WebSocket обработчики для терминала
+
+@socketio.on('connect', namespace='/terminal')
+def handle_connect():
+    """Обработка подключения к терминалу"""
+    try:
+        # Проверяем авторизацию
+        if 'user_id' not in session:
+            return False
+        
+        user_id = session.get('user_id')
+        user_role = get_user_role(user_id)
+        
+        if user_role not in ['admin', 'owner']:
+            return False
+        
+        logger.info(f"User {user_id} connected to terminal")
+        emit('connected', {'status': 'ready'})
+        
+    except Exception as e:
+        logger.error(f"Error in terminal connect: {e}")
+        return False
+
+
+@socketio.on('disconnect', namespace='/terminal')
+def handle_disconnect():
+    """Обработка отключения от терминала"""
+    try:
+        user_id = session.get('user_id')
+        session_id = request.sid
+        
+        # Останавливаем сессию терминала
+        terminal_manager.remove_session(session_id)
+        
+        logger.info(f"User {user_id} disconnected from terminal")
+        
+    except Exception as e:
+        logger.error(f"Error in terminal disconnect: {e}")
+
+
+@socketio.on('start_terminal', namespace='/terminal')
+def handle_start_terminal(data):
+    """Запуск терминальной сессии"""
+    try:
+        user_id = session.get('user_id')
+        session_id = request.sid
+        
+        cols = data.get('cols', 80)
+        rows = data.get('rows', 24)
+        
+        # Создаем новую сессию
+        terminal_session = terminal_manager.create_session(session_id, user_id, cols, rows)
+        
+        if terminal_session:
+            # Запускаем поток для отправки вывода клиенту
+            import threading
+            
+            def send_output():
+                while terminal_session.running:
+                    output = terminal_session.read(timeout=0.05)
+                    if output:
+                        try:
+                            socketio.emit('output', 
+                                        {'data': output.decode('utf-8', errors='replace')},
+                                        namespace='/terminal',
+                                        room=session_id)
+                        except Exception as e:
+                            logger.error(f"Error sending output: {e}")
+                            break
+            
+            output_thread = threading.Thread(target=send_output)
+            output_thread.daemon = True
+            output_thread.start()
+            
+            emit('started', {'status': 'success'})
+            logger.info(f"Terminal started for user {user_id}")
+        else:
+            emit('error', {'message': 'Не удалось запустить терминал'})
+            
+    except Exception as e:
+        logger.error(f"Error starting terminal: {e}")
+        emit('error', {'message': str(e)})
+
+
+@socketio.on('input', namespace='/terminal')
+def handle_input(data):
+    """Обработка ввода в терминал"""
+    try:
+        session_id = request.sid
+        terminal_session = terminal_manager.get_session(session_id)
+        
+        if terminal_session:
+            input_data = data.get('data', '')
+            terminal_session.write(input_data)
+        else:
+            emit('error', {'message': 'Терминальная сессия не найдена'})
+            
+    except Exception as e:
+        logger.error(f"Error handling terminal input: {e}")
+        emit('error', {'message': str(e)})
+
+
+@socketio.on('resize', namespace='/terminal')
+def handle_resize(data):
+    """Изменение размера терминала"""
+    try:
+        session_id = request.sid
+        terminal_session = terminal_manager.get_session(session_id)
+        
+        if terminal_session:
+            cols = data.get('cols', 80)
+            rows = data.get('rows', 24)
+            terminal_session.resize(cols, rows)
+            
+    except Exception as e:
+        logger.error(f"Error resizing terminal: {e}")
+
+
+# ============================================================================
 # ЗАПУСК ПРИЛОЖЕНИЯ
 # ============================================================================
 
@@ -2643,8 +2793,8 @@ if __name__ == '__main__':
     print("Server is ready!")
     print("="*60 + "\n")
     
-    # Для разработки
-    app.run(host='0.0.0.0', port=web_port, debug=True)
+    # Для разработки (с поддержкой WebSocket)
+    socketio.run(app, host='0.0.0.0', port=web_port, debug=True)
     
-    # Для production используйте gunicorn:
-    # gunicorn -w 4 -b 0.0.0.0:{web_port} web_app:app
+    # Для production используйте gunicorn с eventlet:
+    # gunicorn -w 1 -k eventlet -b 0.0.0.0:{web_port} web_app:app

@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+
+{% block title %}Веб-терминал - TelegrammBolt{% endblock %}
+
+{% block extra_head %}
+<!-- Xterm.js для эмуляции терминала -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.js"></script>
+
+<!-- Socket.IO для WebSocket подключения -->
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+<style>
+    .terminal-container {
+        background-color: #1e1e1e;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .terminal-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px 8px 0 0;
+        margin: -20px -20px 0 -20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .terminal-header h2 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+
+    .terminal-controls {
+        display: flex;
+        gap: 10px;
+    }
+
+    .terminal-btn {
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+    }
+
+    .terminal-btn.start {
+        background-color: #10b981;
+        color: white;
+    }
+
+    .terminal-btn.start:hover {
+        background-color: #059669;
+    }
+
+    .terminal-btn.stop {
+        background-color: #ef4444;
+        color: white;
+    }
+
+    .terminal-btn.stop:hover {
+        background-color: #dc2626;
+    }
+
+    .terminal-btn.clear {
+        background-color: #6b7280;
+        color: white;
+    }
+
+    .terminal-btn.clear:hover {
+        background-color: #4b5563;
+    }
+
+    .terminal-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    #terminal {
+        margin-top: 20px;
+        height: 500px;
+        border-radius: 0 0 8px 8px;
+    }
+
+    .terminal-info {
+        background-color: #f3f4f6;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .terminal-info h3 {
+        margin: 0 0 10px 0;
+        color: #374151;
+        font-size: 1rem;
+    }
+
+    .terminal-info ul {
+        margin: 0;
+        padding-left: 20px;
+        color: #6b7280;
+    }
+
+    .terminal-info li {
+        margin: 5px 0;
+    }
+
+    .status-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+
+    .status-indicator.connected {
+        background-color: #10b981;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+
+    .status-indicator.disconnected {
+        background-color: #ef4444;
+    }
+
+    .status-text {
+        font-size: 0.9rem;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1>
+                <i class="fas fa-terminal"></i> Веб-терминал
+            </h1>
+
+            <div class="terminal-info">
+                <h3><i class="fas fa-info-circle"></i> Информация</h3>
+                <ul>
+                    <li>Полноценный терминал с доступом к командной оболочке сервера</li>
+                    <li>Поддержка интерактивных команд и приложений</li>
+                    <li>Для Windows используется PowerShell, для Linux/Unix - Bash</li>
+                    <li>Нажмите "Запустить терминал" для начала работы</li>
+                    <li><strong>Внимание:</strong> Будьте осторожны с выполняемыми командами</li>
+                </ul>
+            </div>
+
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <div>
+                        <h2>
+                            <i class="fas fa-code"></i>
+                            Shell Terminal
+                            <span class="status-indicator disconnected" id="status-indicator"></span>
+                            <span class="status-text" id="status-text">Не подключено</span>
+                        </h2>
+                    </div>
+                    <div class="terminal-controls">
+                        <button class="terminal-btn start" id="start-btn" onclick="startTerminal()">
+                            <i class="fas fa-play"></i> Запустить
+                        </button>
+                        <button class="terminal-btn stop" id="stop-btn" onclick="stopTerminal()" disabled>
+                            <i class="fas fa-stop"></i> Остановить
+                        </button>
+                        <button class="terminal-btn clear" id="clear-btn" onclick="clearTerminal()">
+                            <i class="fas fa-eraser"></i> Очистить
+                        </button>
+                    </div>
+                </div>
+                <div id="terminal"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let term;
+    let fitAddon;
+    let socket;
+    let isConnected = false;
+
+    // Инициализация терминала при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function () {
+        initTerminal();
+    });
+
+    function initTerminal() {
+        // Создаем терминал
+        term = new Terminal({
+            cursorBlink: true,
+            cursorStyle: 'block',
+            fontSize: 14,
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            theme: {
+                background: '#1e1e1e',
+                foreground: '#d4d4d4',
+                cursor: '#d4d4d4',
+                black: '#000000',
+                red: '#cd3131',
+                green: '#0dbc79',
+                yellow: '#e5e510',
+                blue: '#2472c8',
+                magenta: '#bc3fbc',
+                cyan: '#11a8cd',
+                white: '#e5e5e5',
+                brightBlack: '#666666',
+                brightRed: '#f14c4c',
+                brightGreen: '#23d18b',
+                brightYellow: '#f5f543',
+                brightBlue: '#3b8eea',
+                brightMagenta: '#d670d6',
+                brightCyan: '#29b8db',
+                brightWhite: '#e5e5e5'
+            },
+            allowTransparency: false,
+            scrollback: 1000,
+            tabStopWidth: 4
+        });
+
+        // Подключаем адоны
+        fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+
+        const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+        term.loadAddon(webLinksAddon);
+
+        // Открываем терминал в контейнере
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+
+        // Приветственное сообщение
+        term.writeln('\x1b[1;32m╔══════════════════════════════════════════════════════════╗\x1b[0m');
+        term.writeln('\x1b[1;32m║         Добро пожаловать в веб-терминал!                ║\x1b[0m');
+        term.writeln('\x1b[1;32m║    Нажмите "Запустить" для начала работы                ║\x1b[0m');
+        term.writeln('\x1b[1;32m╚══════════════════════════════════════════════════════════╝\x1b[0m');
+        term.writeln('');
+
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            if (fitAddon) {
+                fitAddon.fit();
+                if (isConnected && socket) {
+                    socket.emit('resize', {
+                        cols: term.cols,
+                        rows: term.rows
+                    });
+                }
+            }
+        });
+    }
+
+    function startTerminal() {
+        if (isConnected) {
+            return;
+        }
+
+        // Подключаемся к WebSocket
+        socket = io('/terminal', {
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', function () {
+            console.log('Connected to terminal server');
+            updateStatus(true);
+
+            // Запускаем терминальную сессию
+            socket.emit('start_terminal', {
+                cols: term.cols,
+                rows: term.rows
+            });
+        });
+
+        socket.on('connected', function (data) {
+            console.log('Terminal ready:', data);
+        });
+
+        socket.on('started', function (data) {
+            console.log('Terminal started:', data);
+            term.clear();
+
+            // Обработка ввода пользователя
+            term.onData(function (data) {
+                socket.emit('input', { data: data });
+            });
+        });
+
+        socket.on('output', function (data) {
+            // Выводим данные в терминал
+            term.write(data.data);
+        });
+
+        socket.on('error', function (data) {
+            console.error('Terminal error:', data);
+            term.writeln('\r\n\x1b[1;31mОшибка: ' + data.message + '\x1b[0m\r\n');
+        });
+
+        socket.on('disconnect', function () {
+            console.log('Disconnected from terminal server');
+            updateStatus(false);
+            term.writeln('\r\n\x1b[1;33m[Соединение разорвано]\x1b[0m\r\n');
+        });
+
+        // Обновляем кнопки
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('stop-btn').disabled = false;
+    }
+
+    function stopTerminal() {
+        if (socket) {
+            socket.disconnect();
+            socket = null;
+        }
+
+        updateStatus(false);
+
+        // Обновляем кнопки
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('stop-btn').disabled = true;
+
+        term.writeln('\r\n\x1b[1;33m[Терминал остановлен]\x1b[0m\r\n');
+    }
+
+    function clearTerminal() {
+        if (term) {
+            term.clear();
+        }
+    }
+
+    function updateStatus(connected) {
+        isConnected = connected;
+        const indicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+
+        if (connected) {
+            indicator.classList.remove('disconnected');
+            indicator.classList.add('connected');
+            statusText.textContent = 'Подключено';
+        } else {
+            indicator.classList.remove('connected');
+            indicator.classList.add('disconnected');
+            statusText.textContent = 'Не подключено';
+        }
+    }
+</script>
+{% endblock %}
