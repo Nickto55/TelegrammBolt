@@ -18,7 +18,7 @@ from config.config import load_data, save_data, PROBLEM_TYPES, RC_TYPES, DATA_FI
 from bot.dse_manager import get_all_dse_records, search_dse_records, get_unique_dse_values
 from bot.user_manager import (register_user, get_user_role, has_permission, set_user_role, ROLES, get_all_users,
                          set_user_nickname, remove_user_nickname, get_user_nickname, get_user_display_name,
-                         check_nickname_exists, get_all_nicknames)
+                         check_nickname_exists, get_all_nicknames, get_user_data)
 
 import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
