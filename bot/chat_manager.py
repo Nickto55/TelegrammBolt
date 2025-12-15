@@ -102,8 +102,13 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     dse_chat_states[user_id]['dse'] = dse_value
     dse_chat_states[user_id]['state'] = 'processing'
+    
+    print(f"🔍 handle_dse_input: Searching for DSE '{dse_value}'")
+    print(f"🔍 handle_dse_input: dse_chat_states[{user_id}]['dse'] = '{dse_chat_states[user_id]['dse']}'")
 
     records = get_dse_records_by_dse_value(dse_value)
+    
+    print(f"🔍 handle_dse_input: Found {len(records)} records for DSE '{dse_value}'")
 
     if not records:
         del dse_chat_states[user_id]
@@ -145,9 +150,14 @@ async def handle_dse_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         single_target_user_id = list(target_candidates.keys())[0]
         dse_chat_states[user_id]['target_user_id'] = single_target_user_id
         dse_chat_states[user_id]['state'] = 'waiting_for_initiator_confirmation'
+        
+        print(f"🔍 handle_dse_input: Single target found. Calling request_initiator_confirmation")
+        print(f"🔍 handle_dse_input: dse_chat_states[{user_id}] = {dse_chat_states[user_id]}")
+        
         await request_initiator_confirmation(update, context, user_id, single_target_user_id)
     else:
         dse_chat_states[user_id]['state'] = 'waiting_for_target_selection'
+        await show_target_selection_menu(update, context, user_id)
         await show_target_selection_menu(update, context, user_id)
 
 
