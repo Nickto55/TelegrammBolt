@@ -2504,21 +2504,21 @@ if __name__ == '__main__':
     info = get_server_url()
     
     print("\n" + "="*60)
-    print("🚀 TelegrammBolt Web Interface Starting...")
+    print("TelegrammBolt Web Interface Starting...")
     print("="*60)
-    print(f"\n🌐 Access URL: {info['url']}")
-    print(f"📍 Environment: {'Docker' if info['is_docker'] else 'Native'}")
-    print(f"🔗 Server Info Page: {info['url']}/show-url")
+    print(f"Access URL: {info['url']}")
+    print(f"Environment: {'Docker' if info['is_docker'] else 'Native'}")
+    print(f"Server Info Page: {info['url']}/show-url")
     
     if info['public_ip']:
-        print(f"🌍 Public IP: {info['public_ip']}")
-    print(f"🏠 Local IP: {info['local_ip']}")
-    print(f"🚪 Port: {web_port}")
+        print(f"Public IP: {info['public_ip']}")
+    print(f"Local IP: {info['local_ip']}")
+    print(f"Port: {web_port}")
     if domain != 'localhost':
-        print(f"🌐 Domain: {domain}")
+        print(f"Domain: {domain}")
     
     print("\n" + "="*60)
-    print("✅ Server is ready!")
+    print("Server is ready!")
     print("="*60 + "\n")
     
     # Для разработки

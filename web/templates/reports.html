@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}Отчеты - TelegrammBolt{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="bi bi-file-earmark-bar-graph"></i> Отчеты и статистика
+            </h1>
+        </div>
+    </div>
+
+    <!-- Фильтры отчетов -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> Фильтры</h5>
+                </div>
+                <div class="card-body">
+                    <form id="reportFilters">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label for="dateFrom" class="form-label">Дата от</label>
+                                <input type="date" class="form-control" id="dateFrom" name="dateFrom">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="dateTo" class="form-label">Дата до</label>
+                                <input type="date" class="form-control" id="dateTo" name="dateTo">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="status" class="form-label">Статус</label>
+                                <select class="form-select" id="status" name="status">
+                                    <option value="">Все статусы</option>
+                                    <option value="Новая">Новая</option>
+                                    <option value="В работе">В работе</option>
+                                    <option value="Выполнена">Выполнена</option>
+                                    <option value="Отклонена">Отклонена</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="reportType" class="form-label">Тип отчета</label>
+                                <select class="form-select" id="reportType" name="reportType">
+                                    <option value="summary">Сводный отчет</option>
+                                    <option value="detailed">Детальный отчет</option>
+                                    <option value="byProblem">По типам проблем</option>
+                                    <option value="byUser">По пользователям</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <button type="button" class="btn btn-primary" onclick="generateReport()">
+                                    <i class="bi bi-file-earmark-text"></i> Сформировать отчет
+                                </button>
+                                <button type="button" class="btn btn-success" onclick="exportReport()">
+                                    <i class="bi bi-download"></i> Экспортировать
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Общая статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Всего заявок</h6>
+                            <h2 class="card-title mb-0" id="totalDSE">0</h2>
+                        </div>
+                        <i class="bi bi-file-earmark-text display-4 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">В работе</h6>
+                            <h2 class="card-title mb-0" id="inProgressDSE">0</h2>
+                        </div>
+                        <i class="bi bi-hourglass-split display-4 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Выполнено</h6>
+                            <h2 class="card-title mb-0" id="completedDSE">0</h2>
+                        </div>
+                        <i class="bi bi-check-circle display-4 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Отклонено</h6>
+                            <h2 class="card-title mb-0" id="rejectedDSE">0</h2>
+                        </div>
+                        <i class="bi bi-x-circle display-4 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Результаты отчета -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-table"></i> Результаты</h5>
+                </div>
+                <div class="card-body">
+                    <div id="reportResults">
+                        <p class="text-muted text-center py-5">
+                            <i class="bi bi-info-circle display-1 d-block mb-3"></i>
+                            Выберите параметры и нажмите "Сформировать отчет"
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Загрузка статистики при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    loadStatistics();
+});
+
+function loadStatistics() {
+    fetch('/api/dse/list')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const dseList = data.dse_list;
+                
+                // Подсчет статистики
+                document.getElementById('totalDSE').textContent = dseList.length;
+                
+                const inProgress = dseList.filter(dse => dse.status === 'В работе').length;
+                document.getElementById('inProgressDSE').textContent = inProgress;
+                
+                const completed = dseList.filter(dse => dse.status === 'Выполнена').length;
+                document.getElementById('completedDSE').textContent = completed;
+                
+                const rejected = dseList.filter(dse => dse.status === 'Отклонена').length;
+                document.getElementById('rejectedDSE').textContent = rejected;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки статистики:', error);
+        });
+}
+
+function generateReport() {
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    const status = document.getElementById('status').value;
+    const reportType = document.getElementById('reportType').value;
+    
+    // Формируем параметры запроса
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    if (status) params.append('status', status);
+    
+    // Загружаем данные
+    fetch('/api/dse/list?' + params.toString())
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const resultsDiv = document.getElementById('reportResults');
+                const dseList = data.dse_list;
+                
+                if (dseList.length === 0) {
+                    resultsDiv.innerHTML = '<p class="text-muted text-center py-3">Нет данных для отображения</p>';
+                    return;
+                }
+                
+                // Генерируем отчет в зависимости от типа
+                let reportHTML = '';
+                
+                if (reportType === 'summary') {
+                    reportHTML = generateSummaryReport(dseList);
+                } else if (reportType === 'detailed') {
+                    reportHTML = generateDetailedReport(dseList);
+                } else if (reportType === 'byProblem') {
+                    reportHTML = generateByProblemReport(dseList);
+                } else if (reportType === 'byUser') {
+                    reportHTML = generateByUserReport(dseList);
+                }
+                
+                resultsDiv.innerHTML = reportHTML;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка генерации отчета:', error);
+            document.getElementById('reportResults').innerHTML = 
+                '<div class="alert alert-danger">Ошибка загрузки данных</div>';
+        });
+}
+
+function generateSummaryReport(dseList) {
+    const statusCounts = {};
+    dseList.forEach(dse => {
+        statusCounts[dse.status] = (statusCounts[dse.status] || 0) + 1;
+    });
+    
+    let html = '<div class="table-responsive"><table class="table table-striped">';
+    html += '<thead><tr><th>Статус</th><th>Количество</th><th>Процент</th></tr></thead><tbody>';
+    
+    for (const [status, count] of Object.entries(statusCounts)) {
+        const percent = ((count / dseList.length) * 100).toFixed(1);
+        html += `<tr><td>${status}</td><td>${count}</td><td>${percent}%</td></tr>`;
+    }
+    
+    html += '</tbody></table></div>';
+    return html;
+}
+
+function generateDetailedReport(dseList) {
+    let html = '<div class="table-responsive"><table class="table table-striped table-hover">';
+    html += '<thead><tr><th>ID</th><th>Дата</th><th>Адрес</th><th>Проблема</th><th>Статус</th></tr></thead><tbody>';
+    
+    dseList.forEach(dse => {
+        const date = dse.created_at ? new Date(dse.created_at).toLocaleDateString('ru-RU') : 'Н/Д';
+        html += `<tr>
+            <td>${dse.id || 'Н/Д'}</td>
+            <td>${date}</td>
+            <td>${dse.address || 'Н/Д'}</td>
+            <td>${dse.problem_type || 'Н/Д'}</td>
+            <td><span class="badge bg-${getStatusColor(dse.status)}">${dse.status || 'Н/Д'}</span></td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    return html;
+}
+
+function generateByProblemReport(dseList) {
+    const problemCounts = {};
+    dseList.forEach(dse => {
+        const problem = dse.problem_type || 'Не указано';
+        problemCounts[problem] = (problemCounts[problem] || 0) + 1;
+    });
+    
+    let html = '<div class="table-responsive"><table class="table table-striped">';
+    html += '<thead><tr><th>Тип проблемы</th><th>Количество</th><th>Процент</th></tr></thead><tbody>';
+    
+    for (const [problem, count] of Object.entries(problemCounts).sort((a, b) => b[1] - a[1])) {
+        const percent = ((count / dseList.length) * 100).toFixed(1);
+        html += `<tr><td>${problem}</td><td>${count}</td><td>${percent}%</td></tr>`;
+    }
+    
+    html += '</tbody></table></div>';
+    return html;
+}
+
+function generateByUserReport(dseList) {
+    const userCounts = {};
+    dseList.forEach(dse => {
+        const user = dse.username || dse.user_id || 'Неизвестно';
+        userCounts[user] = (userCounts[user] || 0) + 1;
+    });
+    
+    let html = '<div class="table-responsive"><table class="table table-striped">';
+    html += '<thead><tr><th>Пользователь</th><th>Количество заявок</th></tr></thead><tbody>';
+    
+    for (const [user, count] of Object.entries(userCounts).sort((a, b) => b[1] - a[1])) {
+        html += `<tr><td>${user}</td><td>${count}</td></tr>`;
+    }
+    
+    html += '</tbody></table></div>';
+    return html;
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'Новая': 'info',
+        'В работе': 'warning',
+        'Выполнена': 'success',
+        'Отклонена': 'danger'
+    };
+    return colors[status] || 'secondary';
+}
+
+function exportReport() {
+    const reportType = document.getElementById('reportType').value;
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    const status = document.getElementById('status').value;
+    
+    // Формируем параметры для экспорта
+    const params = new URLSearchParams();
+    params.append('type', reportType);
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    if (status) params.append('status', status);
+    
+    // Открываем экспорт в новом окне
+    window.open('/api/export/report?' + params.toString(), '_blank');
+}
+</script>
+{% endblock %}
