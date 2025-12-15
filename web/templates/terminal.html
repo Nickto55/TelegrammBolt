@@ -192,10 +192,20 @@
 
     // Инициализация терминала при загрузке страницы
     document.addEventListener('DOMContentLoaded', function () {
+        console.log('%c╔════════════════════════════════════════════════════════╗', 'color: #667eea; font-weight: bold');
+        console.log('%c║          🖥️  Веб-терминал TelegramBolt              ║', 'color: #667eea; font-weight: bold');
+        console.log('%c╚════════════════════════════════════════════════════════╝', 'color: #667eea; font-weight: bold');
+        console.log('%cИнициализация терминала...', 'color: #2472c8');
+
         initTerminal();
+
+        console.log('%c✅ Терминал инициализирован', 'color: #0dbc79; font-weight: bold');
+        console.log('%c💡 Нажмите "Запустить" для начала работы', 'color: #e5e510');
+        console.log('%c📊 Размер терминала:', 'color: #2472c8', term.cols + 'x' + term.rows);
     });
 
     function initTerminal() {
+        console.log('Создание экземпляра терминала...');
         // Создаем терминал
         term = new Terminal({
             cursorBlink: true,
@@ -229,15 +239,20 @@
         });
 
         // Подключаем адоны
+        console.log('Загрузка расширений терминала...');
         fitAddon = new FitAddon.FitAddon();
         term.loadAddon(fitAddon);
+        console.log('✓ FitAddon загружен');
 
         const webLinksAddon = new WebLinksAddon.WebLinksAddon();
         term.loadAddon(webLinksAddon);
+        console.log('✓ WebLinksAddon загружен');
 
         // Открываем терминал в контейнере
+        console.log('Открытие терминала в DOM...');
         term.open(document.getElementById('terminal'));
         fitAddon.fit();
+        console.log('✓ Терминал открыт и подогнан под размер окна');
 
         // Приветственное сообщение
         term.writeln('\x1b[1;32m╔══════════════════════════════════════════════════════════╗\x1b[0m');
@@ -245,16 +260,20 @@
         term.writeln('\x1b[1;32m║    Нажмите "Запустить" для начала работы                ║\x1b[0m');
         term.writeln('\x1b[1;32m╚══════════════════════════════════════════════════════════╝\x1b[0m');
         term.writeln('');
+        term.writeln('\x1b[36mℹ Откройте консоль браузера (F12) для диагностики\x1b[0m');
+        term.writeln('');
 
         // Обработка изменения размера окна
         window.addEventListener('resize', () => {
             if (fitAddon) {
                 fitAddon.fit();
+                console.log('📏 Размер терминала изменен:', term.cols + 'x' + term.rows);
                 if (isConnected && socket) {
                     socket.emit('resize', {
                         cols: term.cols,
                         rows: term.rows
                     });
+                    console.log('✓ Новый размер отправлен на сервер');
                 }
             }
         });
@@ -354,13 +373,16 @@
     }
 
     function clearTerminal() {
+        console.log('🧹 Очистка терминала...');
         if (term) {
             term.clear();
+            console.log('✓ Терминал очищен');
         }
     }
 
     function updateStatus(connected) {
         isConnected = connected;
+        console.log('Status updated:', connected ? 'Connected' : 'Disconnected');
         const indicator = document.getElementById('status-indicator');
         const statusText = document.getElementById('status-text');
 
