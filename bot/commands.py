@@ -358,20 +358,23 @@ async def show_all_dse_records(update: Update, context: ContextTypes.DEFAULT_TYP
     page_records = records[start_idx:end_idx]
 
     text = f"📋 Все записи ДСЕ (страница {page + 1}/{total_pages}):\n\n"
+    text += "Нажмите на кнопку с номером записи для просмотра деталей:\n\n"
 
-    for i, record in enumerate(page_records, start=start_idx + 1):
-        text += f"{i}. ДСЕ: {record.get('dse', 'Не указано')}\n"
-        text += f"   Тип: {record.get('problem_type', 'Не указано')}\n"
-        text += f"   РЦ: {record.get('rc', 'Не указано')}\n"
-        text += f"   Описание: {record.get('description', 'Не указано')[:50]}...\n"
-        # Проверяем, есть ли фото
-        if record.get('photo_file_id'):
-            text += f"   📸 Фото: Прикреплено\n"
-        text += f"   📅 Дата: {record.get('datetime', 'Не указано')}\n"
-        user_id = record.get('user_id', 'Неизвестно')
-        user_display = get_user_display_name(user_id) if user_id != 'Неизвестно' else 'Неизвестно'
-        text += f"   👤 Пользователь: {user_display}\n\n"
+    # Создаем кнопки для каждой записи
+    keyboard = []
+    
+    for i, record in enumerate(page_records, start=start_idx):
+        record_num = i + 1
+        dse_num = record.get('dse', 'N/A')
+        problem = record.get('problem_type', 'N/A')
+        
+        # Кнопка для просмотра записи
+        button_text = f"{record_num}. ДСЕ: {dse_num} - {problem[:20]}"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=f'view_record_{i}')])
 
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f'dse_view_all_{page - 1}'))
+    
     # Создаем кнопки навигации
     nav_buttons = []
 
@@ -381,30 +384,72 @@ async def show_all_dse_records(update: Update, context: ContextTypes.DEFAULT_TYP
     if page < total_pages - 1:
         nav_buttons.append(InlineKeyboardButton("➡️ Далее", callback_data=f'dse_view_all_{page + 1}'))
 
-    # --- ИСПРАВЛЕННЫЙ БЛОК ---
-    # Кнопка возврата в меню
-    menu_button = InlineKeyboardButton("↩️ Меню", callback_data='view_dse_list')
-    # Добавляем кнопку меню к навигационным кнопкам, если они есть, или создаем новую строку
+    # Добавляем кнопку возврата в меню
     if nav_buttons:
-        nav_buttons.append(menu_button) # Добавляем кнопку меню в ту же строку, что и Назад/Далее
-    else:
-        nav_buttons = [menu_button] # Если Назад/Далее нет, создаем отдельную строку для меню
-
-    # Формируем итоговую клавиатуру
-    keyboard = []
-    # Добавляем кнопки записей (если есть)
-    # (предполагается, что они уже добавлены в keyboard выше в функции)
-    # Например:
-    # for record_buttons_row in record_buttons: # record_buttons - это список списков кнопок для записей
-    #     keyboard.append(record_buttons_row)
-
-    # Добавляем строку с навигационными кнопками (и кнопкой меню)
-    if nav_buttons: # Проверяем, есть ли что-то в nav_buttons
-        keyboard.append(nav_buttons) # Добавляем целую строку кнопок
+        keyboard.append(nav_buttons)
+    
+    keyboard.append([InlineKeyboardButton("↩️ Меню", callback_data='view_dse_list')])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-
     await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup)
+
+
+async def show_dse_record_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, record_idx: int) -> None:
+    """Показать детальную информацию о записи ДСЕ"""
+    try:
+        records = get_all_dse_records()
+        
+        if not records or record_idx >= len(records):
+            await update.callback_query.answer("❌ Запись не найдена", show_alert=True)
+            return
+        
+        record = records[record_idx]
+        
+        # Формируем текст с детальной информацией
+        text = "📋 *Детальная информация о заявке*\n\n"
+        text += f"🔢 *ДСЕ:* {record.get('dse', 'N/A')}\n"
+        text += f"📝 *Наименование ДСЕ:* {record.get('problem_type', 'N/A')}\n"
+        text += f"🏭 *РЦ:* {record.get('rc', 'N/A')}\n"
+        text += f"🔧 *Номер станка:* {record.get('machine_number', 'N/A')}\n"
+        text += f"👤 *ФИО Наладчика:* {record.get('installer_fio', 'N/A')}\n"
+        text += f"💻 *ФИО Программиста:* {record.get('programmer_name', 'N/A')}\n"
+        text += f"📅 *Дата:* {record.get('datetime', 'N/A')}\n"
+        
+        if record.get('description'):
+            text += f"\n📄 *Описание:*\n{record['description']}\n"
+        
+        # Создаем клавиатуру с кнопкой возврата
+        keyboard = [[InlineKeyboardButton("↩️ Назад к списку", callback_data='dse_view_all_0')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Если есть фото, отправляем его вместе с текстом
+        if record.get('photo_path'):
+            try:
+                photo_path = record['photo_path']
+                if os.path.exists(photo_path):
+                    with open(photo_path, 'rb') as photo:
+                        await update.callback_query.message.reply_photo(
+                            photo=photo,
+                            caption=text,
+                            reply_markup=reply_markup,
+                            parse_mode='Markdown'
+                        )
+                    # Удаляем предыдущее сообщение
+                    await update.callback_query.message.delete()
+                    return
+            except Exception as e:
+                logger.error(f"Ошибка при отправке фото: {e}")
+        
+        # Если фото нет или была ошибка, отправляем только текст
+        await update.callback_query.edit_message_text(
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка при отображении детальной информации: {e}")
+        await update.callback_query.answer("❌ Ошибка при загрузке данных", show_alert=True)
 
 
 async def start_interactive_dse_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2169,6 +2214,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 from .chat_manager import initiate_dse_chat_search
                 user_states[user_id]['dse_chat_dse_value'] = dse_value
                 await handle_dse_input(update, context)
+    
+    # === ПРОСМОТР ДЕТАЛЬНОЙ ИНФОРМАЦИИ О ЗАПИСИ ===
+    elif data.startswith('view_record_'):
+        idx = int(data.split('_')[-1])
+        await show_dse_record_detail(update, context, idx)
     
     # === ОБРАБОТЧИКИ ЧАТА (из chat_manager) ===
     elif data.startswith('dse_chat_'):
