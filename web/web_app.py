@@ -79,7 +79,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 CORS(app)
 
 # Инициализация SocketIO для веб-терминала
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # Импортируем менеджер терминалов
 from web.terminal_manager import terminal_manager
