@@ -336,6 +336,10 @@ update_project() {
         return
     fi
     
+    # Сохраняем хеш manage.sh до обновления для автоперезапуска
+    SCRIPT_PATH="$(readlink -f "$0")"
+    OLD_HASH=$(md5sum "$SCRIPT_PATH" 2>/dev/null | awk '{print $1}')
+    
     echo -e "${YELLOW}Текущая ветка:${NC} $(git branch --show-current)"
     echo -e "${YELLOW}Последний коммит:${NC} $(git log -1 --oneline)"
     echo ""
@@ -377,6 +381,14 @@ update_project() {
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ Код обновлен${NC}"
             echo ""
+            
+            # Проверяем, обновился ли manage.sh и перезапускаем его
+            NEW_HASH=$(md5sum "$SCRIPT_PATH" 2>/dev/null | awk '{print $1}')
+            if [ "$OLD_HASH" != "$NEW_HASH" ]; then
+                echo -e "${YELLOW}⚠ manage.sh был обновлён, перезапуск скрипта...${NC}"
+                sleep 2
+                exec "$SCRIPT_PATH" "$@"
+            fi
             
             # Обновление зависимостей
             echo -e "${CYAN}Обновление зависимостей...${NC}"
@@ -482,7 +494,14 @@ test_terminal() {
     if grep -q "socketio.run(app" $PROJECT_DIR/web/web_app.py; then
         echo -e "  ${GREEN}✓${NC} Приложение использует socketio.run()"
     else
-        echo -e "  ${RED}✗${NC} Приложение не использует socketio.run()"
+        echo -e "  ${YELLOW}⚠${NC} Приложение может использовать Gunicorn (это нормально)"
+    fi
+    
+    # Проверка роутов
+    if grep -q "@app.route('/terminal')" $PROJECT_DIR/web/web_app.py || grep -q "@app.route(\"/terminal\")" $PROJECT_DIR/web/web_app.py; then
+        echo -e "  ${GREEN}✓${NC} Роут /terminal настроен"
+    else
+        echo -e "  ${RED}✗${NC} Роут /terminal не найден"
         all_ok=false
     fi
     
