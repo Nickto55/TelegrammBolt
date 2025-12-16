@@ -2659,10 +2659,13 @@ def handle_disconnect():
         user_id = session.get('user_id')
         session_id = request.sid
         
+        # Выходим из комнаты
+        leave_room(session_id, namespace='/terminal')
+        
         # Останавливаем сессию терминала
         terminal_manager.remove_session(session_id)
         
-        logger.info(f"User {user_id} disconnected from terminal")
+        logger.info(f"User {user_id} disconnected from terminal, session {session_id} stopped")
         
     except Exception as e:
         logger.error(f"Error in terminal disconnect: {e}")
@@ -2675,8 +2678,13 @@ def handle_start_terminal(data):
         user_id = session.get('user_id')
         session_id = request.sid
         
+        # Присоединяемся к комнате для этой сессии
+        join_room(session_id, namespace='/terminal')
+        
         cols = data.get('cols', 80)
         rows = data.get('rows', 24)
+        
+        logger.info(f"Starting terminal for user {user_id}, session {session_id}, size {cols}x{rows}")
         
         # Создаем новую сессию
         terminal_session = terminal_manager.create_session(session_id, user_id, cols, rows)
@@ -2703,7 +2711,7 @@ def handle_start_terminal(data):
             output_thread.start()
             
             emit('started', {'status': 'success', 'session_id': session_id}, namespace='/terminal')
-            logger.info(f"Terminal started for user {user_id}")
+            logger.info(f"Terminal started successfully for user {user_id}")
         else:
             emit('error', {'message': 'Не удалось запустить терминал'}, namespace='/terminal')
             
@@ -2721,8 +2729,12 @@ def handle_input(data):
         
         if terminal_session:
             input_data = data.get('data', '')
-            terminal_session.write(input_data)
+            logger.debug(f"Terminal input from {session_id}: {repr(input_data)}")
+            success = terminal_session.write(input_data)
+            if not success:
+                logger.error(f"Failed to write to terminal session {session_id}")
         else:
+            logger.warning(f"Terminal session not found for {session_id}")
             emit('error', {'message': 'Терминальная сессия не найдена'}, namespace='/terminal')
             
     except Exception as e:
