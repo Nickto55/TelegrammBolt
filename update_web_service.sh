@@ -10,6 +10,15 @@ VENV_DIR="$WORK_DIR/venv"
 
 echo "Обновление systemd сервиса для веб-терминала..."
 
+# Останавливаем старые процессы на порту 5000
+echo "Проверка и остановка процессов на порту 5000..."
+OLD_PID=$(lsof -ti :5000 2>/dev/null)
+if [ ! -z "$OLD_PID" ]; then
+    echo "Найден процесс $OLD_PID на порту 5000, останавливаем..."
+    kill -9 $OLD_PID 2>/dev/null || true
+    sleep 1
+fi
+
 # Создаем новый файл сервиса
 sudo tee $SERVICE_FILE > /dev/null <<EOF
 [Unit]
