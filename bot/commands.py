@@ -3076,9 +3076,9 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         else:
             creator_name = f"ID: {creator_user_id}"
         
-        # Формируем текст уведомления
+        # Формируем текст уведомления (без Markdown, чтобы избежать ошибок парсинга)
         notification_text = (
-            f"*Новая заявка!*\n\n"
+            f"🆕 Новая заявка!\n\n"
             f"ДСЕ: {record.get('dse', 'N/A')}\n"
             f"Тип: {record.get('problem_type', 'N/A')}\n"
             f"РЦ: {record.get('rc', 'N/A')}\n"
@@ -3087,7 +3087,7 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
             f"Программист: {record.get('programmer_name', 'N/A')}\n"
             f"Создатель: {creator_name}\n"
             f"Дата: {record.get('datetime', 'N/A')}\n\n"
-            f"PDF отчёт прикреплён к сообщению"
+            f"📄 PDF отчёт прикреплён к сообщению"
         )
         
         # Отправка в Telegram
@@ -3106,13 +3106,12 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
                         tmp_file.write(pdf_bytes)
                         tmp_path = tmp_file.name
                     
-                    # Отправляем PDF как документ
+                    # Отправляем PDF как документ (без parse_mode чтобы избежать ошибок)
                     await application.bot.send_document(
                         chat_id=int(sub_user_id),
                         document=open(tmp_path, 'rb'),
                         filename=f"DSE_{record.get('dse', 'report')}.pdf",
-                        caption=notification_text,
-                        parse_mode='Markdown'
+                        caption=notification_text
                     )
                     
                     # Удаляем временный файл
