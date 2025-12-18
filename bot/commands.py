@@ -1684,6 +1684,25 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
         text = msg.as_string()
         server.sendmail(smtp_user, valid_emails, text)  # Отправка на все адреса
         
+        # Скачиваем фото локально для веб-доступа
+        photo_path = None
+        if photo_file_id:
+            try:
+                import uuid
+                # Скачиваем файл
+                file = await context.bot.get_file(photo_file_id)
+                
+                # Создаём имя файла
+                photo_filename = f"{user_id}_{dse_number}_{uuid.uuid4().hex[:8]}.jpg"
+                photo_path = os.path.join(PHOTOS_DIR, photo_filename)
+                
+                # Скачиваем
+                await file.download_to_drive(photo_path)
+                logger.info(f"Photo downloaded to {photo_path}")
+            except Exception as e:
+                logger.error(f"Failed to download photo: {e}")
+                photo_path = None
+        
         # Сохраняем заявку в базу данных
         record = {
             'dse': dse_number,
@@ -1693,6 +1712,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
             'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
             'user_id': user_id,
             'photo_file_id': photo_file_id,
+            'photo_path': photo_path,
             'sent_to_emails': ', '.join(valid_emails)  # Сохраняем все адреса
         }
         
@@ -2022,6 +2042,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             last_name = creator_data.get('last_name', '')
             creator_fio = f"{first_name} {last_name}".strip()
         
+        # Скачиваем фото локально для веб-доступа
+        photo_file_id = user_data.get('photo_file_id')
+        photo_path = None
+        if photo_file_id:
+            try:
+                import uuid
+                # Скачиваем файл
+                file = await context.bot.get_file(photo_file_id)
+                
+                # Создаём имя файла
+                dse_number = user_data.get('dse', 'unknown')
+                photo_filename = f"{user_id}_{dse_number}_{uuid.uuid4().hex[:8]}.jpg"
+                photo_path = os.path.join(PHOTOS_DIR, photo_filename)
+                
+                # Скачиваем
+                await file.download_to_drive(photo_path)
+                logger.info(f"Photo downloaded to {photo_path}")
+            except Exception as e:
+                logger.error(f"Failed to download photo: {e}")
+                photo_path = None
+        
         record = {
             'dse': user_data.get('dse', ''),
             'problem_type': user_data.get('problem_type', ''),
@@ -2029,7 +2070,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'description': user_data.get('description', ''),
             'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
             'user_id': user_id,
-            'photo_file_id': user_data.get('photo_file_id'),
+            'photo_file_id': photo_file_id,
+            'photo_path': photo_path,
             'programmer_name': user_data.get('programmer_name', ''),
             'machine_number': user_data.get('machine_number', ''),
             'installer_fio': creator_fio
