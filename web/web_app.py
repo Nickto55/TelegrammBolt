@@ -25,7 +25,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
 # Импорты из существующих модулей бота
-from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, load_data, save_data
+from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR, load_data, save_data
 from bot.user_manager import (
     has_permission, 
     get_users_data, 
