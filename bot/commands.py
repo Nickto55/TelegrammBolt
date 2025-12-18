@@ -1698,9 +1698,9 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
                 
                 # Скачиваем
                 await file.download_to_drive(photo_path)
-                logger.info(f"Photo downloaded to {photo_path}")
+                print(f"✅ Photo downloaded to {photo_path}")
             except Exception as e:
-                logger.error(f"Failed to download photo: {e}")
+                print(f"❌ Failed to download photo: {e}")
                 photo_path = None
         
         # Сохраняем заявку в базу данных
@@ -2058,9 +2058,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
                 # Скачиваем
                 await file.download_to_drive(photo_path)
-                logger.info(f"Photo downloaded to {photo_path}")
+                print(f"✅ Photo downloaded to {photo_path}")
             except Exception as e:
-                logger.error(f"Failed to download photo: {e}")
+                print(f"❌ Failed to download photo: {e}")
                 photo_path = None
         
         record = {
