@@ -540,6 +540,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await show_application_menu(update, user_id)
                 return
             
+            elif user_data.get('waiting_for') == 'dse_name':
+                print(f"DEBUG: Сохранение наименования ДСЕ: {text}")
+                user_states[user_id]['dse_name'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ Наименование ДСЕ сохранено: {text}")
+                await show_application_menu(update, user_id)
+                return
+            
             elif user_data.get('waiting_for') == 'programmer_name':
                 print(f"DEBUG: Сохранение ФИО программиста: {text}")
                 user_states[user_id]['programmer_name'] = text
