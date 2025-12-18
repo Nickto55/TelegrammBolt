@@ -11,17 +11,16 @@ def get_all_dse_records():
     """Получить все записи ДСЕ"""
     all_data = load_data(DATA_FILE)
     records = []
-    counter = 0
 
     for user_id, user_records in all_data.items():
         if isinstance(user_records, list):
-            for record in user_records:
+            for idx, record in enumerate(user_records):
                 record_with_user = record.copy()
                 record_with_user['user_id'] = user_id
                 # Генерируем уникальный ID если его нет
+                # Используем формат: user_id_index для надёжности
                 if 'id' not in record_with_user:
-                    record_with_user['id'] = f"{user_id}_{counter}"
-                counter += 1
+                    record_with_user['id'] = f"{user_id}_{idx}"
                 records.append(record_with_user)
 
     return records

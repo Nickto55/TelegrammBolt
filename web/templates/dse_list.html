@@ -291,7 +291,7 @@ function displayTableView() {
             <td><small>ID: ${item.user_id || '-'}</small></td>
             <td><small>${item.datetime || '-'}</small></td>
             <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="viewDetails('${item.dse}')" title="Просмотр">
+                <button class="btn btn-sm btn-outline-primary" onclick="viewDetails('${item.id}')" title="Просмотр">
                     <i class="bi bi-eye"></i>
                 </button>
             </td>
@@ -330,7 +330,7 @@ function displayCardView() {
                     </div>
                 </div>
                 <div class="card-footer bg-transparent">
-                    <button class="btn btn-sm btn-outline-primary w-100" onclick="viewDetails('${item.dse}')">
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="viewDetails('${item.id}')">
                         <i class="bi bi-eye"></i> Подробнее
                     </button>
                 </div>
@@ -420,9 +420,10 @@ function truncateText(text, maxLength) {
     return text.substring(0, maxLength) + '...';
 }
 
-function viewDetails(dse) {
+function viewDetails(dseId) {
     // Переход на страницу детальной информации о ДСЕ
-    window.location.href = `/dse/${encodeURIComponent(dse)}`;
+    // Используем id вместо dse для надёжности
+    window.location.href = `/dse/${encodeURIComponent(dseId)}`;
 }
 
 function exportToExcel() {

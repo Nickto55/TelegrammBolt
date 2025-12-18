@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import parse_qs
 
+#
+
 # Добавляем корневую директорию проекта в sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -103,18 +105,22 @@ def get_dse_by_id(dse_id):
         if not records:
             logger.warning("get_all_dse_records() returned empty list")
             return None
-            
+        
+        search_id = str(dse_id)
+        logger.info(f"Searching for DSE with ID: {search_id}")
+        
         for record in records:
-            # Проверяем оба поля: id и dse
+            # Проверяем поле id (сгенерированное как user_id_index)
             record_id = str(record.get('id', ''))
+            # Также проверяем поле dse для обратной совместимости
             record_dse = str(record.get('dse', ''))
-            search_id = str(dse_id)
             
             if record_id == search_id or record_dse == search_id:
                 logger.info(f"Found DSE: {record_dse} (id: {record_id})")
                 return record
         
         logger.warning(f"DSE not found: {dse_id}")
+        logger.debug(f"Available IDs: {[r.get('id') for r in records[:5]]}")  # Показываем первые 5 для отладки
         return None
     except Exception as e:
         logger.error(f"Error in get_dse_by_id({dse_id}): {e}")
