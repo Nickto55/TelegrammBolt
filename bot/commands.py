@@ -123,6 +123,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_states[user_id] = {
             'application': '',  # Будет содержать "started" когда заявка начата
             'dse': '',
+            'dse_name': '',
             'problem_type': '',
             'description': '',
             'rc': '',  # Рабочий центр
@@ -169,6 +170,8 @@ async def show_application_menu(update: Update, user_id: str) -> None:
             user_states[user_id]['programmer_name'] = ''
         if 'machine_number' not in user_states[user_id]:
             user_states[user_id]['machine_number'] = ''
+        if 'dse_name' not in user_states[user_id]:
+            user_states[user_id]['dse_name'] = ''
 
     user_data = user_states.get(user_id, {
         'application': '',
@@ -184,6 +187,7 @@ async def show_application_menu(update: Update, user_id: str) -> None:
 
     # Создаем кнопки с индикаторами заполненности для каждого поля
     dse_text = f"ДСЕ ✅" if user_data['dse'] else "ДСЕ"
+    dse_name_text = f"Наименование ДСЕ ✅" if user_data.get('dse_name') else "Наименование ДСЕ"
     problem_text = f"Вид проблемы ✅" if user_data['problem_type'] else "Вид проблемы"
     rc_text = f"РЦ ✅" if user_data['rc'] else "РЦ"
     programmer_text = f"ФИО программиста ✅" if user_data.get('programmer_name') else "ФИО программиста"
@@ -194,6 +198,7 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     # Кнопки для заполнения полей
     keyboard = [
         [InlineKeyboardButton(dse_text, callback_data='set_dse')],
+        [InlineKeyboardButton(dse_name_text, callback_data='set_dse_name')],
         [InlineKeyboardButton(problem_text, callback_data='set_problem')],
         [InlineKeyboardButton(rc_text, callback_data='set_rc')],
         [InlineKeyboardButton(programmer_text, callback_data='set_programmer')],
@@ -204,7 +209,7 @@ async def show_application_menu(update: Update, user_id: str) -> None:
 
     # Кнопки отправки и возврата, если основные поля заполнены (включая новые обязательные поля)
     # Описание - необязательное поле
-    if (user_data['dse'] and user_data['problem_type'] and user_data['rc'] and 
+    if (user_data['dse'] and user_data.get('dse_name') and user_data['problem_type'] and user_data['rc'] and 
         user_data.get('programmer_name') and user_data.get('machine_number')):
         keyboard.append([InlineKeyboardButton("💾 Сохранить заявку", callback_data='send')])
         keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
@@ -217,6 +222,7 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     welcome_text = "📝 Заполните заявку:\n\n"
     welcome_text += (
         f"• {dse_text}\n"
+        f"• {dse_name_text}\n"
         f"• {problem_text}\n"
         f"• {rc_text}\n"
         f"• {programmer_text}\n"
@@ -224,7 +230,7 @@ async def show_application_menu(update: Update, user_id: str) -> None:
         f"• {desc_text}\n"
         f"• {photo_text}\n\n"
     )
-    if (user_data['dse'] and user_data['problem_type'] and user_data['rc'] and 
+    if (user_data['dse'] and user_data.get('dse_name') and user_data['problem_type'] and user_data['rc'] and 
         user_data.get('programmer_name') and user_data.get('machine_number')):
         welcome_text += "✅ Все обязательные поля заполнены! Теперь можно сохранить заявку."
     else:
@@ -243,6 +249,7 @@ async def show_main_menu(update: Update, user_id: str) -> None:
         user_states[user_id] = {
             'application': '',
             'dse': '',
+            'dse_name': '',
             'problem_type': '',
             'description': '',
             'rc': '',
@@ -1950,11 +1957,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif data == 'set_dse':
         if user_id not in user_states:
             user_states[user_id] = {
-                'application': '', 'dse': '', 'problem_type': '',
+                'application': '', 'dse': '', 'dse_name': '', 'problem_type': '',
                 'description': '', 'rc': '', 'photo_file_id': None
             }
         user_states[user_id]['waiting_for'] = 'dse'
         await query.edit_message_text("Введите номер ДСЕ:")
+    
+    elif data == 'set_dse_name':
+        if user_id not in user_states:
+            user_states[user_id] = {
+                'application': '', 'dse': '', 'dse_name': '', 'problem_type': '',
+                'description': '', 'rc': '', 'photo_file_id': None
+            }
+        user_states[user_id]['waiting_for'] = 'dse_name'
+        await query.edit_message_text("Введите наименование ДСЕ:")
     
     elif data == 'set_problem':
         await show_problem_types(update, user_id)
@@ -2066,6 +2082,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         record = {
             'dse': user_data.get('dse', ''),
+            'dse_name': user_data.get('dse_name', ''),
             'problem_type': user_data.get('problem_type', ''),
             'rc': user_data.get('rc', ''),
             'description': user_data.get('description', ''),
@@ -2098,6 +2115,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         user_states[user_id] = {
             'application': '',
             'dse': '',
+            'dse_name': '',
             'problem_type': '',
             'description': '',
             'rc': '',
@@ -2473,6 +2491,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_states[user_id]['dse'] = text
                 user_states[user_id].pop('waiting_for', None)
                 await update.message.reply_text(f"✅ ДСЕ сохранён: {text}")
+                await show_application_menu(update, user_id)
+                return
+            
+            elif user_data.get('waiting_for') == 'dse_name':
+                user_states[user_id]['dse_name'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ Наименование ДСЕ сохранено: {text}")
+                await show_application_menu(update, user_id)
+                return
+            
+            elif user_data.get('waiting_for') == 'programmer_name':
+                user_states[user_id]['programmer_name'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ ФИО программиста сохранено: {text}")
+                await show_application_menu(update, user_id)
+                return
+            
+            elif user_data.get('waiting_for') == 'machine_number':
+                user_states[user_id]['machine_number'] = text
+                user_states[user_id].pop('waiting_for', None)
+                await update.message.reply_text(f"✅ Номер станка сохранён: {text}")
                 await show_application_menu(update, user_id)
                 return
             

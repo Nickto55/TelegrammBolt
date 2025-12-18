@@ -1325,6 +1325,7 @@ def create_dse():
         try:
             # Получаем данные из формы
             dse_number = request.form.get('dse_number', '').strip()
+            dse_name = request.form.get('dse_name', '').strip()
             problem_type = request.form.get('problem_type', '').strip()
             rc = request.form.get('rc', '').strip()
             description = request.form.get('description', '').strip()
@@ -1336,6 +1337,13 @@ def create_dse():
             if not dse_number:
                 return render_template('create_dse.html',
                                      error="Номер ДСЕ обязателен",
+                                     problem_types=PROBLEM_TYPES,
+                                     rc_types=RC_TYPES,
+                                     permissions=get_user_permissions(user_id))
+            
+            if not dse_name:
+                return render_template('create_dse.html',
+                                     error="Наименование ДСЕ обязательно",
                                      problem_types=PROBLEM_TYPES,
                                      rc_types=RC_TYPES,
                                      permissions=get_user_permissions(user_id))
@@ -1372,6 +1380,7 @@ def create_dse():
             from datetime import datetime
             record = {
                 'dse': dse_number,
+                'dse_name': dse_name,
                 'problem_type': problem_type,
                 'rc': rc,
                 'description': description,

@@ -107,13 +107,14 @@ class DSEPDFGenerator:
             date_str = record_data.get('datetime', '').split()[0] if record_data.get('datetime') else ''
             
             # Заголовки (первая строка)
-            headers = ['Дата', 'ДСЕ', 'Наименование ДСЕ', 'РЦ', 'Номер станка', 'ФИО Наладчика', 'ФИО Программиста']
+            headers = ['Дата', 'ДСЕ', 'Наименование ДСЕ', 'Вид проблемы', 'РЦ', 'Номер станка', 'ФИО Наладчика', 'ФИО Программиста']
             table_data.append(headers)
             
             # Данные (вторая строка)
             data_row = [
                 str(date_str),
                 str(record_data.get('dse', '')),
+                str(record_data.get('dse_name', '')),
                 str(record_data.get('problem_type', '')),
                 str(record_data.get('rc', '')),
                 str(record_data.get('machine_number', '')),
@@ -124,13 +125,14 @@ class DSEPDFGenerator:
             
             # Создаем таблицу
             table = Table(table_data, colWidths=[
-                30*mm,  # Дата
-                25*mm,  # ДСЕ
-                45*mm,  # Наименование ДСЕ
-                20*mm,  # РЦ
-                25*mm,  # Номер станка
-                40*mm,  # ФИО Наладчика
-                40*mm   # ФИО Программиста
+                22*mm,  # Дата
+                18*mm,  # ДСЕ
+                30*mm,  # Наименование ДСЕ
+                28*mm,  # Вид проблемы
+                18*mm,  # РЦ
+                20*mm,  # Номер станка
+                32*mm,  # ФИО Наладчика
+                32*mm   # ФИО Программиста
             ])
              
             # Стиль таблицы
@@ -141,7 +143,7 @@ class DSEPDFGenerator:
                 # Заголовки (первая строка)
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
                 ('FONTNAME', (0, 0), (-1, 0), self.font_bold),
-                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('FONTSIZE', (0, 0), (-1, -1), 7),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 
@@ -149,10 +151,10 @@ class DSEPDFGenerator:
                 ('FONTNAME', (0, 1), (-1, 1), self.font_name),
                 
                 # Отступы
-                ('LEFTPADDING', (0, 0), (-1, -1), 3),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 2),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ]))
             
             story.append(table)
