@@ -1381,8 +1381,41 @@ def create_dse():
                 'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'user_id': user_id,
                 'photo_file_id': None,
+                'photo_path': None,
                 'created_via': 'web'
             }
+            
+            # Обработка загрузки фото
+            if 'photo' in request.files:
+                photo_file = request.files['photo']
+                if photo_file and photo_file.filename:
+                    # Проверяем размер файла (макс 10 МБ)
+                    photo_file.seek(0, 2)  # Переходим в конец файла
+                    file_size = photo_file.tell()
+                    photo_file.seek(0)  # Возвращаемся в начало
+                    
+                    if file_size > 10 * 1024 * 1024:  # 10 МБ
+                        return render_template('create_dse.html',
+                                             error="Размер фото не должен превышать 10 МБ",
+                                             problem_types=PROBLEM_TYPES,
+                                             rc_types=RC_TYPES,
+                                             permissions=get_user_permissions(user_id))
+                    
+                    # Безопасное имя файла
+                    import uuid
+                    from werkzeug.utils import secure_filename
+                    
+                    file_ext = os.path.splitext(secure_filename(photo_file.filename))[1]
+                    if not file_ext:
+                        file_ext = '.jpg'
+                    
+                    photo_filename = f"{user_id}_{dse_number}_{uuid.uuid4().hex[:8]}{file_ext}"
+                    photo_path = os.path.join(PHOTOS_DIR, photo_filename)
+                    
+                    # Сохраняем файл
+                    photo_file.save(photo_path)
+                    record['photo_path'] = photo_path
+                    logger.info(f"Photo saved: {photo_path}")
             
             # Загружаем данные
             data_dict = load_data(DATA_FILE)
@@ -1414,16 +1447,32 @@ def create_dse():
                          permissions=get_user_permissions(user_id))
 
 
-@app.route('/photo/<photo_id>')
+@app.route('/photo/<path:photo_id>')
 @login_required
 def get_photo(photo_id):
-    """Получить фото по file_id из Telegram"""
+    """Получить фото по file_id из Telegram или по пути к файлу"""
     user_id = session['user_id']
     
     if not has_permission(user_id, 'view_dse'):
         return "Доступ запрещен", 403
     
     try:
+        # Сначала проверяем, это путь к локальному файлу
+        # Пути содержат 'photos/' или начинаются с '/'
+        if 'photos/' in photo_id or photo_id.startswith('/'):
+            # Это локальный путь
+            if os.path.exists(photo_id) and os.path.isfile(photo_id):
+                logger.info(f"Returning local photo: {photo_id}")
+                return send_file(photo_id, mimetype='image/jpeg')
+            else:
+                # Попробуем найти в PHOTOS_DIR
+                photo_filename = os.path.basename(photo_id)
+                local_path = os.path.join(PHOTOS_DIR, photo_filename)
+                if os.path.exists(local_path) and os.path.isfile(local_path):
+                    logger.info(f"Returning local photo from PHOTOS_DIR: {local_path}")
+                    return send_file(local_path, mimetype='image/jpeg')
+        
+        # Если не локальный файл, пытаемся загрузить из Telegram
         # Создаем директорию для временных фото если нет
         temp_dir = 'photos/temp'
         os.makedirs(temp_dir, exist_ok=True)

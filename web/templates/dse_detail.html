@@ -122,7 +122,7 @@
             </div>
 
             <!-- Фотографии -->
-            {% if dse.get('photo_file_id') or dse.get('photos') %}
+            {% if dse.get('photo_file_id') or dse.get('photo_path') or dse.get('photos') %}
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
@@ -162,6 +162,42 @@
                                         </div>
                                         <div class="modal-body text-center">
                                             <img src="{{ url_for('get_photo', photo_id=dse.get('photo_file_id')) }}" 
+                                                 class="img-fluid" 
+                                                 alt="Фото ДСЕ">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% elif dse.get('photo_path') %}
+                        <div class="col-md-6">
+                            <div class="position-relative">
+                                <img src="{{ url_for('get_photo', photo_id=dse.get('photo_path')) }}" 
+                                     class="img-fluid rounded shadow-sm" 
+                                     alt="Фото ДСЕ"
+                                     style="cursor: pointer; min-height: 200px; object-fit: cover;"
+                                     data-bs-toggle="modal" 
+                                     data-bs-target="#photoModalPath">
+                                <div class="position-absolute top-0 end-0 m-2">
+                                    <a href="{{ url_for('get_photo', photo_id=dse.get('photo_path')) }}" 
+                                       download="dse_{{ dse.get('dse', 'photo') }}.jpg"
+                                       class="btn btn-sm btn-light"
+                                       title="Скачать фото">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Modal для увеличения фото -->
+                            <div class="modal fade" id="photoModalPath" tabindex="-1">
+                                <div class="modal-dialog modal-lg modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Фото ДСЕ {{ dse.get('dse', '') }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body text-center">
+                                            <img src="{{ url_for('get_photo', photo_id=dse.get('photo_path')) }}" 
                                                  class="img-fluid" 
                                                  alt="Фото ДСЕ">
                                         </div>
