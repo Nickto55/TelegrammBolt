@@ -77,10 +77,12 @@ class DSEPDFGenerator:
             'HeaderStyle',
             parent=self.styles['Normal'],
             fontName=self.font_bold,
-            fontSize=7,
-            leading=8,
+            fontSize=6.5,
+            leading=7.5,
             alignment=1,
-            wordWrap='CJK'
+            wordWrap='CJK',
+            spaceBefore=0,
+            spaceAfter=0
         )
         
     def create_dse_report(self, record_data, output_filename):
@@ -129,14 +131,14 @@ class DSEPDFGenerator:
             
             # Заголовки (первая строка) - используем Paragraph для автоматического переноса
             headers = [
-                Paragraph('Дата   ', self.header_style),
-                Paragraph('ДСЕ   ', self.header_style),
-                Paragraph('Наименование ДСЕ   ', self.header_style),
-                Paragraph('Вид проблемы'   , self.header_style),
-                Paragraph('РЦ'   , self.header_style),
-                Paragraph('Номер станка'   , self.header_style),
-                Paragraph('ФИО Наладчика'   , self.header_style),
-                Paragraph('ФИО Программиста'   , self.header_style)
+                Paragraph('Дата', self.header_style),
+                Paragraph('ДСЕ', self.header_style),
+                Paragraph('Наименование ДСЕ', self.header_style),
+                Paragraph('Вид проблемы', self.header_style),
+                Paragraph('РЦ', self.header_style),
+                Paragraph('Номер станка', self.header_style),
+                Paragraph('ФИО Наладчика', self.header_style),
+                Paragraph('ФИО Программиста', self.header_style)
             ]
             table_data.append(headers)
             
@@ -155,14 +157,14 @@ class DSEPDFGenerator:
             
             # Создаем таблицу
             table = Table(table_data, colWidths=[
-                22*mm,  # Дата
-                30*mm,  # ДСЕ
+                20*mm,  # Дата
+                38*mm,  # ДСЕ
                 30*mm,  # Наименование ДСЕ
-                28*mm,  # Вид проблемы
-                18*mm,  # РЦ
-                18*mm,  # Номер станка
-                32*mm,  # ФИО Наладчика
-                32*mm   # ФИО Программиста
+                30*mm,  # Вид проблемы
+                20*mm,  # РЦ
+                20*mm,  # Номер станка
+                38*mm,  # ФИО Наладчика
+                38*mm   # ФИО Программиста
             ])
              
             # Стиль таблицы
