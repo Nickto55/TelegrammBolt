@@ -232,10 +232,10 @@ def generate_password_hash(password: str) -> str:
 
 # Словарь админ-кредов: {username: sha256(password)}
 # По умолчанию: admin / admin123
-ADMIN_CREDENTIALS = {
-    'admin': generate_password_hash('admin123'),
-    'admin_user_id': 'admin_web'  # ID для веб-админа
-}
+# ADMIN_CREDENTIALS = {
+#     'admin': generate_password_hash('admin123'),
+#     'admin_user_id': 'admin_web'  # ID для веб-админа
+# }
 
 # Можно добавить больше админов:
 # ADMIN_CREDENTIALS['superadmin'] = generate_password_hash('super_secret_password')
