@@ -96,6 +96,7 @@ show_menu() {
     echo -e "${YELLOW}│${NC}  ${WHITE}11.${NC} Обновить зависимости"
     echo -e "${YELLOW}│${NC}  ${WHITE}12.${NC} Тест веб-терминала"
     echo -e "${YELLOW}│${NC}  ${WHITE}13.${NC} Настройка systemd сервиса"
+    echo -e "${YELLOW}│${NC}  ${WHITE}14.${NC} Проверка и установка библиотек"
     echo -e "${YELLOW}│${NC}"
     echo -e "${YELLOW}│${NC}  ${WHITE}0.${NC} Выход"
     echo -e "${YELLOW}│${NC}"
@@ -612,6 +613,117 @@ EOF
     read -p "Нажмите Enter для продолжения..."
 }
 
+# Функция проверки и установки всех библиотек
+check_install_libraries() {
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}  Проверка и установка библиотек${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+    
+    # Проверка виртуального окружения
+    if [ ! -d "$VENV_DIR" ]; then
+        echo -e "${YELLOW}⚠ Виртуальное окружение не найдено${NC}"
+        echo -e "${GREEN}Создаём виртуальное окружение...${NC}"
+        python3 -m venv $VENV_DIR
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ Виртуальное окружение создано${NC}"
+        else
+            echo -e "${RED}✗ Ошибка создания виртуального окружения${NC}"
+            read -p "Нажмите Enter для продолжения..."
+            return
+        fi
+    else
+        echo -e "${GREEN}✓ Виртуальное окружение найдено${NC}"
+    fi
+    
+    echo ""
+    
+    # Активация виртуального окружения
+    source $VENV_DIR/bin/activate
+    
+    # Проверка наличия requirements.txt
+    if [ ! -f "$PROJECT_DIR/requirements.txt" ]; then
+        echo -e "${RED}✗ Файл requirements.txt не найден${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    echo -e "${CYAN}Обновление pip...${NC}"
+    pip install --upgrade pip
+    echo ""
+    
+    echo -e "${CYAN}Проверка установленных пакетов...${NC}"
+    echo ""
+    
+    # Читаем requirements.txt и проверяем каждый пакет
+    MISSING_PACKAGES=()
+    INSTALLED_PACKAGES=()
+    
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Пропускаем пустые строки и комментарии
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        
+        # Извлекаем имя пакета (до знака =, <, > или [)
+        package_name=$(echo "$line" | sed 's/[>=<\[].*//g' | tr -d '[:space:]')
+        
+        if [ -n "$package_name" ]; then
+            # Проверяем установлен ли пакет
+            if pip show "$package_name" &>/dev/null; then
+                INSTALLED_PACKAGES+=("$package_name")
+                echo -e "${GREEN}✓${NC} $package_name"
+            else
+                MISSING_PACKAGES+=("$line")
+                echo -e "${RED}✗${NC} $package_name (не установлен)"
+            fi
+        fi
+    done < "$PROJECT_DIR/requirements.txt"
+    
+    echo ""
+    echo -e "${CYAN}─────────────────────────────────────────────────────────${NC}"
+    echo -e "${WHITE}Установлено: ${GREEN}${#INSTALLED_PACKAGES[@]}${NC}"
+    echo -e "${WHITE}Отсутствует: ${RED}${#MISSING_PACKAGES[@]}${NC}"
+    echo -e "${CYAN}─────────────────────────────────────────────────────────${NC}"
+    echo ""
+    
+    # Если есть отсутствующие пакеты, предлагаем установить
+    if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Отсутствующие пакеты:${NC}"
+        for pkg in "${MISSING_PACKAGES[@]}"; do
+            echo -e "  ${RED}●${NC} $pkg"
+        done
+        echo ""
+        
+        read -p "Установить отсутствующие пакеты? (y/n): " install_choice
+        
+        if [[ $install_choice == "y" || $install_choice == "Y" ]]; then
+            echo ""
+            echo -e "${GREEN}Установка пакетов из requirements.txt...${NC}"
+            pip install -r "$PROJECT_DIR/requirements.txt"
+            
+            if [ $? -eq 0 ]; then
+                echo ""
+                echo -e "${GREEN}✓ Все пакеты успешно установлены${NC}"
+            else
+                echo ""
+                echo -e "${RED}✗ Произошли ошибки при установке${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Установка отменена${NC}"
+        fi
+    else
+        echo -e "${GREEN}✓ Все необходимые библиотеки установлены${NC}"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}Версия Python:${NC} $(python --version)"
+    echo -e "${CYAN}Версия pip:${NC} $(pip --version | cut -d' ' -f2)"
+    echo ""
+    
+    deactivate
+    
+    read -p "Нажмите Enter для продолжения..."
+}
+
 # Основной цикл
 while true; do
     show_menu
@@ -631,6 +743,7 @@ while true; do
         11) update_dependencies ;;
         12) test_terminal ;;
         13) setup_systemd ;;
+        14) check_install_libraries ;;
         0) 
             echo -e "${GREEN}Выход...${NC}"
             exit 0
