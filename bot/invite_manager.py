@@ -86,7 +86,8 @@ def generate_qr_code(invite_code, format='PNG'):
     :return: Base64 encoded изображение или путь к файлу
     """
     # Получаем информацию о приглашении для включения роли
-    invite_info = get_invite_info(invite_code)
+    invites_data = load_invites_data()
+    invite_info = invites_data.get("invites", {}).get(invite_code)
     role_suffix = f"_{invite_info.get('role', '')}" if invite_info else ""
     
     # URL для сканирования (используем имя бота из конфига)
