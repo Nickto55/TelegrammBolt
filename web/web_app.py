@@ -2384,6 +2384,26 @@ def create_invite_api():
         logger.error(f"Error creating invite: {e}")
         return jsonify({"success": False, "error": "Ошибка создания приглашения"})
 
+@app.route('/api/invites/<invite_code>/qr', methods=['GET'])
+@login_required
+@admin_required
+def get_invite_qr_api(invite_code):
+    """API для получения QR кода существующего приглашения"""
+    try:
+        # Генерируем QR код для существующего приглашения
+        qr_data = generate_qr_code(invite_code)
+        
+        return jsonify({
+            "success": True,
+            "invite_code": invite_code,
+            "qr_code": qr_data["base64"],
+            "qr_url": qr_data["url"]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating QR for invite: {e}")
+        return jsonify({"success": False, "error": "Ошибка генерации QR кода"})
+
 @app.route('/api/invites/<invite_code>', methods=['DELETE'])
 @login_required
 @admin_required

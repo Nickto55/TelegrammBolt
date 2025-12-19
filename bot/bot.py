@@ -41,6 +41,52 @@ async def end_chat_command(update, context):
         await update.message.reply_text("У вас нет прав для завершения чата.")
 
 
+async def help_command(update, context):
+    """Команда /help - справка по командам"""
+    from bot.user_manager import get_user_role
+    user_id = str(update.effective_user.id)
+    role = get_user_role(user_id)
+    
+    help_text = (
+        "📚 *Справка по командам:*\n\n"
+        "*Основные команды:*\n"
+        "/start - Главное меню\n"
+        "/help - Эта справка\n\n"
+    )
+    
+    # Команды в зависимости от роли
+    if role == 'admin':
+        help_text += (
+            "*Команды администратора:*\n"
+            "/createwebuser - Создать веб-пользователя\n\n"
+        )
+    
+    if role in ['initiator', 'admin']:
+        help_text += (
+            "*Заявки:*\n"
+            "Используйте кнопку '📝 Заявка' в главном меню\n\n"
+        )
+    
+    if role in ['responder', 'admin']:
+        help_text += (
+            "*Чат по ДСЕ:*\n"
+            "/chat - Начать чат по номеру ДСЕ\n"
+            "/endchat - Завершить текущий чат\n\n"
+        )
+    
+    help_text += (
+        "*QR коды и приглашения:*\n"
+        "/scan - Инструкция по сканированию QR\n"
+        "/invite КОД - Активировать приглашение\n"
+        "/link КОД - Привязать веб-аккаунт\n\n"
+        "*Фото:*\n"
+        "/cancel_photo - Отменить загрузку фото\n\n"
+        "💡 Для большинства действий используйте кнопки в главном меню."
+    )
+    
+    await update.message.reply_text(help_text, parse_mode='Markdown')
+
+
 async def post_init(application) -> None:
     """Функция, вызываемая после инициализации приложения."""
     print("Бот инициализирован. Запуск дополнительных сервисов...")
@@ -62,6 +108,7 @@ def _register_handlers(app: Application) -> None:
     """Регистрирует все обработчики команд и сообщений"""
     handlers = [
         CommandHandler("start", start),
+        CommandHandler("help", help_command),
         CommandHandler("chat", chat_command),
         CommandHandler("endchat", end_chat_command),
         CommandHandler("cancel_photo", cancel_photo_command),

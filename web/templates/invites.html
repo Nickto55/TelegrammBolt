@@ -302,10 +302,11 @@ function createInvite() {
             currentQRData = data;
             showQRFromData(data);
             
-            // Обновляем страницу через 2 секунды
-            setTimeout(() => {
+            // Обновляем страницу после закрытия модального окна с QR
+            const qrModal = document.getElementById('qrModal');
+            qrModal.addEventListener('hidden.bs.modal', function() {
                 location.reload();
-            }, 2000);
+            }, { once: true });
         } else {
             alert('Ошибка: ' + data.error);
         }
@@ -317,34 +318,28 @@ function createInvite() {
 }
 
 function showQR(inviteCode) {
-    // Генерируем QR код для существующего приглашения
-    fetch('/api/invites/create', {
-        method: 'POST',
+    // Получаем QR код для существующего приглашения (НЕ создаём новое!)
+    fetch(`/api/invites/${inviteCode}/qr`, {
+        method: 'GET',
         headers: {
             'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            regenerate_qr: inviteCode
-        })
+        }
     })
     .then(response => response.json())
     .then(data => {
-        if (data.qr_code) {
+        if (data.success && data.qr_code) {
             showQRFromData({
                 invite_code: inviteCode,
-                qr_code: data.qr_code
+                qr_code: data.qr_code,
+                qr_url: data.qr_url
             });
+        } else {
+            alert('Ошибка генерации QR кода: ' + (data.error || 'Неизвестная ошибка'));
         }
     })
     .catch(error => {
-        // Fallback - создаем простой QR код на клиенте
-        const url = `https://t.me/${BOT_USERNAME}?start=invite_${inviteCode}`;
-        document.getElementById('qrCodeContainer').innerHTML = 
-            `<div class="alert alert-info">QR код: ${inviteCode}<br>URL: ${url}</div>`;
-        document.getElementById('qrInviteCode').textContent = inviteCode;
-        
-        const modal = new bootstrap.Modal(document.getElementById('qrModal'));
-        modal.show();
+        console.error('Error:', error);
+        alert('Ошибка получения QR кода');
     });
 }
 

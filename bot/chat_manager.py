@@ -435,7 +435,8 @@ async def handle_responder_confirmation(update: Update, context: ContextTypes.DE
         await query.edit_message_text("❌ Ошибка состояния.")
         return
 
-    if callback_data.endswith("cancel_responder_" + initiator_user_id):
+    # Обработка отклонения
+    if callback_data.startswith('dse_chat_decline_responder_') or callback_data.startswith('dse_chat_cancel_responder_'):
         del dse_chat_states[initiator_user_id]
         await query.edit_message_text("↩️ Начало чата отклонено.")
         # Уведомляем инициатора
@@ -450,20 +451,12 @@ async def handle_responder_confirmation(update: Update, context: ContextTypes.DE
         return
 
     if callback_data.endswith("confirm_responder_" + initiator_user_id):
-        target_user_id = responder_user_id
-        initiator_user_id = dse_chat_states[initiator_user_id][
-            'target_user_id']  # Это должно быть равно responder_user_id
-
-        # ВАЖНО: Сохраняем dse_value ДО перезаписи dse_chat_states
+        # ВАЖНО: Сохраняем dse_value ДО любых изменений состояния
         dse_value = dse_chat_states[initiator_user_id].get('dse', 'Unknown')
 
-        # Очищаем временное состояние поиска (теперь безопасно)
-        dse_chat_states[initiator_user_id] = {'state': 'waiting_for_dse_input', 'dse': None, 'target_user_id': None,
-                                    'target_candidates': {}}
-
         # Устанавливаем активный чат со статусом 'active'
-        active_chats[initiator_user_id] = {'partner_id': target_user_id, 'status': 'active', 'dse': dse_value}
-        active_chats[target_user_id] = {'partner_id': initiator_user_id, 'status': 'active', 'dse': dse_value}
+        active_chats[initiator_user_id] = {'partner_id': responder_user_id, 'status': 'active', 'dse': dse_value}
+        active_chats[responder_user_id] = {'partner_id': initiator_user_id, 'status': 'active', 'dse': dse_value}
 
         # Очищаем временное состояние поиска
         del dse_chat_states[initiator_user_id]
@@ -699,7 +692,9 @@ async def handle_chat_callbacks(update: Update, context: ContextTypes.DEFAULT_TY
         await handle_target_selection(update, context)
     
     # Обработка принятия/отклонения респондента (с ID пользователя)
-    elif callback_data.startswith('dse_chat_confirm_responder_') or callback_data.startswith('dse_chat_decline_responder_'):
+    elif (callback_data.startswith('dse_chat_confirm_responder_') or 
+          callback_data.startswith('dse_chat_decline_responder_') or 
+          callback_data.startswith('dse_chat_cancel_responder_')):
         await handle_responder_confirmation(update, context)
     
     # Обработка принятия/отклонения респондента (старый формат)
