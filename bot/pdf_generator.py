@@ -129,21 +129,21 @@ class DSEPDFGenerator:
             
             # Заголовки (первая строка) - используем Paragraph для автоматического переноса
             headers = [
-                Paragraph('Дата', self.header_style),
-                Paragraph('ДСЕ', self.header_style),
-                Paragraph('Наименование ДСЕ', self.header_style),
-                Paragraph('Вид проблемы', self.header_style),
-                Paragraph('РЦ', self.header_style),
-                Paragraph('Номер станка', self.header_style),
-                Paragraph('ФИО Наладчика', self.header_style),
-                Paragraph('ФИО Программиста', self.header_style)
+                Paragraph('Дата   ', self.header_style),
+                Paragraph('ДСЕ   ', self.header_style),
+                Paragraph('Наименование ДСЕ   ', self.header_style),
+                Paragraph('Вид проблемы'   , self.header_style),
+                Paragraph('РЦ'   , self.header_style),
+                Paragraph('Номер станка'   , self.header_style),
+                Paragraph('ФИО Наладчика'   , self.header_style),
+                Paragraph('ФИО Программиста'   , self.header_style)
             ]
             table_data.append(headers)
             
             # Данные (вторая строка) - используем Paragraph для автоматического переноса
             data_row = [
                 Paragraph(str(date_str), self.cell_style),
-                Paragraph(str(record_data.get('dse', '')) + f"{(' ' for i in range(5))}", self.cell_style),
+                Paragraph(str(record_data.get('dse', '')), self.cell_style),
                 Paragraph(str(record_data.get('dse_name', '')), self.cell_style),
                 Paragraph(str(record_data.get('problem_type', '')), self.cell_style),
                 Paragraph(str(record_data.get('rc', '')), self.cell_style),
