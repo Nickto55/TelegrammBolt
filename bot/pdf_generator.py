@@ -143,7 +143,7 @@ class DSEPDFGenerator:
             # Данные (вторая строка) - используем Paragraph для автоматического переноса
             data_row = [
                 Paragraph(str(date_str), self.cell_style),
-                Paragraph(str(record_data.get('dse', '')), self.cell_style),
+                Paragraph(str(record_data.get('dse', '')) + f"{(' ' for i in range(5))}", self.cell_style),
                 Paragraph(str(record_data.get('dse_name', '')), self.cell_style),
                 Paragraph(str(record_data.get('problem_type', '')), self.cell_style),
                 Paragraph(str(record_data.get('rc', '')), self.cell_style),
@@ -156,11 +156,11 @@ class DSEPDFGenerator:
             # Создаем таблицу
             table = Table(table_data, colWidths=[
                 22*mm,  # Дата
-                18*mm,  # ДСЕ
+                30*mm,  # ДСЕ
                 30*mm,  # Наименование ДСЕ
                 28*mm,  # Вид проблемы
                 18*mm,  # РЦ
-                20*mm,  # Номер станка
+                18*mm,  # Номер станка
                 32*mm,  # ФИО Наладчика
                 32*mm   # ФИО Программиста
             ])
