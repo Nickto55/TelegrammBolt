@@ -469,10 +469,10 @@ def send_dse_report_email(recipient_email: str, dse_data: List[Dict], subject: s
         body = (
             f"Здравствуйте!\n\n"
             f"Создана новая заявка ДСЕ:\n\n"
-            f"📋 ДСЕ: {record.get('dse', 'N/A')}\n"
-            f"⚠️ Тип проблемы: {record.get('problem_type', 'N/A')}\n"
-            f"🏭 РЦ: {record.get('rc', 'N/A')}\n"
-            f"📅 Дата: {record.get('datetime', 'N/A')}\n\n"
+            f"ДСЕ: {record.get('dse', 'N/A')}\n"
+            f"Тип проблемы: {record.get('problem_type', 'N/A')}\n"
+            f"РЦ: {record.get('rc', 'N/A')}\n"
+            f"Дата: {record.get('datetime', 'N/A')}\n\n"
             f"PDF отчёт прикреплён к письму.\n\n"
             f"С уважением,\n{SMTP_SETTINGS['FROM_NAME']}"
         )

@@ -29,7 +29,7 @@ class DSEPDFGenerator:
             font_paths = [
                 'C:/Windows/Fonts/arial.ttf',
                 'C:/Windows/Fonts/calibri.ttf',
-                '/System/Library/Fonts/Arial.ttf',  # macOS
+                '/System/Library/Fonts/Arial.ttf',
                 'DejaVuSans.ttf'
             ]
             
@@ -61,6 +61,27 @@ class DSEPDFGenerator:
                 self.font_bold = 'Helvetica-Bold'
         
         self.styles = getSampleStyleSheet()
+        
+        # Стиль для текста в ячейках таблицы
+        self.cell_style = ParagraphStyle(
+            'CellStyle',
+            parent=self.styles['Normal'],
+            fontName=self.font_name,
+            fontSize=7,
+            leading=8,
+            alignment=1,  # Центрирование
+            wordWrap='CJK'
+        )
+        
+        self.header_style = ParagraphStyle(
+            'HeaderStyle',
+            parent=self.styles['Normal'],
+            fontName=self.font_bold,
+            fontSize=7,
+            leading=8,
+            alignment=1,
+            wordWrap='CJK'
+        )
         
     def create_dse_report(self, record_data, output_filename):
         """
@@ -106,20 +127,29 @@ class DSEPDFGenerator:
             # Извлекаем дату из datetime
             date_str = record_data.get('datetime', '').split()[0] if record_data.get('datetime') else ''
             
-            # Заголовки (первая строка)
-            headers = ['Дата', 'ДСЕ', 'Наименование ДСЕ', 'Вид проблемы', 'РЦ', 'Номер станка', 'ФИО Наладчика', 'ФИО Программиста']
+            # Заголовки (первая строка) - используем Paragraph для автоматического переноса
+            headers = [
+                Paragraph('Дата', self.header_style),
+                Paragraph('ДСЕ', self.header_style),
+                Paragraph('Наименование ДСЕ', self.header_style),
+                Paragraph('Вид проблемы', self.header_style),
+                Paragraph('РЦ', self.header_style),
+                Paragraph('Номер станка', self.header_style),
+                Paragraph('ФИО Наладчика', self.header_style),
+                Paragraph('ФИО Программиста', self.header_style)
+            ]
             table_data.append(headers)
             
-            # Данные (вторая строка)
+            # Данные (вторая строка) - используем Paragraph для автоматического переноса
             data_row = [
-                str(date_str),
-                str(record_data.get('dse', '')),
-                str(record_data.get('dse_name', '')),
-                str(record_data.get('problem_type', '')),
-                str(record_data.get('rc', '')),
-                str(record_data.get('machine_number', '')),
-                str(record_data.get('installer_fio', '')),
-                str(record_data.get('programmer_name', ''))
+                Paragraph(str(date_str), self.cell_style),
+                Paragraph(str(record_data.get('dse', '')), self.cell_style),
+                Paragraph(str(record_data.get('dse_name', '')), self.cell_style),
+                Paragraph(str(record_data.get('problem_type', '')), self.cell_style),
+                Paragraph(str(record_data.get('rc', '')), self.cell_style),
+                Paragraph(str(record_data.get('machine_number', '')), self.cell_style),
+                Paragraph(str(record_data.get('installer_fio', '')), self.cell_style),
+                Paragraph(str(record_data.get('programmer_name', '')), self.cell_style)
             ]
             table_data.append(data_row)
             
@@ -142,19 +172,17 @@ class DSEPDFGenerator:
                 
                 # Заголовки (первая строка)
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ('FONTNAME', (0, 0), (-1, 0), self.font_bold),
-                ('FONTSIZE', (0, 0), (-1, -1), 7),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 
-                # Данные (вторая строка)
-                ('FONTNAME', (0, 1), (-1, 1), self.font_name),
-                
                 # Отступы
-                ('LEFTPADDING', (0, 0), (-1, -1), 2),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 2),
-                ('TOPPADDING', (0, 0), (-1, -1), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                
+                # Минимальная высота строк для многострочного текста
+                ('ROWMINHEIGHT', (0, 0), (-1, -1), 15),
             ]))
             
             story.append(table)

@@ -210,7 +210,7 @@ async def show_application_menu(update: Update, user_id: str) -> None:
     # Кнопки отправки и возврата, если основные поля заполнены (включая новые обязательные поля)
     # Описание - необязательное поле
     if (user_data['dse'] and user_data.get('dse_name') and user_data['problem_type'] and user_data['rc'] and 
-        user_data.get('programmer_name') and user_data.get('machine_number')):
+        user_data.get('programmer_name') and user_data.get('machine_number')  and user_data.get('description')):
         keyboard.append([InlineKeyboardButton("💾 Сохранить заявку", callback_data='send')])
         keyboard.append([InlineKeyboardButton("🔄 Изменить", callback_data='edit_application')])
 
@@ -335,7 +335,7 @@ async def show_main_menu(update: Update, user_id: str) -> None:
 async def show_dse_list_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать меню просмотра ДСЕ"""
     keyboard = [
-        [InlineKeyboardButton("🔍 Поиск по ДСЕ", callback_data='dse_search_interactive')],
+        # [InlineKeyboardButton("🔍 Поиск по ДСЕ", callback_data='dse_search_interactive')],
         [InlineKeyboardButton("📋 Все записи", callback_data='dse_view_all')],
         [InlineKeyboardButton("🔎 Поиск по типу проблемы", callback_data='dse_search_type')],
         [InlineKeyboardButton("📊 Статистика", callback_data='dse_statistics')],

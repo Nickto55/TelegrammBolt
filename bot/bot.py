@@ -107,7 +107,7 @@ def main() -> None:
         threading.Thread(target=run_web, daemon=True).start()
         print(f"🌐 Веб-интерфейс запущен на порту {web_port}")
 
-    print("🚀 Бот запущен! Нажмите Ctrl+C для остановки")
+    print("Бот запущен! Нажмите Ctrl+C для остановки")
     print("=" * 50)
     app.run_polling()
 

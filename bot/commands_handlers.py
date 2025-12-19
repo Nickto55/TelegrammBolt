@@ -27,8 +27,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     data = query.data
     user = query.from_user
     user_id = str(user.id)
-    
-    print(f"🔘 DEBUG: Получен callback_data='{data}' от пользователя {user_id}")
+
     
     await query.answer()
     
@@ -65,14 +64,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_application_menu(update, user_id)
     
     elif data == 'set_programmer':
-        print(f"DEBUG: Кнопка set_programmer нажата пользователем {user_id}")
         if user_id not in user_states:
             user_states[user_id] = {
                 'application': '', 'dse': '', 'problem_type': '', 'description': '', 
                 'rc': '', 'programmer_name': '', 'machine_number': '', 'photo_file_id': None
             }
         user_states[user_id]['waiting_for'] = 'programmer_name'
-        print(f"DEBUG: user_states[{user_id}] = {user_states[user_id]}")
         await query.edit_message_text("Введите ФИО программиста:")
     
     elif data == 'set_machine':
@@ -83,7 +80,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 'rc': '', 'programmer_name': '', 'machine_number': '', 'photo_file_id': None
             }
         user_states[user_id]['waiting_for'] = 'machine_number'
-        print(f"DEBUG: user_states[{user_id}] = {user_states[user_id]}")
         await query.edit_message_text("Введите номер станка:")
     
     elif data == 'set_description':
@@ -142,7 +138,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         }
         
         await query.edit_message_text(
-            "✅ Заявка успешно отправлена!\n\n"
+            "Заявка успешно отправлена!\n\n"
             f"ДСЕ: {record['dse']}\n"
             f"Тип проблемы: {record['problem_type']}\n"
             f"РЦ: {record['rc']}\n"
@@ -150,7 +146,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"Номер станка: {record['machine_number']}\n"
             f"ФИО наладчика: {record['installer_fio']}\n"
             f"Описание: {record['description']}\n"
-            f"📅 Дата: {record['datetime']}"
+            f"Дата: {record['datetime']}"
         )
         await show_main_menu(update, user_id)
     
@@ -377,12 +373,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # === ПОМОЩЬ ДЛЯ ПОЛЬЗОВАТЕЛЕЙ С РОЛЬЮ 'USER' ===
     elif data == 'qr_help':
         help_text = (
-            "📸 Как отправить QR код:\n\n"
+            "Как отправить QR код:\n\n"
             "1. Откройте камеру телефона\n"
             "2. Сфотографируйте QR код приглашения\n"
             "3. Отправьте фото прямо в этот чат\n"
             "4. Бот автоматически распознает и активирует код\n\n"
-            "💡 Убедитесь что QR код четко виден на фото!"
+            "*Убедитесь что QR код четко виден на фото!"
         )
         await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("← Назад", callback_data='back_to_scan')]
@@ -390,15 +386,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     elif data == 'commands_help':
         help_text = (
-            "🔗 Доступные команды:\n\n"
+            "Доступные команды:\n\n"
             "/start - Главное меню\n"
             "/invite ВАШКОД - Активировать приглашение\n"
             "/link ВАШКОД - Привязать веб-аккаунт\n"
             "/help - Эта справка\n\n"
-            "📱 Примеры:\n"
+            "*Примеры:\n"
             "• /invite ABC123DEF456\n"
             "• /link XYZ789\n\n"
-            "❓ Коды предоставляет администратор"
         )
         await query.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("← Назад", callback_data='back_to_scan')]
@@ -425,7 +420,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 registration_states[user_id]['first_name'] = text
                 registration_states[user_id]['step'] = 'ask_last_name'
                 await update.message.reply_text(
-                    f"✅ Спасибо, {text}!\n\n"
+                    f"Спасибо, {text}!\n\n"
                     "Теперь укажите вашу фамилию:"
                 )
                 return
@@ -593,7 +588,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         }.get(delivery_type, 'на Email')
                         
                         await update.message.reply_text(
-                            f"✅ Подписка успешно создана!\n\n"
+                            f"Подписка успешно создана!\n\n"
                             f"Email: {email}\n"
                             f"Доставка: {delivery_text}\n\n"
                             f"Теперь вы будете автоматически получать PDF отчёт всех новых заявок."
