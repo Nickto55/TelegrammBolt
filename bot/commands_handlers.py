@@ -106,6 +106,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             last_name = creator_data.get('last_name', '')
             creator_fio = f"{first_name} {last_name}".strip()
         
+        # Скачиваем фото локально для веб-доступа
+        photo_path = None
+        photo_file_id = user_data.get('photo_file_id')
+        if photo_file_id:
+            try:
+                import uuid
+                from config.config import PHOTOS_DIR
+                # Скачиваем файл
+                file = await context.bot.get_file(photo_file_id)
+                
+                # Создаём имя файла
+                dse_safe = user_data['dse'].replace('/', '_').replace('\\', '_')
+                photo_filename = f"{user_id}_{dse_safe}_{uuid.uuid4().hex[:8]}.jpg"
+                photo_path = os.path.join(PHOTOS_DIR, photo_filename)
+                
+                # Скачиваем
+                await file.download_to_drive(photo_path)
+                print(f"✅ Photo downloaded to {photo_path}")
+            except Exception as e:
+                print(f"❌ Failed to download photo: {e}")
+                photo_path = None
+        
         record = {
             'dse': user_data['dse'],
             'problem_type': user_data['problem_type'],
@@ -116,7 +138,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'description': user_data['description'],
             'datetime': dt.now().strftime('%Y-%m-%d %H:%M:%S'),
             'user_id': user_id,
-            'photo_file_id': user_data.get('photo_file_id')
+            'photo_file_id': photo_file_id,
+            'photo_path': photo_path
         }
         
         data_list = load_data(DATA_FILE)

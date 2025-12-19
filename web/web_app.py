@@ -1481,14 +1481,25 @@ def get_photo(photo_id):
                     logger.info(f"Returning local photo from PHOTOS_DIR: {local_path}")
                     return send_file(local_path, mimetype='image/jpeg')
         
+        # Попробуем найти файл по шаблону имени (на случай, если photo_id - это file_id)
+        # Формат: {user_id}_{dse}_{hash}.jpg
+        import glob
+        pattern = os.path.join(PHOTOS_DIR, f"*_{photo_id.replace('/', '_')}*.jpg")
+        matching_files = glob.glob(pattern)
+        if matching_files:
+            # Берем самый новый файл
+            latest_file = max(matching_files, key=os.path.getctime)
+            logger.info(f"Found photo by pattern: {latest_file}")
+            return send_file(latest_file, mimetype='image/jpeg')
+        
         # Если не локальный файл, пытаемся загрузить из Telegram
         # Создаем директорию для временных фото если нет
-        temp_dir = 'photos/temp'
+        temp_dir = os.path.join(PHOTOS_DIR, 'temp')
         os.makedirs(temp_dir, exist_ok=True)
         
         # Безопасное имя файла
         safe_filename = photo_id.replace('/', '_').replace('\\', '_')
-        photo_path = f"{temp_dir}/{safe_filename}.jpg"
+        photo_path = os.path.join(temp_dir, f"{safe_filename}.jpg")
         
         # Если файл уже скачан, возвращаем его
         if os.path.exists(photo_path) and os.path.getsize(photo_path) > 0:
