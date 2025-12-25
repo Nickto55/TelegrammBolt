@@ -1158,14 +1158,50 @@ def update_user_credentials(user_id):
     logger.info(f"update_user_credentials: new_email={new_email}, has_new_password={bool(new_password)}")
     
     # Получаем веб-пользователя по Telegram ID
-    from bot.account_linking import get_web_user_by_telegram_id, admin_update_email, admin_change_password
+    from bot.account_linking import get_web_user_by_telegram_id, admin_update_email, admin_change_password, create_or_update_web_credentials
     web_user_id, web_user_data = get_web_user_by_telegram_id(user_id)
     
     logger.info(f"update_user_credentials: web_user_id={web_user_id}, has_web_user_data={bool(web_user_data)}")
     
+    # Если веб-аккаунта нет и указаны новые данные - создаём его
+    if not web_user_id and (new_email or new_password):
+        logger.info(f"update_user_credentials: У пользователя {user_id} нет веб-аккаунта, создаём новый")
+        
+        # Для создания нужен и email и пароль
+        if not new_email:
+            return jsonify({'error': 'Для создания веб-аккаунта необходимо указать логин (email)'}), 400
+        if not new_password:
+            return jsonify({'error': 'Для создания веб-аккаунта необходимо указать пароль'}), 400
+        
+        import hashlib
+        password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        
+        # Создаём веб-аккаунт через create_or_update_web_credentials
+        create_result = create_or_update_web_credentials(user_id, new_email, password_hash)
+        logger.info(f"update_user_credentials: create_result={create_result}")
+        
+        if not create_result.get('success'):
+            return jsonify({'error': create_result.get('error', 'Ошибка создания веб-аккаунта')}), 400
+        
+        web_user_id = create_result.get('web_user_id')
+        logger.info(f"update_user_credentials: Создан веб-аккаунт web_user_id={web_user_id}")
+        
+        # Логируем создание учетных данных
+        log_permission_change(
+            admin_id=admin_id,
+            target_user_id=user_id,
+            old_role=get_user_role(user_id),
+            new_role=get_user_role(user_id),
+            old_permissions=[],
+            new_permissions=[f"credentials_created: email={new_email}"]
+        )
+        
+        logger.info(f"Admin {admin_id} created web credentials for user {user_id}: {new_email}")
+        return jsonify({'success': True, 'message': f'Веб-аккаунт создан: логин {new_email}'})
+    
     if not web_user_id:
-        logger.error(f"update_user_credentials: У пользователя {user_id} нет веб-аккаунта")
-        return jsonify({'error': 'У пользователя нет веб-аккаунта'}), 404
+        logger.error(f"update_user_credentials: У пользователя {user_id} нет веб-аккаунта и не указаны данные для создания")
+        return jsonify({'error': 'У пользователя нет веб-аккаунта. Укажите логин и пароль для создания.'}), 404
     
     try:
         changes_made = []
@@ -1229,7 +1265,16 @@ def get_user_credentials_info(user_id):
         web_user_id, web_user_data = get_web_user_by_telegram_id(user_id)
         
         if not web_user_id:
-            return jsonify({'success': False, 'error': 'У пользователя нет веб-аккаунта'}), 404
+            # Если веб-аккаунта нет, возвращаем пустую информацию (не ошибку)
+            return jsonify({
+                'success': True,
+                'web_user_id': None,
+                'email': '',
+                'first_name': '',
+                'last_name': '',
+                'role': get_user_role(user_id),
+                'has_web_account': False
+            })
         
         return jsonify({
             'success': True,
@@ -1237,7 +1282,8 @@ def get_user_credentials_info(user_id):
             'email': web_user_data.get('email', ''),
             'first_name': web_user_data.get('first_name', ''),
             'last_name': web_user_data.get('last_name', ''),
-            'role': web_user_data.get('role', 'initiator')
+            'role': web_user_data.get('role', 'initiator'),
+            'has_web_account': True
         })
         
     except Exception as e:
