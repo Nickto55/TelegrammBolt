@@ -86,46 +86,15 @@ def set_user_role(user_id, role):
 
 
 def has_permission(user_id, permission):
-    """Проверить права пользователя"""
-    # Администраторы из списка имеют приоритет
-    if str(user_id) in ADMIN_IDS:
-        return True
+    """
+    Проверить права пользователя
+    УСТАРЕЛО: Используйте bot.permissions_manager.has_permission
+    Эта функция оставлена для обратной совместимости
+    """
+    # Импортируем новую систему прав
+    from bot.permissions_manager import has_permission as new_has_permission
+    return new_has_permission(str(user_id), permission)
 
-    role = get_user_role(user_id)
-
-    # Админ может всё
-    if role == 'admin':
-        return True
-
-    # Маппинг прав для совместимости с веб-интерфейсом
-    permission_mapping = {
-        'view_dse': 'view_dse_list',
-        'export_data': 'pdf_export',
-        'add_dse': 'use_form',  # Только админы могут добавлять
-        'edit_dse': 'admin',    # Только админы могут редактировать
-        'delete_dse': 'admin',  # Только админы могут удалять
-        'manage_subscriptions': 'admin',  # Только админы управляют подписками
-    }
-    
-    # Если используется веб-право, преобразуем его в право бота
-    if permission in permission_mapping:
-        permission = permission_mapping[permission]
-
-    # Ответчик может просматривать ДСЕ, отслеживать, общаться по ДСЕ и создавать PDF отчеты
-    if role == 'responder':
-        if permission in ['chat_dse', 'view_main_menu', 'view_dse_list', 'watch_dse', 'pdf_export']:
-            return True
-
-    # Инициатор может использовать форму
-    if role == 'initiator' and permission in ['use_form', 'view_main_menu']:
-        return True
-
-    # Обычные пользователи ничего не могут
-    if role == 'user':
-        return False
-
-    # По умолчанию для других ролей
-    return permission == 'user'
 
 
 def get_all_users():

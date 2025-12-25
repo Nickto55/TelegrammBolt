@@ -43,9 +43,11 @@ async def end_chat_command(update, context):
 
 async def help_command(update, context):
     """Команда /help - справка по командам"""
-    from bot.user_manager import get_user_role
+    from bot.permissions_manager import check_telegram_bot_access
     user_id = str(update.effective_user.id)
-    role = get_user_role(user_id)
+    
+    # Получаем доступные функции для пользователя
+    access = check_telegram_bot_access(user_id)
     
     help_text = (
         "📚 <b>Справка по командам:</b>\n\n"
@@ -54,24 +56,44 @@ async def help_command(update, context):
         "/help - Эта справка\n\n"
     )
     
-    # Команды в зависимости от роли
-    if role == 'admin':
+    # Команды в зависимости от прав доступа
+    if access['create_dse']:
         help_text += (
-            "<b>Команды администратора:</b>\n"
-            "/createwebuser - Создать веб-пользователя\n\n"
-        )
-    
-    if role in ['initiator', 'admin']:
-        help_text += (
-            "<b>Заявки:</b>\n"
+            "<b>Создание заявок:</b>\n"
             "Используйте кнопку '📝 Заявка' в главном меню\n\n"
         )
     
-    if role in ['responder', 'admin']:
+    if access['view_dse']:
+        help_text += (
+            "<b>Просмотр ДСЕ:</b>\n"
+            "Просмотр списка и деталей заявок\n\n"
+        )
+    
+    if access['chat']:
         help_text += (
             "<b>Чат по ДСЕ:</b>\n"
             "/chat - Начать чат по номеру ДСЕ\n"
             "/endchat - Завершить текущий чат\n\n"
+        )
+    
+    if access['watch_dse']:
+        help_text += (
+            "<b>Отслеживание ДСЕ:</b>\n"
+            "Подписка на обновления по конкретным заявкам\n\n"
+        )
+    
+    if access['export_pdf']:
+        help_text += (
+            "<b>Экспорт:</b>\n"
+            "Создание PDF отчетов по ДСЕ\n\n"
+        )
+    
+    # Команды администратора
+    from bot.permissions_manager import has_permission
+    if has_permission(user_id, 'create_web_user'):
+        help_text += (
+            "<b>Команды администратора:</b>\n"
+            "/createwebuser - Создать веб-пользователя\n\n"
         )
     
     help_text += (
@@ -85,6 +107,7 @@ async def help_command(update, context):
     )
     
     await update.message.reply_text(help_text, parse_mode='HTML')
+
 
 
 async def post_init(application) -> None:

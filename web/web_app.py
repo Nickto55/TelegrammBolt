@@ -27,7 +27,6 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 # Импорты из существующих модулей бота
 from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR, load_data, save_data
 from bot.user_manager import (
-    has_permission, 
     get_users_data, 
     get_user_data,
     get_user_role, 
@@ -35,6 +34,16 @@ from bot.user_manager import (
     is_user_registered,
     set_user_role,
     ROLES
+)
+# Импортируем новую систему прав
+from bot.permissions_manager import (
+    has_permission,
+    get_user_permissions,
+    check_web_access,
+    can_manage_user,
+    set_custom_permission,
+    get_permissions_by_group,
+    PERMISSIONS
 )
 from bot.dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
 # chat_manager не имеет нужных функций для веб, используем свои реализации
@@ -89,9 +98,17 @@ from web.terminal_manager import terminal_manager
 # Добавляем функцию now() в Jinja2 для использования в шаблонах
 app.jinja_env.globals['now'] = datetime.now
 
-# ============================================================================
-# ФУНКЦИИ-ОБЕРТКИ ДЛЯ СОВМЕСТИМОСТИ
-# ============================================================================
+# Контекст-процессор для автоматической передачи permissions во все шаблоны
+@app.context_processor
+def inject_permissions():
+    """Автоматически добавляет права пользователя во все шаблоны"""
+    if 'user_id' in session:
+        return {
+            'permissions': get_user_permissions(session['user_id'])
+        }
+    return {
+        'permissions': {}
+    }
 
 def get_all_dse():
     """Обертка для получения всех ДСЕ"""
@@ -1961,18 +1978,11 @@ def get_server_url():
     }
 
 
+
 def get_user_permissions(user_id):
-    """Получить все права пользователя"""
-    permissions = {
-        'admin': has_permission(user_id, 'admin'),
-        'view_dse': has_permission(user_id, 'view_dse'),
-        'add_dse': has_permission(user_id, 'add_dse'),
-        'edit_dse': has_permission(user_id, 'edit_dse'),
-        'delete_dse': has_permission(user_id, 'delete_dse'),
-        'export_data': has_permission(user_id, 'export_data'),
-        'chat_dse': has_permission(user_id, 'chat_dse'),
-    }
-    return permissions
+    """Получить все права пользователя для веб-интерфейса"""
+    from bot.permissions_manager import check_web_access
+    return check_web_access(user_id)
 
 
 # ============================================================================
@@ -2131,6 +2141,61 @@ def get_permissions_log_api():
     
     logs = load_permissions_log()
     return jsonify(logs)
+
+
+@app.route('/api/permissions/list')
+@login_required
+def get_permissions_list():
+    """API: Получение списка всех доступных прав в системе"""
+    user_id = session['user_id']
+    
+    # Проверка прав администратора
+    if not has_permission(user_id, 'manage_users'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    from bot.permissions_manager import get_permissions_by_group, get_all_permissions_info
+    
+    permissions_grouped = get_permissions_by_group()
+    all_permissions = get_all_permissions_info()
+    
+    return jsonify({
+        'grouped': permissions_grouped,
+        'all': all_permissions,
+        'roles': ROLES
+    })
+
+
+@app.route('/api/users/<user_id>/permissions/detailed')
+@login_required
+def get_user_permissions_detailed(user_id):
+    """API: Получение детальной информации о правах пользователя"""
+    admin_id = session['user_id']
+    
+    # Проверка прав администратора
+    if not has_permission(admin_id, 'manage_users'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    from bot.permissions_manager import get_user_permissions, get_role_permissions, get_custom_permissions
+    
+    # Получаем роль пользователя
+    user_role = get_user_role(user_id)
+    
+    # Получаем все права пользователя
+    user_permissions = get_user_permissions(user_id)
+    
+    # Получаем права роли
+    role_permissions = get_role_permissions(user_role)
+    
+    # Получаем кастомные права
+    custom_permissions = get_custom_permissions(user_id)
+    
+    return jsonify({
+        'user_id': user_id,
+        'role': user_role,
+        'role_permissions': role_permissions,
+        'custom_permissions': custom_permissions,
+        'effective_permissions': user_permissions
+    })
 
 
 # ============================================================================

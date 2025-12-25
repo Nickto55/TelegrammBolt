@@ -46,7 +46,7 @@
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        {% if permissions.add_dse %}
+                        {% if permissions.create_dse %}
                         <div class="col-md-3">
                             <a href="{{ url_for('create_dse') }}" class="btn btn-outline-success w-100 py-3">
                                 <i class="bi bi-plus-circle display-6 d-block mb-2"></i>
@@ -73,7 +73,7 @@
                         </div>
                         {% endif %}
                         
-                        {% if permissions.export_data %}
+                        {% if permissions.export_excel %}
                         <div class="col-md-3">
                             <button class="btn btn-outline-info w-100 py-3" onclick="exportExcel()">
                                 <i class="bi bi-file-earmark-excel display-6 d-block mb-2"></i>
@@ -82,7 +82,7 @@
                         </div>
                         {% endif %}
                         
-                        {% if permissions.chat_dse %}
+                        {% if permissions.chat %}
                         <div class="col-md-3">
                             <a href="{{ url_for('chat') }}" class="btn btn-outline-warning w-100 py-3">
                                 <i class="bi bi-chat-left-text display-6 d-block mb-2"></i>
