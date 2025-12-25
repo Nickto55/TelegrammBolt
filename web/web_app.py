@@ -731,19 +731,16 @@ def qr_auth():
             return jsonify({'error': 'Код приглашения не указан'}), 400
         
         # Проверяем и используем приглашение
-        from bot.invite_manager import use_invite, get_invite_info
+        from bot.invite_manager import use_invite, validate_invite
         
         # Сначала проверяем, существует ли приглашение
-        invite_info = get_invite_info(invite_code)
-        logger.info(f"qr_auth: invite_info = {invite_info}")
+        validation_result = validate_invite(invite_code)
+        logger.info(f"qr_auth: validation_result = {validation_result}")
         
-        if not invite_info:
-            logger.error(f"qr_auth: Приглашение {invite_code} не найдено")
-            return jsonify({'error': 'Неверный код приглашения'}), 404
-        
-        if invite_info.get('used'):
-            logger.warning(f"qr_auth: Приглашение {invite_code} уже использовано")
-            return jsonify({'error': 'Код приглашения уже использован'}), 400
+        if not validation_result.get('valid'):
+            error_msg = validation_result.get('error', 'Неверный код приглашения')
+            logger.error(f"qr_auth: Валидация не прошла: {error_msg}")
+            return jsonify({'error': error_msg}), 400
         
         # Генерируем временный user_id для веб-пользователя
         import uuid
