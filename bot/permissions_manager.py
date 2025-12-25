@@ -81,7 +81,7 @@ PERMISSIONS = {
     'view_chat_history': {
         'name': 'История чатов',
         'description': 'Просмотр истории всех чатов',
-        'roles': ['admin']
+        'roles': ['admin', 'responder']
     },
     
     # Права на приглашения и QR коды
@@ -93,7 +93,7 @@ PERMISSIONS = {
     'use_invite': {
         'name': 'Использование приглашений',
         'description': 'Активация QR-приглашений',
-        'roles': ['admin', 'responder', 'initiator', 'user']
+        'roles': ['user']
     },
     
     # Права на подписки и уведомления
@@ -107,7 +107,7 @@ PERMISSIONS = {
     'use_terminal': {
         'name': 'Веб-терминал',
         'description': 'Доступ к веб-терминалу системы',
-        'roles': ['admin']
+        'roles': ['admin', 'responder']
     },
     
     # Права на связывание аккаунтов

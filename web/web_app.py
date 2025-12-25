@@ -925,9 +925,13 @@ def api_change_password():
     from bot.account_linking import get_web_user_by_telegram_id, create_or_update_web_credentials
     import hashlib
     
+    user_id = session['user_id']
+    logger.info(f"api_change_password: Запрос от user_id={user_id}")
+    
     # Проверяем роль
-    user_role = get_user_role(session['user_id'])
+    user_role = get_user_role(user_id)
     if user_role == 'user':
+        logger.warning(f"api_change_password: Отказано user_id={user_id}, роль=user")
         return jsonify({'error': 'Доступ запрещён'}), 403
     
     data = request.json
@@ -935,11 +939,14 @@ def api_change_password():
     current_password = data.get('currentPassword', '')
     new_password = data.get('newPassword', '')
     
+    logger.info(f"api_change_password: username={username}, has_current_pwd={bool(current_password)}, has_new_pwd={bool(new_password)}")
+    
     if not username or not new_password:
         return jsonify({'error': 'Необходимо указать логин и новый пароль'}), 400
     
     # Проверяем существующий веб-аккаунт
-    web_user_id, web_user_data = get_web_user_by_telegram_id(session['user_id'])
+    web_user_id, web_user_data = get_web_user_by_telegram_id(user_id)
+    logger.info(f"api_change_password: web_user_id={web_user_id}, has_web_user_data={bool(web_user_data)}")
     
     # Если есть веб-аккаунт с паролем, проверяем старый пароль
     if web_user_data and web_user_data.get('password_hash'):
@@ -948,15 +955,20 @@ def api_change_password():
         
         current_hash = hashlib.sha256(current_password.encode()).hexdigest()
         if web_user_data['password_hash'] != current_hash:
+            logger.warning(f"api_change_password: Неверный текущий пароль для user_id={user_id}")
             return jsonify({'error': 'Неверный текущий пароль'}), 400
     
     # Создаём/обновляем креды
     new_password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    logger.info(f"api_change_password: Вызов create_or_update_web_credentials для user_id={user_id}, username={username}")
+    
     result = create_or_update_web_credentials(
-        session['user_id'],
+        user_id,
         username,
         new_password_hash
     )
+    
+    logger.info(f"api_change_password: Результат: {result}")
     
     if result['success']:
         return jsonify({'success': True, 'message': result['message']})
@@ -1121,19 +1133,27 @@ def update_user_credentials(user_id):
     """API: Обновление учетных данных пользователя (только для админов)"""
     admin_id = session['user_id']
     
+    logger.info(f"update_user_credentials: Запрос от admin_id={admin_id} для user_id={user_id}")
+    
     # Проверка прав администратора
     if get_user_role(admin_id) != 'admin':
+        logger.warning(f"update_user_credentials: Отказано admin_id={admin_id}, не администратор")
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     data = request.json
     new_email = data.get('email')
     new_password = data.get('password')
     
+    logger.info(f"update_user_credentials: new_email={new_email}, has_new_password={bool(new_password)}")
+    
     # Получаем веб-пользователя по Telegram ID
     from bot.account_linking import get_web_user_by_telegram_id, admin_update_email, admin_change_password
     web_user_id, web_user_data = get_web_user_by_telegram_id(user_id)
     
+    logger.info(f"update_user_credentials: web_user_id={web_user_id}, has_web_user_data={bool(web_user_data)}")
+    
     if not web_user_id:
+        logger.error(f"update_user_credentials: У пользователя {user_id} нет веб-аккаунта")
         return jsonify({'error': 'У пользователя нет веб-аккаунта'}), 404
     
     try:
@@ -1141,7 +1161,9 @@ def update_user_credentials(user_id):
         
         # Обновление email если указан
         if new_email:
+            logger.info(f"update_user_credentials: Обновление email для web_user_id={web_user_id} на {new_email}")
             email_result = admin_update_email(web_user_id, new_email)
+            logger.info(f"update_user_credentials: email_result={email_result}")
             if not email_result['success']:
                 return jsonify({'error': email_result['error']}), 400
             changes_made.append(f"email изменен на {new_email}")
@@ -1150,7 +1172,9 @@ def update_user_credentials(user_id):
         if new_password:
             import hashlib
             password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+            logger.info(f"update_user_credentials: Обновление пароля для web_user_id={web_user_id}")
             password_result = admin_change_password(web_user_id, password_hash)
+            logger.info(f"update_user_credentials: password_result={password_result}")
             if not password_result['success']:
                 return jsonify({'error': password_result['error']}), 400
             changes_made.append("пароль изменен")
@@ -1173,6 +1197,8 @@ def update_user_credentials(user_id):
         
     except Exception as e:
         logger.error(f"Error updating credentials for user {user_id}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({'error': f'Ошибка обновления учетных данных: {str(e)}'}), 500
 
 

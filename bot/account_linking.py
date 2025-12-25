@@ -165,6 +165,7 @@ def link_telegram_account(link_code, telegram_id, username, first_name, last_nam
 def get_web_user_by_telegram_id(telegram_id):
     """Получить веб-пользователя по Telegram ID"""
     linking_data = load_linking_data()
+    telegram_id = str(telegram_id)  # Приводим к строке для корректного сравнения
     
     for web_user_id, user_data in linking_data["web_users"].items():
         if user_data.get("telegram_id") == telegram_id:
@@ -273,9 +274,13 @@ def admin_change_password(web_user_id, new_password_hash):
     Изменить пароль веб-пользователя администратором (без проверки старого пароля)
     Возвращает словарь с результатом операции
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     linking_data = load_linking_data()
     
     if web_user_id not in linking_data["web_users"]:
+        logger.error(f"admin_change_password: web_user_id {web_user_id} не найден")
         return {"success": False, "error": "Пользователь не найден"}
     
     # Меняем пароль
@@ -284,6 +289,7 @@ def admin_change_password(web_user_id, new_password_hash):
     linking_data["web_users"][web_user_id]["password_changed_by_admin"] = True  # Отмечаем что админ менял пароль
     
     save_linking_data(linking_data)
+    logger.info(f"admin_change_password: Пароль изменен для web_user_id {web_user_id}")
     
     return {"success": True, "message": "Пароль успешно изменен администратором"}
 
@@ -293,22 +299,28 @@ def admin_update_email(web_user_id, new_email):
     Изменить email веб-пользователя администратором
     Возвращает словарь с результатом операции
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     linking_data = load_linking_data()
     
     if web_user_id not in linking_data["web_users"]:
+        logger.error(f"admin_update_email: web_user_id {web_user_id} не найден")
         return {"success": False, "error": "Пользователь не найден"}
     
     # Проверяем, не занят ли уже такой email
     for wid, wuser in linking_data["web_users"].items():
         if wid != web_user_id and wuser.get("email") == new_email:
+            logger.warning(f"admin_update_email: Email {new_email} уже используется")
             return {"success": False, "error": "Email уже используется другим пользователем"}
     
     # Меняем email
-    old_email = linking_data["web_users"][web_user_id]["email"]
+    old_email = linking_data["web_users"][web_user_id].get("email", "")
     linking_data["web_users"][web_user_id]["email"] = new_email
     linking_data["web_users"][web_user_id]["email_changed_at"] = datetime.now().isoformat()
     
     save_linking_data(linking_data)
+    logger.info(f"admin_update_email: Email изменен с {old_email} на {new_email} для web_user_id {web_user_id}")
     
     return {"success": True, "message": f"Email успешно изменен с {old_email} на {new_email}"}
 
@@ -409,12 +421,17 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
     
     if existing_web_user_id:
         # Обновляем существующий аккаунт
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        old_email = linking_data["web_users"][existing_web_user_id].get("email", "")
         linking_data["web_users"][existing_web_user_id]["email"] = username
         linking_data["web_users"][existing_web_user_id]["password_hash"] = password_hash
         linking_data["web_users"][existing_web_user_id]["password_changed_at"] = datetime.now().isoformat()
         
         # ВАЖНО: Сохраняем изменения!
         save_linking_data(linking_data)
+        logger.info(f"create_or_update_web_credentials: Обновлен аккаунт {existing_web_user_id}, email {old_email} -> {username}")
         
         return {"success": True, "message": "Логин и пароль обновлены", "web_user_id": existing_web_user_id}
     else:
