@@ -96,7 +96,8 @@
         </div>
     </div>
     
-    <!-- Статистика -->
+    <!-- Статистика (только для admin и responder с дополнительным правом) -->
+    {% if permissions.view_dashboard_stats and stats %}
     <div class="row g-3 mb-4">
         <div class="col-lg-4 col-md-6">
             <div class="card text-white bg-primary">
@@ -192,6 +193,25 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <!-- Информационное сообщение для пользователей без прав на просмотр статистики -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-info-circle display-1 text-info mb-3"></i>
+                    <h4>Добро пожаловать!</h4>
+                    <p class="text-muted">
+                        Используйте быстрые действия выше для работы с системой.
+                        {% if session.user_role == 'initiator' %}
+                        <br><strong>Роль инициатора:</strong> Вы можете создавать заявки и использовать чат для своих заявок.
+                        {% endif %}
+                    </p>
                 </div>
             </div>
         </div>

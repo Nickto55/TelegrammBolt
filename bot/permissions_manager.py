@@ -37,7 +37,7 @@ PERMISSIONS = {
     'view_dse': {
         'name': 'Просмотр ДСЕ',
         'description': 'Просмотр списка и деталей ДСЕ',
-        'roles': ['admin', 'responder', 'initiator']
+        'roles': ['admin', 'responder']
     },
     'add_dse': {
         'name': 'Создание ДСЕ',
@@ -75,8 +75,8 @@ PERMISSIONS = {
     # Права на чат
     'chat_dse': {
         'name': 'Чат по ДСЕ',
-        'description': 'Общение в чатах по ДСЕ',
-        'roles': ['admin', 'responder']
+        'description': 'Общение в чатах по ДСЕ (Инициатор: доступен чат для своих заявок)',
+        'roles': ['admin', 'responder', 'initiator']
     },
     'view_chat_history': {
         'name': 'История чатов',
@@ -142,6 +142,12 @@ PERMISSIONS = {
     },
     
     # Права на профиль
+    'view_dashboard_stats': {
+        'name': 'Просмотр статистики дашборда',
+        'description': 'Просмотр общей статистики в панели управления (для ответчика - как дополнительное право)',
+        'roles': ['admin']  # Для responder только с индивидуальным правом
+    },
+    
     'view_profile': {
         'name': 'Просмотр профиля',
         'description': 'Просмотр своего профиля',
@@ -165,6 +171,7 @@ PERMISSION_GROUPS = {
     'Подписки': ['manage_subscriptions', 'watch_dse'],
     'Аккаунты': ['link_account'],
     'Бот': ['use_form', 'view_main_menu'],
+    'Дашборд': ['view_dashboard_stats'],
     'Профиль': ['view_profile', 'edit_profile'],
 }
 
@@ -385,8 +392,8 @@ def get_all_permissions_info() -> Dict:
 def check_telegram_bot_access(user_id: str) -> Dict[str, bool]:
     """
     Проверить доступ к функциям телеграм бота
-    
-    Args:
+
+        Args:
         user_id: ID пользователя
         
     Returns:
@@ -415,6 +422,7 @@ def check_web_access(user_id: str) -> Dict[str, bool]:
     """
     return {
         'dashboard': True,  # Все авторизованные пользователи могут видеть дашборд
+        'view_dashboard_stats': has_permission(user_id, 'view_dashboard_stats'),  # Статистика только для admin и responder с доп правом
         'view_dse': has_permission(user_id, 'view_dse'),
         'create_dse': has_permission(user_id, 'add_dse'),
         'edit_dse': has_permission(user_id, 'edit_dse'),

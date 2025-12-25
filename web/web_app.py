@@ -819,45 +819,51 @@ def dashboard():
             'role': get_user_role(user_id)
         })
         
-        # Статистика
-        dse_data = get_all_dse()
+        # Проверяем право на просмотр статистики
+        # Статистика доступна только admin и responder с дополнительным правом
+        can_view_stats = has_permission(user_id, 'view_dashboard_stats')
         
-        # Подсчёт активных пользователей
-        active_users = len([u for u in users_data.values() if u.get('role') != 'banned'])
-        
-        # Подсчёт записей по типам проблем
-        problem_types = {}
-        for record in dse_data:
-            problem_type = record.get('problem_type', 'Неизвестно')
-            problem_types[problem_type] = problem_types.get(problem_type, 0) + 1
-        
-        # Подсчёт записей за последние 7 дней
-        from datetime import datetime, timedelta
-        recent_date = datetime.now() - timedelta(days=7)
-        recent_dse = 0
-        for record in dse_data:
-            try:
-                record_date = datetime.strptime(record.get('datetime', ''), '%Y-%m-%d %H:%M:%S')
-                if record_date >= recent_date:
-                    recent_dse += 1
-            except:
-                pass
-        
-        # Безопасное определение top_problem_type
-        top_problem_type = 'Нет данных'
-        if problem_types:
-            try:
-                top_problem_type = max(problem_types.items(), key=lambda x: x[1])[0]
-            except:
-                pass
-        
-        stats = {
-            'total_dse': len(dse_data),
-            'active_users': active_users,
-            'recent_dse': recent_dse,
-            'problem_types': problem_types,
-            'top_problem_type': top_problem_type
-        }
+        stats = None
+        if can_view_stats:
+            # Статистика
+            dse_data = get_all_dse()
+            
+            # Подсчёт активных пользователей
+            active_users = len([u for u in users_data.values() if u.get('role') != 'banned'])
+            
+            # Подсчёт записей по типам проблем
+            problem_types = {}
+            for record in dse_data:
+                problem_type = record.get('problem_type', 'Неизвестно')
+                problem_types[problem_type] = problem_types.get(problem_type, 0) + 1
+            
+            # Подсчёт записей за последние 7 дней
+            from datetime import datetime, timedelta
+            recent_date = datetime.now() - timedelta(days=7)
+            recent_dse = 0
+            for record in dse_data:
+                try:
+                    record_date = datetime.strptime(record.get('datetime', ''), '%Y-%m-%d %H:%M:%S')
+                    if record_date >= recent_date:
+                        recent_dse += 1
+                except:
+                    pass
+            
+            # Безопасное определение top_problem_type
+            top_problem_type = 'Нет данных'
+            if problem_types:
+                try:
+                    top_problem_type = max(problem_types.items(), key=lambda x: x[1])[0]
+                except:
+                    pass
+            
+            stats = {
+                'total_dse': len(dse_data),
+                'active_users': active_users,
+                'recent_dse': recent_dse,
+                'problem_types': problem_types,
+                'top_problem_type': top_problem_type
+            }
         
         return render_template('dashboard.html', 
                              user=user_data,
