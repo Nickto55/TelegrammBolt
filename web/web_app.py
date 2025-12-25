@@ -724,7 +724,10 @@ def qr_auth():
         auth_data = request.json
         invite_code = auth_data.get('invite_code', '').strip().upper()
         
+        logger.info(f"qr_auth: Получен запрос с кодом приглашения: {invite_code}")
+        
         if not invite_code:
+            logger.error("qr_auth: Код приглашения не указан")
             return jsonify({'error': 'Код приглашения не указан'}), 400
         
         # Проверяем и используем приглашение
@@ -732,17 +735,23 @@ def qr_auth():
         
         # Сначала проверяем, существует ли приглашение
         invite_info = get_invite_info(invite_code)
+        logger.info(f"qr_auth: invite_info = {invite_info}")
+        
         if not invite_info:
+            logger.error(f"qr_auth: Приглашение {invite_code} не найдено")
             return jsonify({'error': 'Неверный код приглашения'}), 404
         
         if invite_info.get('used'):
+            logger.warning(f"qr_auth: Приглашение {invite_code} уже использовано")
             return jsonify({'error': 'Код приглашения уже использован'}), 400
         
         # Генерируем временный user_id для веб-пользователя
         import uuid
         temp_user_id = f'web_{uuid.uuid4().hex[:8]}'
+        logger.info(f"qr_auth: Сгенерирован temp_user_id = {temp_user_id}")
         
         # Используем приглашение
+        logger.info(f"qr_auth: Вызов use_invite для кода {invite_code}")
         result = use_invite(
             invite_code,
             temp_user_id,
@@ -751,15 +760,20 @@ def qr_auth():
             last_name=''
         )
         
+        logger.info(f"qr_auth: Результат use_invite = {result}")
+        
         if not result.get('success'):
+            logger.error(f"qr_auth: Ошибка активации приглашения: {result.get('message')}")
             return jsonify({'error': result.get('message', 'Ошибка активации приглашения')}), 400
         
         # Регистрируем пользователя
+        logger.info(f"qr_auth: Регистрация пользователя {temp_user_id}")
         register_user(temp_user_id, '', 'Веб-пользователь', '')
         
         # Устанавливаем роль из приглашения
         from bot.user_manager import set_user_role
         assigned_role = result.get('role', 'user')  # Роль из приглашения
+        logger.info(f"qr_auth: Установка роли {assigned_role} для пользователя {temp_user_id}")
         set_user_role(temp_user_id, assigned_role)
         
         # Сохранение данных в сессию
@@ -773,7 +787,7 @@ def qr_auth():
         session['auth_type'] = 'qr'
         session['telegram_linked'] = False  # Telegram не подключен
         
-        logger.info(f"User {temp_user_id} logged in via QR code: {invite_code}")
+        logger.info(f"qr_auth: User {temp_user_id} logged in via QR code: {invite_code}, role: {assigned_role}")
         
         redirect_url = url_for('dashboard')
         
@@ -784,10 +798,10 @@ def qr_auth():
         })
     
     except Exception as e:
-        logger.error(f"QR auth error: {e}")
+        logger.error(f"qr_auth: Exception: {e}")
         import traceback
-        traceback.print_exc()
-        return jsonify({'error': 'Ошибка авторизации через QR код'}), 500
+        logger.error(f"qr_auth: Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Ошибка авторизации через QR код: {str(e)}'}), 500
 
 
 @app.route('/logout')

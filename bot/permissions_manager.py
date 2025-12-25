@@ -93,7 +93,7 @@ PERMISSIONS = {
     'use_invite': {
         'name': 'Использование приглашений',
         'description': 'Активация QR-приглашений',
-        'roles': ['user']
+        'roles': ['admin', 'responder', 'initiator', 'user']
     },
     
     # Права на подписки и уведомления
