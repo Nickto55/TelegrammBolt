@@ -7,7 +7,7 @@ import os
 # Добавляем корневую директорию проекта в sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from bot.commands import start, button_handler, cancel_photo_command, createwebuser_command, force_reset_password_command, scan_command, invite_command, link_command, qr_photo_handler
+from bot.commands import start, button_handler, cancel_photo_command, createwebuser_command, scan_command, invite_command, link_command, qr_photo_handler
 from bot.commands_handlers import handle_message
 from bot.dse_watcher import load_watched_dse_data, start_watcher_job
 from config.config import BOT_TOKEN
@@ -93,8 +93,7 @@ async def help_command(update, context):
     if has_permission(user_id, 'create_web_user'):
         help_text += (
             "<b>Команды администратора:</b>\n"
-            "/createwebuser - Создать веб-пользователя\n"
-            "/forceresetpassword - Принудительно сбросить пароль для любого аккаунта\n\n"
+            "/createwebuser - Создать веб-пользователя\n\n"
         )
     
     help_text += (
@@ -137,7 +136,6 @@ def _register_handlers(app: Application) -> None:
         CommandHandler("endchat", end_chat_command),
         CommandHandler("cancel_photo", cancel_photo_command),
         CommandHandler("createwebuser", createwebuser_command),
-        CommandHandler("forceresetpassword", force_reset_password_command),
         CommandHandler("scan", scan_command),
         CommandHandler("invite", invite_command),
         CommandHandler("link", link_command),
