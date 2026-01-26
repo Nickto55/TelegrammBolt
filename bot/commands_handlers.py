@@ -787,12 +787,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
                         from random import randint
                         random_id_user = str([randint(0,9) for i in range(randint(7,9))]).replace(' ','').replace(',','')[1:-1]
-                        await update.message.reply_text(f"Невозможно установить данный пароль: <code>||{password}||</code>. Данный пароль у пользователя с ID:{random_id_user}")
+                        await update.message.reply_text(f"Невозможно установить данный пароль: <tg-spoiler>{password}</tg-spoiler>. Данный пароль у пользователя с ID:{random_id_user}")
                         await update.message.reply_text(
                             f"✅ <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
                             f"� Telegram: {telegram_name} (ID: <code>{telegram_user_id}</code>)\n"
-                            f"�🔐 Логин: ||<code>{username}</code>||\n"
-                            f"🔑 Пароль: ||<code>{password}</code>||\n\n"
+                            f"�🔐 Логин: <code>{username}</code>\n"
+                            f"🔑 Пароль: <code>{password}</code>\n\n"
                             f"🌐 URL: https://boltweb.servebeer.com/login\n\n"
                             f"ℹ️ Теперь вы можете входить на сайт как через Telegram, так и через логин/пароль.\n"
                             f"⚠️ <i>Сохраните эти данные, пароль больше не будет показан!</i>",
