@@ -98,6 +98,8 @@ show_menu() {
     echo -e "${WHITE}│${NC}  ${WHITE}13.${NC} Настройка systemd сервиса"
     echo -e "${WHITE}│${NC}  ${WHITE}14.${NC} Проверка и установка библиотек"
     echo -e "${WHITE}│${NC}"
+    echo -e "${WHITE}│${NC}  ${WHITE}15.${NC} Принудительный сброс пароля"
+    echo -e "${WHITE}│${NC}"
     echo -e "${WHITE}│${NC}  ${WHITE}0.${NC} Выход"
     echo -e "${WHITE}│${NC}"
     echo -e "${WHITE}└───────────────────────────────────────────────────────────┘${NC}"
@@ -481,6 +483,114 @@ test_terminal() {
     done
     
     echo ""
+}
+
+reset_user_password() {
+    show_header
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}  Принудительный сброс пароля пользователя${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+    
+    # Активация виртуального окружения
+    if [ -d "$VENV_DIR" ]; then
+        source $VENV_DIR/bin/activate
+    fi
+    
+    # Запрашиваем email или ID веб-пользователя
+    echo -e "${YELLOW}Введите email или ID веб-пользователя:${NC}"
+    read -p "Email/ID: " user_identifier
+    
+    if [ -z "$user_identifier" ]; then
+        echo -e "${RED}Ошибка: Не указан email или ID пользователя${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    # Генерируем новый случайный пароль
+    NEW_PASSWORD=$(openssl rand -base64 12 | tr -d "=+/" | cut -c1-12)
+    
+    if [ -z "$NEW_PASSWORD" ]; then
+        # Если openssl недоступен, используем альтернативный способ
+        NEW_PASSWORD=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | fold -w 12 | head -n 1)
+    fi
+    
+    if [ -z "$NEW_PASSWORD" ]; then
+        echo -e "${RED}Ошибка: Не удалось сгенерировать новый пароль${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+    
+    # Хэшируем новый пароль
+    HASHED_PASSWORD=$(python3 -c "
+import hashlib
+print(hashlib.sha256('$NEW_PASSWORD'.encode()).hexdigest())
+")
+    
+    # Вызываем Python скрипт для обновления пароля
+    RESULT=$(python3 -c "
+import sys
+sys.path.append('$PROJECT_DIR')
+from bot.account_linking import find_web_user_by_email, admin_change_password
+import os
+
+try:
+    # Проверяем, является ли идентификатор числом (web_user_id) или email
+    if '$user_identifier'.startswith('web_'):
+        # Это web_user_id
+        web_user_id = '$user_identifier'
+        # Просто попробуем найти пользователя с этим ID
+        import json
+        linking_file = os.path.join('$PROJECT_DIR', 'data', 'account_linking.json')
+        if os.path.exists(linking_file):
+            with open(linking_file, 'r', encoding='utf-8') as f:
+                linking_data = json.load(f)
+            if web_user_id in linking_data.get('web_users', {}):
+                user_found = True
+            else:
+                user_found = False
+        else:
+            user_found = False
+    else:
+        # Это email, ищем по email
+        web_user_id, user_data = find_web_user_by_email('$user_identifier')
+        if web_user_id:
+            user_found = True
+        else:
+            user_found = False
+    
+    if user_found:
+        # Выполняем сброс пароля
+        result = admin_change_password(web_user_id, '$HASHED_PASSWORD')
+        if result['success']:
+            print('SUCCESS:' + web_user_id)
+        else:
+            print('ERROR:' + result['error'])
+    else:
+        print('ERROR:Пользователь не найден')
+except Exception as e:
+    print('ERROR:' + str(e))
+")
+
+    if [[ $RESULT == SUCCESS:* ]]; then
+        WEB_USER_ID=$(echo $RESULT | cut -d':' -f2)
+        echo -e "${GREEN}✓ Пароль успешно сброшен${NC}"
+        echo ""
+        echo -e "${WHITE}Новые данные для входа:${NC}"
+        echo -e "  ${YELLOW}ID веб-пользователя:${NC} $WEB_USER_ID"
+        echo -e "  ${YELLOW}Новый пароль:${NC} $NEW_PASSWORD"
+        echo ""
+        echo -e "${RED}ВАЖНО:${NC} Сохраните этот пароль в надежном месте!"
+    else
+        ERROR_MSG=$(echo $RESULT | cut -d':' -f2-)
+        echo -e "${RED}✗ Ошибка: $ERROR_MSG${NC}"
+    fi
+    
+    echo ""
+    read -p "Нажмите Enter для продолжения..."
+}
+
+setup_systemd() {
     
     # Проверка интеграции
     echo -e "${YELLOW}Проверка интеграции в web_app.py:${NC}"
@@ -744,6 +854,7 @@ while true; do
         12) test_terminal ;;
         13) setup_systemd ;;
         14) check_install_libraries ;;
+        15) reset_user_password ;;
         0) 
             echo -e "${GREEN}Выход...${NC}"
             exit 0

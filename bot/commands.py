@@ -2786,6 +2786,88 @@ async def createwebuser_command(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
 
+async def force_reset_password_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /forceresetpassword - принудительно сбросить пароль для любого аккаунта (только для админов)"""
+    user_id = str(update.effective_user.id)
+    user = update.effective_user
+
+    # Проверка прав администратора
+    if get_user_role(user_id) != 'admin':
+        await update.message.reply_text("❌ Эта команда доступна только администраторам.")
+        return
+
+    # Проверяем, были ли переданы аргументы
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "❓ <b>Использование:</b> <code>/forceresetpassword EMAIL НОВЫЙ_ПАРОЛЬ</code>\n\n"
+            "Пример: <code>/forceresetpassword user@example.com newpassword123</code>\n\n"
+            "или: <code>/forceresetpassword WEB_USER_ID НОВЫЙ_ПАРОЛЬ</code>",
+            parse_mode='HTML'
+        )
+        return
+
+    email_or_web_user_id = context.args[0].strip()
+    new_password = context.args[1].strip()
+
+    if len(new_password) < 6:
+        await update.message.reply_text("❌ Пароль слишком корректный (минимум 6 символов).")
+        return
+
+    try:
+        # Импортируем необходимые функции
+        from bot.account_linking import (
+            find_web_user_by_email, 
+            admin_change_password, 
+            get_all_web_users,
+            load_linking_data
+        )
+        from config.config import generate_password_hash
+
+        # Генерируем хэш нового пароля
+        new_password_hash = generate_password_hash(new_password)
+
+        # Проверяем, является ли первый аргумент email или web_user_id
+        target_web_user_id = None
+        
+        # Проверяем, является ли это валидным web_user_id (по формату)
+        if email_or_web_user_id.startswith('web_'):
+            # Это может быть web_user_id
+            all_users = get_all_web_users()
+            if email_or_web_user_id in all_users:
+                target_web_user_id = email_or_web_user_id
+        else:
+            # Это скорее всего email, ищем по email
+            web_user_id, user_data = find_web_user_by_email(email_or_web_user_id)
+            if web_user_id:
+                target_web_user_id = web_user_id
+
+        if not target_web_user_id:
+            await update.message.reply_text(f"❌ Пользователь с email или ID '{email_or_web_user_id}' не найден.")
+            return
+
+        # Выполняем сброс пароля
+        result = admin_change_password(target_web_user_id, new_password_hash)
+
+        if result["success"]:
+            # Получаем информацию о пользователе для подтверждения
+            linking_data = load_linking_data()
+            user_info = linking_data["web_users"].get(target_web_user_id, {})
+            user_display = user_info.get("email", target_web_user_id)
+            
+            await update.message.reply_text(
+                f"✅ <b>Пароль успешно сброшен!</b>\n\n"
+                f"👤 Пользователь: {user_display}\n"
+                f"🔑 Новый пароль: <code>{new_password}</code>\n\n"
+                f"ℹ️ Пользователь может теперь войти на сайт с новым паролем.",
+                parse_mode='HTML'
+            )
+        else:
+            await update.message.reply_text(f"❌ Ошибка при сбросе пароля: {result['error']}")
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Произошла ошибка: {str(e)}")
+
+
 async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Команда /cancel_photo - отменить загрузку фото"""
     user_id = str(update.effective_user.id)
