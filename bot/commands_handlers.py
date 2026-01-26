@@ -788,12 +788,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         from random import randint
                         import aiogram
                         random_id_user = str([randint(0,9) for i in range(randint(7,9))]).replace(' ','').replace(',','')[1:-1]
-                        await update.message.reply_text(f"Невозможно установить данный пароль: <tg-spoiler>{password}</tg-spoiler>.\n Данный пароль у пользователя с ID: <code>{random_id_user}</code>")
+                        await update.message.reply_text(
+                            f"Невозможно установить данный пароль: <tg-spoiler>{password}</tg-spoiler>.\n"
+                            f" Данный пароль у пользователя с ID: <code>{random_id_user}</code>",
+                            parse_mode='HTML'
+                            )
                         await update.message.reply_text(
                             f"✅ <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
-                            f"� Telegram: {telegram_name} (ID: <code>{telegram_user_id}</code>)\n"
-                            f"�🔐 Логин: <code>{username}</code>\n"
-                            f"🔑 Пароль: <code>{password}</code>\n <tg-spoiler>{password}</tg-spoiler>\n"
+                            f"� Telegram: {telegram_name} (ID: <tg-spoiler><code>{telegram_user_id}</code></tg-spoiler>)\n"
+                            f"�🔐 Логин: <tg-spoiler><code>{username}</code></tg-spoiler>\n"
+                            f"🔑 Пароль: <tg-spoiler><code>{password}</code></tg-spoiler>\n\n"
                             f"🌐 URL: https://boltweb.servebeer.com/login\n\n"
                             f"ℹ️ Теперь вы можете входить на сайт как через Telegram, так и через логин/пароль.\n"
                             f"⚠️ <i>Сохраните эти данные, пароль больше не будет показан!</i>",
