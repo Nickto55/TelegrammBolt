@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # TelegramBolt Management Panel
-# Панель управления для TelegramBolt с поддержкой веб-терминала
+# Панель        управления для TelegramBolt с поддержкой веб-терминала
 
 # Цвета
 RED='\033[0;31m'

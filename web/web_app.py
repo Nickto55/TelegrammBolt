@@ -671,9 +671,11 @@ def admin_auth():
         # Загружаем админ-креды из config
         import config.config as config
         admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
-        
-        # Проверка логина/пароля
-        if username in admin_credentials and admin_credentials[username] == hashlib.sha256(password.encode()).hexdigest():
+
+        # Проверка логина/пароля (безопасно, через get чтобы избежать KeyError)
+        hashed_input = hashlib.sha256(password.encode()).hexdigest()
+        stored_hash = admin_credentials.get(username)
+        if stored_hash and stored_hash == hashed_input:
             # Получаем user_id админа из конфига или создаём специальный
             admin_user_id = admin_credentials.get(f'{username}_user_id', f'admin_{username}')
             
@@ -710,7 +712,8 @@ def admin_auth():
                 'redirect': redirect_url
             })
         else:
-            return jsonify({'error': f'Неверный логин или пароль, {username}, {password} {admin_credentials[username] == hashlib.sha256(password.encode()).hexdigest()} {admin_credentials[username]}'}), 401
+            logger.info(f"Admin auth failed for '{username}': stored_hash_present={stored_hash is not None}, hashed_match={stored_hash==hashed_input if stored_hash else False}")
+            return jsonify({'error': 'Неверный логин или пароль'}), 401
     
     except Exception as e:
         logger.error(f"Admin auth error: {e}")

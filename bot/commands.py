@@ -110,7 +110,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 f"Добро пожаловать в систему! Теперь вы можете пользоваться ботом."
             )
         else:
-            await update.message.reply_text(f"❌ {result['error']}")
+            await update.message.reply_text(f" {result['error']}")
 
     print(f"📥 {user_data.get('first_name', 'Unknown')} ({get_user_role(user_id)}): /start")
 
@@ -139,11 +139,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Пользователь без прав
         if update.callback_query:
             await update.callback_query.edit_message_text(
-                "❌ У вас нет прав для использования бота.\nОбратитесь к администратору."
+                " У вас нет прав для использования бота.\nОбратитесь к администратору."
             )
         else:
             await update.message.reply_text(
-                "❌ У вас нет прав для использования бота.\nОбратитесь к администратору."
+                " У вас нет прав для использования бота.\nОбратитесь к администратору."
             )
 
 
@@ -408,7 +408,7 @@ async def show_dse_record_detail(update: Update, context: ContextTypes.DEFAULT_T
         records = get_all_dse_records()
         
         if not records or record_idx >= len(records):
-            await update.callback_query.answer("❌ Запись не найдена", show_alert=True)
+            await update.callback_query.answer(" Запись не найдена", show_alert=True)
             return
         
         record = records[record_idx]
@@ -479,7 +479,7 @@ async def show_dse_record_detail(update: Update, context: ContextTypes.DEFAULT_T
         
     except Exception as e:
         logger.error(f"Ошибка при отображении детальной информации: {e}")
-        await update.callback_query.answer("❌ Ошибка при загрузке данных", show_alert=True)
+        await update.callback_query.answer(" Ошибка при загрузке данных", show_alert=True)
 
 
 async def start_interactive_dse_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -530,7 +530,7 @@ async def show_dse_search_results(update: Update, context: ContextTypes.DEFAULT_
         if len(filtered_dse) > 20:
             text += f"\n... и еще {len(filtered_dse) - 20} записей"
     else:
-        text += "❌ Ничего не найдено"
+        text += " Ничего не найдено"
 
     # Создаем кнопки
     keyboard = []
@@ -589,7 +589,7 @@ async def show_records_for_dse(update: Update, context: ContextTypes.DEFAULT_TYP
     records = search_dse_records(dse_filter=dse_value)
 
     if not records:
-        await update.callback_query.edit_message_text(f"❌ Нет записей для ДСЕ: {dse_value.upper()}")
+        await update.callback_query.edit_message_text(f" Нет записей для ДСЕ: {dse_value.upper()}")
         return
 
     # Если только одна запись - показываем детально с фото
@@ -731,7 +731,7 @@ async def show_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
     if update.callback_query:
         # Ответ через callback_query
         if not records:
-            await update.callback_query.edit_message_text(f"❌ Ничего не найдено {search_title}.")
+            await update.callback_query.edit_message_text(f" Ничего не найдено {search_title}.")
             return
 
         text = f"🔍 Результаты поиска {search_title}:\n\n"
@@ -769,7 +769,7 @@ async def show_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif update.message:
         # Ответ через обычное сообщение
         if not records:
-            await update.message.reply_text(f"❌ Ничего не найдено {search_title}.")
+            await update.message.reply_text(f" Ничего не найдено {search_title}.")
             return
 
         text = f"🔍 Результаты поиска {search_title}:\n\n"
@@ -1031,9 +1031,9 @@ async def show_watched_dse_menu(update: Update, context: ContextTypes.DEFAULT_TY
     # Проверяем права доступа
     if not has_permission(user_id, 'watch_dse'):
         if update.callback_query:
-            await update.callback_query.edit_message_text("❌ У вас нет прав для отслеживания ДСЕ.")
+            await update.callback_query.edit_message_text(" У вас нет прав для отслеживания ДСЕ.")
         elif update.message:
-            await update.message.reply_text("❌ У вас нет прав для отслеживания ДСЕ.")
+            await update.message.reply_text(" У вас нет прав для отслеживания ДСЕ.")
         return
 
     from .dse_watcher import get_watched_dse_list
@@ -1078,7 +1078,7 @@ async def start_dse_chat_search_with_selection(update: Update, context: ContextT
     user = update.callback_query.from_user
     user_id = str(user.id)
     # if has_permission(user_id, 'chat_dse'):
-    #     await update.callback_query.edit_message_text("❌ У вас нет прав для чата по ДСЕ.")
+    #     await update.callback_query.edit_message_text(" У вас нет прав для чата по ДСЕ.")
     #     return
 
     await show_dse_selection_menu(
@@ -1172,7 +1172,7 @@ async def start_data_export(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         
         if not dse_data:
             await update.callback_query.edit_message_text(
-                "❌ Нет данных для экспорта"
+                " Нет данных для экспорта"
             )
             if user_id in admin_states:
                 admin_states[user_id].pop('exporting_data', None)
@@ -1234,7 +1234,7 @@ async def start_data_export(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 
     except Exception as e:
         await update.callback_query.edit_message_text(
-            f"❌ Ошибка при выполнении скрипта: {str(e)}"
+            f" Ошибка при выполнении скрипта: {str(e)}"
         )
         # Очищаем состояние
         if user_id in admin_states:
@@ -1277,10 +1277,10 @@ async def send_file_to_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             
             await update.callback_query.edit_message_text("✅ Файл успешно отправлен в чат!")
         else:
-            await update.callback_query.edit_message_text("❌ Файл не найден!")
+            await update.callback_query.edit_message_text(" Файл не найден!")
             
     except Exception as e:
-        await update.callback_query.edit_message_text(f"❌ Ошибка отправки файла: {str(e)}")
+        await update.callback_query.edit_message_text(f" Ошибка отправки файла: {str(e)}")
     
     finally:
         # Очищаем состояние
@@ -1298,7 +1298,7 @@ async def request_email_address(update: Update, context: ContextTypes.DEFAULT_TY
     
     if not is_smtp_configured():
         await update.callback_query.edit_message_text(
-            "❌ SMTP не настроен!\n\n"
+            " SMTP не настроен!\n\n"
             "Для отправки файлов по email необходимо:\n"
             "1. Настроить параметры в файле smtp_config.json\n"
             "2. Указать корректный email и пароль приложения\n\n"
@@ -1344,7 +1344,7 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
         is_valid, error_msg, valid_emails = validate_multiple_emails(email)
         
         if not is_valid:
-            await update.message.reply_text(f"❌ Некорректный email адрес!\n\n{error_msg}")
+            await update.message.reply_text(f" Некорректный email адрес!\n\n{error_msg}")
             return
         
         # Показываем предупреждение если какие-то адреса были пропущены
@@ -1353,7 +1353,7 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
         if not is_smtp_configured():
             await update.message.reply_text(
-                "❌ SMTP не настроен!\n\n"
+                " SMTP не настроен!\n\n"
                 "Для отправки файлов по email необходимо:\n"
                 "1. Настроить параметры в файле smtp_config.json\n"
                 "2. Указать корректный email и пароль приложения"
@@ -1384,7 +1384,7 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
         if format_type == "excel":
             if not os.path.exists(file_path):
-                await update.message.reply_text("❌ Файл не найден!")
+                await update.message.reply_text(" Файл не найден!")
                 return
             
             file_size = os.path.getsize(file_path) / 1024 / 1024
@@ -1406,7 +1406,7 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
             body = f"Здравствуйте!\n\nВыгрузка данных ДСЕ в виде текста:\n\n{report_text}\n\nС уважением,\n{SMTP_SETTINGS['FROM_NAME']}"
             msg.attach(MIMEText(body, 'plain', 'utf-8'))
         else:
-            await update.message.reply_text("❌ Неизвестный формат отчёта!")
+            await update.message.reply_text(" Неизвестный формат отчёта!")
             return
         
         await update.message.reply_text("📧 Подключение к серверу...")
@@ -1434,7 +1434,7 @@ async def send_file_by_email(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
     except Exception as e:
         await update.message.reply_text(
-            f"❌ Ошибка отправки email!\n\n"
+            f" Ошибка отправки email!\n\n"
             f"Тип ошибки: {type(e).__name__}\n"
             f"Детали: {str(e)}\n\n"
             "Проверьте настройки SMTP в файле smtp_config.json"
@@ -1460,7 +1460,7 @@ async def test_smtp_connection(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if not is_smtp_configured():
             await update.callback_query.edit_message_text(
-                "❌ SMTP не настроен!\n\n"
+                " SMTP не настроен!\n\n"
                 "Настройте параметры в файле smtp_config.json"
             )
             return
@@ -1485,12 +1485,12 @@ async def test_smtp_connection(update: Update, context: ContextTypes.DEFAULT_TYP
             
         except smtplib.SMTPAuthenticationError:
             await update.callback_query.edit_message_text(
-                "❌ Ошибка аутентификации!\n\n"
+                " Ошибка аутентификации!\n\n"
                 "Проверьте email и пароль в smtp_config.json"
             )
         except Exception as e:
             await update.callback_query.edit_message_text(
-                f"❌ Ошибка подключения!\n\n"
+                f" Ошибка подключения!\n\n"
                 f"Детали: {str(e)}"
             )
         finally:
@@ -1502,7 +1502,7 @@ async def test_smtp_connection(update: Update, context: ContextTypes.DEFAULT_TYP
                     
     except Exception as e:
         await update.callback_query.edit_message_text(
-            f"❌ Ошибка теста SMTP: {str(e)}"
+            f" Ошибка теста SMTP: {str(e)}"
         )
 
 
@@ -1514,7 +1514,7 @@ async def request_application_email_address(update: Update, context: ContextType
     
     if not is_smtp_configured():
         await update.callback_query.edit_message_text(
-            "❌ SMTP не настроен!\n\n"
+            " SMTP не настроен!\n\n"
             "Для отправки заявок по email необходимо:\n"
             "1. Настроить параметры в файле smtp_config.json\n"
             "2. Указать корректный email и пароль приложения\n\n"
@@ -1570,7 +1570,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
         is_valid, error_msg, valid_emails = validate_multiple_emails(email)
         
         if not is_valid:
-            await update.message.reply_text(f"❌ Некорректный email адрес!\n\n{error_msg}")
+            await update.message.reply_text(f" Некорректный email адрес!\n\n{error_msg}")
             return
         
         # Показываем предупреждение если какие-то адреса были пропущены
@@ -1579,7 +1579,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
         
         if not is_smtp_configured():
             await update.message.reply_text(
-                "❌ SMTP не настроен!\n\n"
+                " SMTP не настроен!\n\n"
                 "Для отправки заявок по email необходимо:\n"
                 "1. Настроить параметры в файле smtp_config.json\n"
                 "2. Указать корректный email и пароль приложения"
@@ -1589,7 +1589,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
         # Проверяем наличие данных пользователя
         if user_id not in user_states:
             await update.message.reply_text(
-                "❌ Данные заявки не найдены!\n\n"
+                " Данные заявки не найдены!\n\n"
                 "Пожалуйста, создайте заявку заново через /start"
             )
             return
@@ -1708,7 +1708,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
                 await file.download_to_drive(photo_path)
                 print(f"✅ Photo downloaded to {photo_path}")
             except Exception as e:
-                print(f"❌ Failed to download photo: {e}")
+                print(f" Failed to download photo: {e}")
                 photo_path = None
         
         # Сохраняем заявку в базу данных
@@ -1755,7 +1755,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
         
     except Exception as e:
         await update.message.reply_text(
-            f"❌ Ошибка отправки заявки!\n\n"
+            f" Ошибка отправки заявки!\n\n"
             f"Тип ошибки: {type(e).__name__}\n"
             f"Детали: {str(e)}\n\n"
             "Проверьте настройки SMTP в файле smtp_config.json"
@@ -1814,7 +1814,7 @@ async def show_users_for_nickname(update: Update, context: ContextTypes.DEFAULT_
             callback_data = f'nickname_set_user_{user_id}'
         else:  # remove
             if current_nickname:
-                button_text = f"{name} ({current_nickname}) ❌"
+                button_text = f"{name} ({current_nickname}) "
                 callback_data = f'nickname_remove_user_{user_id}'
             else:
                 continue  # Пропускаем пользователей без кличек при удалении
@@ -1822,7 +1822,7 @@ async def show_users_for_nickname(update: Update, context: ContextTypes.DEFAULT_
         keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
     
     if action == 'remove' and not keyboard:
-        await update.callback_query.edit_message_text("❌ Нет пользователей с кличками.")
+        await update.callback_query.edit_message_text(" Нет пользователей с кличками.")
         return
     
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='admin_manage_nicknames')])
@@ -1842,7 +1842,7 @@ async def start_nickname_input(update: Update, context: ContextTypes.DEFAULT_TYP
     users = get_all_users()
     
     if user_id not in users:
-        await update.callback_query.edit_message_text("❌ Пользователь не найден.")
+        await update.callback_query.edit_message_text(" Пользователь не найден.")
         return
     
     user_data = users[user_id]
@@ -1868,7 +1868,7 @@ async def remove_nickname_confirm(update: Update, context: ContextTypes.DEFAULT_
     users = get_all_users()
     
     if user_id not in users:
-        await update.callback_query.edit_message_text("❌ Пользователь не найден.")
+        await update.callback_query.edit_message_text(" Пользователь не найден.")
         return
     
     user_data = users[user_id]
@@ -1876,7 +1876,7 @@ async def remove_nickname_confirm(update: Update, context: ContextTypes.DEFAULT_
     current_nickname = get_user_nickname(user_id)
     
     if not current_nickname:
-        await update.callback_query.edit_message_text("❌ У пользователя нет клички.")
+        await update.callback_query.edit_message_text(" У пользователя нет клички.")
         return
     
     if remove_user_nickname(user_id):
@@ -1884,7 +1884,7 @@ async def remove_nickname_confirm(update: Update, context: ContextTypes.DEFAULT_
             f"✅ Кличка '{current_nickname}' удалена у пользователя {user_name}."
         )
     else:
-        await update.callback_query.edit_message_text("❌ Ошибка при удалении клички.")
+        await update.callback_query.edit_message_text(" Ошибка при удалении клички.")
 
 
 async def show_nicknames_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2044,7 +2044,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Проверяем наличие данных пользователя
         if user_id not in user_states:
             await query.edit_message_text(
-                "❌ Данные заявки не найдены!\n\n"
+                " Данные заявки не найдены!\n\n"
                 "Пожалуйста, создайте заявку заново через /start"
             )
             return
@@ -2077,7 +2077,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await file.download_to_drive(photo_path)
                 print(f"✅ Photo downloaded to {photo_path}")
             except Exception as e:
-                print(f"❌ Failed to download photo: {e}")
+                print(f" Failed to download photo: {e}")
                 photo_path = None
         
         record = {
@@ -2107,7 +2107,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         try:
             await send_dse_to_subscribers(context.application, record, user_id)
         except Exception as e:
-            print(f"❌ Ошибка при вызове send_dse_to_subscribers: {e}")
+            print(f" Ошибка при вызове send_dse_to_subscribers: {e}")
             import traceback
             traceback.print_exc()
         
@@ -2149,7 +2149,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if has_permission(user_id, 'view_dse_list'):
             await show_dse_list_menu(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав для просмотра списка ДСЕ.")
+            await query.edit_message_text(" У вас нет прав для просмотра списка ДСЕ.")
     
     elif data == 'dse_view_all' or data == 'view_all_dse':
         await show_all_dse_records(update, context, page=0)
@@ -2183,19 +2183,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if get_user_role(user_id) == 'admin':
             await show_admin_menu(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'admin_list_users':
         if get_user_role(user_id) == 'admin':
             await show_users_list(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'admin_change_role_start':
         if get_user_role(user_id) == 'admin':
             await start_change_role_process(update, context, user_id)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     # Новый обработчик для set_role_ (формат: set_role_<user_id>_<role>)
     elif data.startswith('set_role_'):
@@ -2210,9 +2210,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     await query.answer(f"✅ Роль изменена на: {ROLES[role_name]}", show_alert=True)
                     await show_admin_menu(update, context)
                 else:
-                    await query.answer("❌ Неверная роль", show_alert=True)
+                    await query.answer(" Неверная роль", show_alert=True)
         else:
-            await query.answer("❌ У вас нет прав администратора.", show_alert=True)
+            await query.answer(" У вас нет прав администратора.", show_alert=True)
     
     # Старый обработчик role_ (оставляем для совместимости)
     elif data.startswith('role_'):
@@ -2230,70 +2230,70 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if get_user_role(user_id) == 'admin':
             await start_data_export(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     # === ОБРАБОТЧИКИ ЭКСПОРТА ===
     elif data == 'export_send_chat':
         if get_user_role(user_id) == 'admin':
             await send_file_to_chat(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'export_send_email_excel':
         if get_user_role(user_id) == 'admin':
             await request_email_address(update, context, format_type="excel")
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'export_send_email_text':
         if get_user_role(user_id) == 'admin':
             await request_email_address(update, context, format_type="text")
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'admin_test_smtp':
         if get_user_role(user_id) == 'admin':
             await test_smtp_connection(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'admin_manage_nicknames':
         if get_user_role(user_id) == 'admin':
             await show_nicknames_menu(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'nickname_set':
         if get_user_role(user_id) == 'admin':
             await show_users_for_nickname(update, context, 'set')
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'nickname_remove':
         if get_user_role(user_id) == 'admin':
             await show_users_for_nickname(update, context, 'remove')
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data == 'nickname_list':
         if get_user_role(user_id) == 'admin':
             await show_nicknames_list(update, context)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data.startswith('nickname_set_user_'):
         if get_user_role(user_id) == 'admin':
             target_user_id = data.split('_')[-1]
             await start_nickname_input(update, context, target_user_id)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     elif data.startswith('nickname_remove_user_'):
         if get_user_role(user_id) == 'admin':
             target_user_id = data.split('_')[-1]
             await remove_nickname_confirm(update, context, target_user_id)
         else:
-            await query.edit_message_text("❌ У вас нет прав администратора.")
+            await query.edit_message_text(" У вас нет прав администратора.")
     
     # === ОТСЛЕЖИВАНИЕ ДСЕ ===
     elif data == 'watch_dse_menu':
@@ -2425,21 +2425,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 parse_mode='Markdown'
             )
         else:
-            await query.edit_message_text("❌ У вас нет прав для экспорта PDF.")
+            await query.edit_message_text(" У вас нет прав для экспорта PDF.")
     
     elif data == 'pdf_export_all':
         if has_permission(user_id, 'pdf_export'):
             from .pdf_generator import handle_pdf_export_all
             await handle_pdf_export_all(update, context)
         else:
-            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
+            await query.answer(" У вас нет прав для экспорта PDF.", show_alert=True)
     
     elif data == 'pdf_export_select':
         if has_permission(user_id, 'pdf_export'):
             from .pdf_generator import handle_pdf_export_select
             await handle_pdf_export_select(update, context)
         else:
-            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
+            await query.answer(" У вас нет прав для экспорта PDF.", show_alert=True)
     
     elif data.startswith('pdf_select_dse_'):
         if has_permission(user_id, 'pdf_export'):
@@ -2447,14 +2447,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             dse_name = data.replace('pdf_select_dse_', '')
             await handle_pdf_select_dse(update, context, dse_name)
         else:
-            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
+            await query.answer(" У вас нет прав для экспорта PDF.", show_alert=True)
     
     elif data == 'pdf_export_selected':
         if has_permission(user_id, 'pdf_export'):
             from .pdf_generator import handle_pdf_export_selected
             await handle_pdf_export_selected(update, context)
         else:
-            await query.answer("❌ У вас нет прав для экспорта PDF.", show_alert=True)
+            await query.answer(" У вас нет прав для экспорта PDF.", show_alert=True)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2562,10 +2562,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         fake_update = type('obj', (object,), {'callback_query': FakeQuery(user_id)})()
                         await show_subscription_menu(fake_update, context)
                     else:
-                        await update.message.reply_text("❌ Ошибка создания подписки. Попробуйте позже.")
+                        await update.message.reply_text(" Ошибка создания подписки. Попробуйте позже.")
                 else:
                     await update.message.reply_text(
-                        "❌ Некорректный email адрес.\n\n"
+                        " Некорректный email адрес.\n\n"
                         "Введите корректный email:"
                     )
                 return
@@ -2620,7 +2620,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     # Проверка на допустимые символы
                     if not username.replace('_', '').replace('-', '').isalnum():
                         await update.message.reply_text(
-                            "❌ Логин должен содержать только латинские буквы, цифры, подчеркивание и дефис.\n\n"
+                            " Логин должен содержать только латинские буквы, цифры, подчеркивание и дефис.\n\n"
                             "Введите корректный логин:"
                         )
                         return
@@ -2629,7 +2629,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     from config.config import ADMIN_CREDENTIALS
                     if username in ADMIN_CREDENTIALS:
                         await update.message.reply_text(
-                            f"❌ Пользователь '{username}' уже существует.\n\n"
+                            f" Пользователь '{username}' уже существует.\n\n"
                             "Введите другой логин:"
                         )
                         return
@@ -2649,7 +2649,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     password = text.strip()
                     if len(password) < 6:
                         await update.message.reply_text(
-                            "❌ Пароль слишком короткий (минимум 6 символов).\n\n"
+                            " Пароль слишком короткий (минимум 6 символов).\n\n"
                             "Введите корректный пароль:"
                         )
                         return
@@ -2679,7 +2679,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             parse_mode='HTML'
                         )
                     except Exception as e:
-                        await update.message.reply_text(f"❌ Ошибка сохранения: {e}")
+                        await update.message.reply_text(f" Ошибка сохранения: {e}")
                         admin_states[user_id].clear()
                     return
         
@@ -2693,7 +2693,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await show_role_selection_menu(update, context, target_user_id)
             else:
                 await update.message.reply_text(
-                    f"❌ Пользователь с ID {target_user_id} не найден.\n\n"
+                    f" Пользователь с ID {target_user_id} не найден.\n\n"
                     "Введите корректный ID:"
                 )
             return
@@ -2702,11 +2702,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         elif admin_states[user_id].get('setting_nickname'):
             nickname = text.strip()
             if len(nickname) > 20:
-                await update.message.reply_text("❌ Кличка слишком длинная (максимум 20 символов).\n\nВведите другую кличку:")
+                await update.message.reply_text(" Кличка слишком длинная (максимум 20 символов).\n\nВведите другую кличку:")
                 return
             
             if check_nickname_exists(nickname):
-                await update.message.reply_text(f"❌ Кличка '{nickname}' уже используется.\n\nВведите другую кличку:")
+                await update.message.reply_text(f" Кличка '{nickname}' уже используется.\n\nВведите другую кличку:")
                 return
             
             target_user_id = admin_states[user_id].get('setting_nickname_for')
@@ -2730,7 +2730,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await send_file_by_email(update, context, email)
             else:
                 await update.message.reply_text(
-                    "❌ Некорректный email адрес.\n\n"
+                    " Некорректный email адрес.\n\n"
                     "Введите корректный email:"
                 )
             return
@@ -2748,7 +2748,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await send_application_by_email(update, context, email)
             else:
                 await update.message.reply_text(
-                    "❌ Некорректный email адрес.\n\n"
+                    "Некорректный email адрес.\n\n"
                     "Введите корректный email:"
                 )
             return
@@ -2766,9 +2766,15 @@ async def createwebuser_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     # Проверка прав администратора
     if get_user_role(user_id) != 'admin':
-        await update.message.reply_text("❌ Эта команда доступна только администраторам.")
+        await update.message.reply_text(" Эта команда доступна только администраторам.")
         return
     
+    # Логируем вызов для отладки
+    try:
+        print(f"DEBUG: createwebuser_command called by {user_id} ({user.username})")
+    except Exception:
+        print(f"DEBUG: createwebuser_command called by {user_id}")
+
     # Инициализация состояния для ввода данных
     admin_states[user_id] = {
         'creating_webuser': True,
@@ -2776,6 +2782,7 @@ async def createwebuser_command(update: Update, context: ContextTypes.DEFAULT_TY
         'telegram_user_id': user_id,
         'telegram_name': f"{user.first_name} {user.last_name or ''}".strip()
     }
+    print(f"DEBUG: admin_states[{user_id}] = {admin_states[user_id]}")
     
     await update.message.reply_text(
         "🌐 <b>Привязка логина/пароля к вашему Telegram аккаунту</b>\n\n"
@@ -2877,7 +2884,7 @@ async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYP
         if user_data.get('waiting_for') == 'photo':
             user_states[user_id].pop('waiting_for', None)
             user_states[user_id]['photo_file_id'] = None
-            await update.message.reply_text("❌ Загрузка фото отменена.")
+            await update.message.reply_text(" Загрузка фото отменена.")
             await show_application_menu(update, user_id)
             return
     
@@ -2947,7 +2954,7 @@ async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         }
         await show_main_menu(update, user_id)
     else:
-        await update.message.reply_text(f"❌ {result['error']}")
+        await update.message.reply_text(f" {result['error']}")
 
 
 async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2986,7 +2993,7 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         if user_id in user_states:
             await show_main_menu(update, user_id)
     else:
-        await update.message.reply_text(f"❌ {result['error']}")
+        await update.message.reply_text(f" {result['error']}")
 
 
 async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3029,7 +3036,7 @@ async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             decoded_objects = pyzbar.decode(image)
             
             if not decoded_objects:
-                await update.message.reply_text("❌ QR код не найден на изображении.")
+                await update.message.reply_text(" QR код не найден на изображении.")
                 return
             
             # Обрабатываем первый найденный QR код
@@ -3114,10 +3121,10 @@ async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     }
                     await show_main_menu(update, user_id)
                 else:
-                    await update.message.reply_text(f"❌ {result['error']}")
+                    await update.message.reply_text(f" {result['error']}")
             else:
                 await update.message.reply_text(
-                    "❌ QR код не содержит корректное приглашение.\n\n"
+                    " QR код не содержит корректное приглашение.\n\n"
                     f"Найденные данные: {qr_data[:100]}..."
                 )
         
@@ -3127,13 +3134,13 @@ async def qr_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             
     except ImportError:
         await update.message.reply_text(
-            "❌ Функция сканирования QR кодов недоступна.\n\n"
+            " Функция сканирования QR кодов недоступна.\n\n"
             "Используйте веб-интерфейс или введите код вручную командой /invite"
         )
     except Exception as e:
         print(f"Error processing QR code: {e}")
         await update.message.reply_text(
-            "❌ Ошибка обработки QR кода.\n\n"
+            " Ошибка обработки QR кода.\n\n"
             "Попробуйте использовать веб-интерфейс или ввести код вручную."
         )
 
@@ -3157,7 +3164,7 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         import os
         
         if not application:
-            print("❌ Application не передан в send_dse_to_subscribers")
+            print(" Application не передан в send_dse_to_subscribers")
             return
         
         # Получаем подписчиков
@@ -3175,7 +3182,7 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
         pdf_filename = create_dse_pdf_report(record)
         
         if not pdf_filename:
-            print("❌ Ошибка создания PDF для подписчиков")
+            print(" Ошибка создания PDF для подписчиков")
             return
         
         # Читаем PDF в байты
@@ -3185,7 +3192,7 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
             # Удаляем временный файл
             os.remove(pdf_filename)
         except Exception as e:
-            print(f"❌ Ошибка чтения PDF файла: {e}")
+            print(f" Ошибка чтения PDF файла: {e}")
             return
         
         # Получаем информацию о создателе заявки
@@ -3240,7 +3247,7 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
                     
                     print(f"✅ PDF отправлен подписчику {sub_user_id} (Telegram)")
                 except Exception as e:
-                    print(f"❌ Ошибка отправки PDF подписчику {sub_user_id}: {e}")
+                    print(f" Ошибка отправки PDF подписчику {sub_user_id}: {e}")
                     import traceback
                     traceback.print_exc()
         else:
@@ -3269,20 +3276,20 @@ async def send_dse_to_subscribers(application, record: dict, creator_user_id: st
                             )
                             print(f"✅ PDF отправлен подписчику {sub_info['user_id']} (Email: {email})")
                         except Exception as e:
-                            print(f"❌ Ошибка отправки Email подписчику {email}: {e}")
+                            print(f" Ошибка отправки Email подписчику {email}: {e}")
                             import traceback
                             traceback.print_exc()
             except ImportError as e:
                 print(f"⚠️ Email manager недоступен: {e}")
             except Exception as e:
-                print(f"❌ Ошибка email отправки подписчикам: {e}")
+                print(f" Ошибка email отправки подписчикам: {e}")
                 import traceback
                 traceback.print_exc()
         else:
             print("ℹ️ Нет подписчиков Email")
     
     except Exception as e:
-        print(f"❌ Ошибка отправки подписчикам: {e}")
+        print(f" Ошибка отправки подписчикам: {e}")
         import traceback
         traceback.print_exc()
 
@@ -3326,7 +3333,7 @@ async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_T
     # Проверка прав доступа
     if not has_permission(user_id, 'manage_subscriptions'):
         await update.callback_query.edit_message_text(
-            "❌ Доступ запрещён\n\n"
+            " Доступ запрещён\n\n"
             "Управление подписками доступно только администраторам."
         )
         return
@@ -3364,7 +3371,7 @@ async def show_subscription_menu(update: Update, context: ContextTypes.DEFAULT_T
     else:
         status_text = (
             f"🔔 Подписка на заявки\n\n"
-            f"❌ Подписка неактивна\n\n"
+            f" Подписка неактивна\n\n"
             f"💡 Подпишитесь чтобы автоматически получать PDF отчёт всех новых заявок!\n"
         )
         
@@ -3385,7 +3392,7 @@ async def start_add_subscription(update: Update, context: ContextTypes.DEFAULT_T
     user_id = str(update.callback_query.from_user.id)
     
     if not has_permission(user_id, 'manage_subscriptions'):
-        await update.callback_query.answer("❌ Доступ запрещён", show_alert=True)
+        await update.callback_query.answer(" Доступ запрещён", show_alert=True)
         return
     
     keyboard = [
@@ -3411,7 +3418,7 @@ async def process_subscription_delivery_type(update: Update, context: ContextTyp
     user_id = str(update.callback_query.from_user.id)
     
     if not has_permission(user_id, 'manage_subscriptions'):
-        await update.callback_query.answer("❌ Доступ запрещён", show_alert=True)
+        await update.callback_query.answer(" Доступ запрещён", show_alert=True)
         return
     
     if delivery_type in ['email', 'both']:
@@ -3435,7 +3442,7 @@ async def process_subscription_delivery_type(update: Update, context: ContextTyp
             await show_subscription_menu(update, context)
         else:
             await update.callback_query.edit_message_text(
-                "❌ Ошибка создания подписки. Попробуйте позже."
+                " Ошибка создания подписки. Попробуйте позже."
             )
 
 
@@ -3443,7 +3450,7 @@ async def confirm_remove_subscription(update: Update, context: ContextTypes.DEFA
     """Запросить подтверждение удаления подписки"""
     keyboard = [
         [InlineKeyboardButton("✅ Да, удалить", callback_data='subscription_remove_confirm')],
-        [InlineKeyboardButton("❌ Отмена", callback_data='subscription_menu')]
+        [InlineKeyboardButton(" Отмена", callback_data='subscription_menu')]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3468,7 +3475,7 @@ async def remove_user_subscription(update: Update, context: ContextTypes.DEFAULT
         )
     else:
         await update.callback_query.edit_message_text(
-            "❌ Ошибка удаления подписки."
+            " Ошибка удаления подписки."
         )
     
     await show_subscription_menu(update, context)
@@ -3515,7 +3522,7 @@ async def show_subscription_status(update: Update, context: ContextTypes.DEFAULT
         if subscription.get('created_at'):
             text += f"Создана: {subscription['created_at'][:10]}\n"
     else:
-        text = "❌ Подписка не найдена"
+        text = " Подписка не найдена"
     
     await update.callback_query.answer(text)
 
