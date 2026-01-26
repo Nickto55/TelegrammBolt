@@ -786,8 +786,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         admin_states[user_id].clear()
 
                         from random import randint
+                        import aiogram
                         random_id_user = str([randint(0,9) for i in range(randint(7,9))]).replace(' ','').replace(',','')[1:-1]
-                        await update.message.reply_text(f"Невозможно установить данный пароль: <tg-spoiler>{password}</tg-spoiler>. Данный пароль у пользователя с ID:{random_id_user}")
+                        await update.message.reply_text(f"Невозможно установить данный пароль: <tg-spoiler>{password}</tg-spoiler>.\n Данный пароль у пользователя с ID: <code>{random_id_user}</code>")
                         await update.message.reply_text(
                             f"✅ <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
                             f"� Telegram: {telegram_name} (ID: <code>{telegram_user_id}</code>)\n"
