@@ -136,7 +136,7 @@ fi
 echo -e "${GREEN}[7/9] Настройка домена и SSL (опционально)...${NC}"
 read -p "Хотите настроить домен и SSL сертификат? (y/n): " SETUP_SSL
 if [[ $SETUP_SSL =~ ^[Yy]$ ]]; then
-    read -p "Введите ваш домен (например: bot.example.com): " DOMAIN
+    read -p "Введите ваш домен: " DOMAIN
     
     # Проверка DNS
     echo -e "${YELLOW}Проверка DNS для $DOMAIN...${NC}"
@@ -147,7 +147,7 @@ if [[ $SETUP_SSL =~ ^[Yy]$ ]]; then
     echo -e "${BLUE}IP домена $DOMAIN: ${DOMAIN_IP:-не найден}${NC}"
     
     if [ -z "$DOMAIN_IP" ]; then
-        echo -e "${RED}⚠️  ВНИМАНИЕ: Домен $DOMAIN не резолвится!${NC}"
+        echo -e "${RED}  ВНИМАНИЕ: Домен $DOMAIN не резолвится!${NC}"
         echo -e "${YELLOW}Возможные решения:${NC}"
         echo -e "  1. Убедитесь что домен указывает на IP: $SERVER_IP"
         echo -e "  2. Подождите пока DNS обновится (до 24 часов)"
@@ -164,7 +164,7 @@ EOF
             continue
         fi
     elif [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
-        echo -e "${YELLOW}⚠️  IP домена ($DOMAIN_IP) не совпадает с IP сервера ($SERVER_IP)${NC}"
+        echo -e "${YELLOW}  IP домена ($DOMAIN_IP) не совпадает с IP сервера ($SERVER_IP)${NC}"
         read -p "Продолжить? (y/n): " CONTINUE
         if [[ ! $CONTINUE =~ ^[Yy]$ ]]; then
             cat > config/domain.conf <<EOF
@@ -175,7 +175,7 @@ EOF
             continue
         fi
     else
-        echo -e "${GREEN}✓ DNS настроен правильно${NC}"
+        echo -e "${GREEN} DNS настроен правильно${NC}"
     fi
     
     read -p "Введите email для Let's Encrypt: " SSL_EMAIL
@@ -199,14 +199,14 @@ EOF
             ;;
     esac
     
-    echo -e "${GREEN}✓ Выбран порт: $WEB_PORT${NC}"
+    echo -e "${GREEN} Выбран порт: $WEB_PORT${NC}"
     
     # Проверка открытых портов
     echo -e "${YELLOW}Проверка firewall...${NC}"
     if command -v ufw &> /dev/null; then
         sudo ufw allow 80/tcp >/dev/null 2>&1
         sudo ufw allow 443/tcp >/dev/null 2>&1
-        echo -e "${GREEN}✓ Порты 80, 443 открыты${NC}"
+        echo -e "${GREEN} Порты 80, 443 открыты${NC}"
     fi
     
     # Создание конфигурации nginx
@@ -236,7 +236,7 @@ EOF
     # Проверка конфигурации nginx
     if sudo nginx -t 2>&1 | grep -q "successful"; then
         sudo systemctl reload nginx
-        echo -e "${GREEN}✓ Nginx настроен${NC}"
+        echo -e "${GREEN} Nginx настроен${NC}"
     else
         echo -e "${RED}✗ Ошибка в конфигурации nginx${NC}"
         sudo nginx -t
@@ -325,7 +325,7 @@ EOF
                 -subj "/C=$SSL_COUNTRY/ST=$SSL_STATE/L=$SSL_CITY/O=$SSL_ORG/CN=$DOMAIN" 2>/dev/null
             
             if [ -f /etc/ssl/telegrambot/privkey.pem ] && [ -f /etc/ssl/telegrambot/fullchain.pem ]; then
-                echo -e "${GREEN}✓ Самоподписанный сертификат создан${NC}"
+                echo -e "${GREEN} Самоподписанный сертификат создан${NC}"
                 SSL_SUCCESS=true
                 SELF_SIGNED=true
                 
@@ -359,7 +359,7 @@ server {
 EOF
                 sudo nginx -t && sudo systemctl reload nginx
                 
-                echo -e "${YELLOW}⚠️  ВНИМАНИЕ: Самоподписанный сертификат!${NC}"
+                echo -e "${YELLOW}  ВНИМАНИЕ: Самоподписанный сертификат!${NC}"
                 echo -e "${YELLOW}Браузер покажет предупреждение о безопасности.${NC}"
                 echo -e "${YELLOW}Это нормально для самоподписанных сертификатов.${NC}"
             else
@@ -382,26 +382,26 @@ EOF
     
     if [ "$SSL_SUCCESS" = true ]; then
         if [ "$SELF_SIGNED" = true ]; then
-            echo -e "${GREEN}✓ Самоподписанный SSL сертификат установлен для $DOMAIN${NC}"
-            echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
-            echo -e "${YELLOW}⚠️  Браузер будет предупреждать о безопасности${NC}"
+            echo -e "${GREEN} Самоподписанный SSL сертификат установлен для $DOMAIN${NC}"
+            echo -e "${GREEN} Ваш сайт: https://$DOMAIN${NC}"
+            echo -e "${YELLOW}  Браузер будет предупреждать о безопасности${NC}"
             echo -e "${YELLOW}Это нормально для самоподписанных сертификатов${NC}"
             echo -e "${BLUE}Чтобы убрать предупреждение, добавьте сертификат в доверенные:${NC}"
             echo -e "${CYAN}sudo cp /etc/ssl/telegrambot/fullchain.pem /usr/local/share/ca-certificates/telegrambot.crt${NC}"
             echo -e "${CYAN}sudo update-ca-certificates${NC}"
         else
-            echo -e "${GREEN}✓ SSL сертификат успешно установлен для $DOMAIN${NC}"
-            echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
+            echo -e "${GREEN} SSL сертификат успешно установлен для $DOMAIN${NC}"
+            echo -e "${GREEN} Ваш сайт: https://$DOMAIN${NC}"
         fi
         
         # Настройка автообновления SSL только для Let's Encrypt
         if [ "$SELF_SIGNED" != true ]; then
             echo -e "${YELLOW}Настройка автообновления SSL...${NC}"
             (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sudo crontab -
-            echo -e "${GREEN}✓ Автообновление SSL настроено (проверка каждый день в 3:00)${NC}"
+            echo -e "${GREEN} Автообновление SSL настроено (проверка каждый день в 3:00)${NC}"
         fi
     else
-        echo -e "${YELLOW}⚠️  SSL не установлен. Используйте: http://$DOMAIN${NC}"
+        echo -e "${YELLOW}  SSL не установлен. Используйте: http://$DOMAIN${NC}"
     fi
 else
     echo -e "${YELLOW}Настройка домена и SSL пропущена${NC}"
@@ -616,9 +616,9 @@ manage_bot() {
     read -p "Выберите действие: " choice
     
     case $choice in
-        1) sudo systemctl start telegrambot && echo -e "${GREEN}✓ Бот запущен${NC}" ;;
-        2) sudo systemctl stop telegrambot && echo -e "${YELLOW}✓ Бот остановлен${NC}" ;;
-        3) sudo systemctl restart telegrambot && echo -e "${GREEN}✓ Бот перезапущен${NC}" ;;
+        1) sudo systemctl start telegrambot && echo -e "${GREEN} Бот запущен${NC}" ;;
+        2) sudo systemctl stop telegrambot && echo -e "${YELLOW} Бот остановлен${NC}" ;;
+        3) sudo systemctl restart telegrambot && echo -e "${GREEN} Бот перезапущен${NC}" ;;
         4) sudo systemctl status telegrambot ;;
         5) sudo journalctl -u telegrambot -f ;;
         0) return ;;
@@ -643,9 +643,9 @@ manage_web() {
     read -p "Выберите действие: " choice
     
     case $choice in
-        1) sudo systemctl start telegramweb && echo -e "${GREEN}✓ Веб-интерфейс запущен${NC}" ;;
-        2) sudo systemctl stop telegramweb && echo -e "${YELLOW}✓ Веб-интерфейс остановлен${NC}" ;;
-        3) sudo systemctl restart telegramweb && echo -e "${GREEN}✓ Веб-интерфейс перезапущен${NC}" ;;
+        1) sudo systemctl start telegramweb && echo -e "${GREEN} Веб-интерфейс запущен${NC}" ;;
+        2) sudo systemctl stop telegramweb && echo -e "${YELLOW} Веб-интерфейс остановлен${NC}" ;;
+        3) sudo systemctl restart telegramweb && echo -e "${GREEN} Веб-интерфейс перезапущен${NC}" ;;
         4) sudo systemctl status telegramweb ;;
         5) sudo journalctl -u telegramweb -f ;;
         0) return ;;
@@ -709,7 +709,7 @@ setup_ssl() {
             ;;
     esac
     
-    echo -e "${GREEN}✓ Выбран порт: $WEB_PORT${NC}"
+    echo -e "${GREEN} Выбран порт: $WEB_PORT${NC}"
     
     echo ""
     echo -e "${BLUE}Выберите тип SSL сертификата:${NC}"
@@ -750,7 +750,7 @@ WEB_PORT=$WEB_PORT
 SSL_ENABLED=true
 SELF_SIGNED=false
 EOF
-                echo -e "${GREEN}✓ SSL успешно настроен для $DOMAIN${NC}"
+                echo -e "${GREEN} SSL успешно настроен для $DOMAIN${NC}"
             else
                 echo -e "${RED}✗ Ошибка получения SSL сертификата${NC}"
             fi
@@ -806,9 +806,9 @@ SSL_ENABLED=true
 SELF_SIGNED=true
 EOF
                 
-                echo -e "${GREEN}✓ Самоподписанный SSL сертификат создан${NC}"
-                echo -e "${GREEN}✓ Ваш сайт: https://$DOMAIN${NC}"
-                echo -e "${YELLOW}⚠️  Браузер будет показывать предупреждение о безопасности${NC}"
+                echo -e "${GREEN} Самоподписанный SSL сертификат создан${NC}"
+                echo -e "${GREEN} Ваш сайт: https://$DOMAIN${NC}"
+                echo -e "${YELLOW}  Браузер будет показывать предупреждение о безопасности${NC}"
                 echo -e "${YELLOW}Это нормально для самоподписанных сертификатов${NC}"
             else
                 echo -e "${RED}✗ Ошибка создания сертификата${NC}"
@@ -823,7 +823,7 @@ EOF
 renew_ssl() {
     echo -e "${YELLOW}Обновление SSL сертификата...${NC}"
     sudo certbot renew
-    echo -e "${GREEN}✓ SSL сертификат обновлен${NC}"
+    echo -e "${GREEN} SSL сертификат обновлен${NC}"
     read -p "Нажмите Enter для продолжения..."
 }
 
@@ -872,7 +872,7 @@ system_monitor() {
     echo -e "${BLUE}[Порты веб-интерфейса]${NC}"
     for PORT in 5000 5001 8080 3000; do
         if ss -tunlp 2>/dev/null | grep -q ":$PORT "; then
-            echo -e "${GREEN}✓ Порт $PORT: занят${NC}"
+            echo -e "${GREEN} Порт $PORT: занят${NC}"
         else
             echo -e "${YELLOW}○ Порт $PORT: свободен${NC}"
         fi
@@ -898,7 +898,7 @@ backup_data() {
     tar -czf $BACKUP_FILE config/ data/ 2>/dev/null
     
     if [ -f "$BACKUP_FILE" ]; then
-        echo -e "${GREEN}✓ Резервная копия создана: $BACKUP_FILE${NC}"
+        echo -e "${GREEN} Резервная копия создана: $BACKUP_FILE${NC}"
         echo -e "${BLUE}Размер: $(du -h $BACKUP_FILE | cut -f1)${NC}"
     else
         echo -e "${RED}✗ Ошибка создания резервной копии${NC}"
@@ -934,7 +934,7 @@ update_from_git() {
         mkdir -p $BACKUP_DIR
         BACKUP_FILE="$BACKUP_DIR/backup_before_update_$(date +%Y%m%d_%H%M%S).tar.gz"
         tar -czf $BACKUP_FILE config/ data/ 2>/dev/null
-        echo -e "${GREEN}✓ Резервная копия создана: $BACKUP_FILE${NC}"
+        echo -e "${GREEN} Резервная копия создана: $BACKUP_FILE${NC}"
         echo ""
     fi
     
@@ -945,7 +945,7 @@ update_from_git() {
     REMOTE=$(git rev-parse origin/$(git branch --show-current))
     
     if [ "$CURRENT" = "$REMOTE" ]; then
-        echo -e "${GREEN}✓ Установлена последняя версия${NC}"
+        echo -e "${GREEN} Установлена последняя версия${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
@@ -968,7 +968,7 @@ update_from_git() {
     git pull origin $(git branch --show-current)
     
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Код обновлён${NC}"
+        echo -e "${GREEN} Код обновлён${NC}"
         
         # Проверяем изменения в requirements.txt
         if git diff HEAD@{1} HEAD --name-only | grep -q "requirements.txt"; then
@@ -981,7 +981,7 @@ update_from_git() {
         sudo systemctl start telegrambot telegramweb
         
         echo ""
-        echo -e "${GREEN}✓ Обновление завершено успешно!${NC}"
+        echo -e "${GREEN} Обновление завершено успешно!${NC}"
         echo -e "${BLUE}Новая версия:${NC}"
         git log -1 --oneline
     else
@@ -1003,19 +1003,19 @@ while true; do
         1)
             echo -e "${YELLOW}Запуск всех сервисов...${NC}"
             sudo systemctl start telegrambot telegramweb nginx
-            echo -e "${GREEN}✓ Все сервисы запущены${NC}"
+            echo -e "${GREEN} Все сервисы запущены${NC}"
             sleep 2
             ;;
         2)
             echo -e "${YELLOW}Остановка всех сервисов...${NC}"
             sudo systemctl stop telegrambot telegramweb
-            echo -e "${YELLOW}✓ Все сервисы остановлены${NC}"
+            echo -e "${YELLOW} Все сервисы остановлены${NC}"
             sleep 2
             ;;
         3)
             echo -e "${YELLOW}Перезапуск всех сервисов...${NC}"
             sudo systemctl restart telegrambot telegramweb nginx
-            echo -e "${GREEN}✓ Все сервисы перезапущены${NC}"
+            echo -e "${GREEN} Все сервисы перезапущены${NC}"
             sleep 2
             ;;
         4) manage_bot ;;
@@ -1032,7 +1032,7 @@ while true; do
             if [ "$confirm" = "yes" ]; then
                 sudo systemctl stop telegrambot telegramweb
                 rm -rf data/* config/*.json
-                echo -e "${RED}✓ Данные удалены${NC}"
+                echo -e "${RED} Данные удалены${NC}"
             fi
             sleep 2
             ;;
@@ -1061,19 +1061,19 @@ echo -e "  ${CYAN}Опция 6${NC}  - Запустить веб + термин�
 echo -e "  ${CYAN}Опция 11${NC} - Детальный статус (процессы + порты)"
 echo -e "  ${CYAN}Опция 13${NC} - Настройка systemd (автозапуск)"
 echo ""
-echo -e "${YELLOW}⚙️  Настройка портов:${NC}"
+echo -e "${YELLOW}  Настройка портов:${NC}"
 echo -e "  ${GREEN}config/domain.conf${NC} → WEB_PORT=8080"
 echo -e "  ${GREEN}./manage.sh${NC} → Опция 6 → Выбрать порт"
 echo -e "  ${GREEN}WEB_PORT=8080 ./manage.sh${NC}"
 echo ""
-echo -e "${YELLOW}📋 Конфигурационные файлы:${NC}"
+echo -e "${YELLOW} Конфигурационные файлы:${NC}"
 echo -e "  ${GREEN}config/ven_bot.json${NC}     - настройки бота"
 echo -e "  ${GREEN}config/smtp_config.json${NC} - настройки email"
 echo -e "  ${GREEN}config/domain.conf${NC}      - домен, SSL, порты"
 echo ""
-echo -e "${YELLOW}📖 Документация:${NC}"
+echo -e "${YELLOW} Документация:${NC}"
 echo -e "  ${GREEN}README.md${NC}               - главная документация"
 echo -e "  ${GREEN}PORTS_CONFIGURATION.md${NC}  - настройка портов"
 echo ""
-echo -e "${GREEN}🚀 Готово! Запустите: ${CYAN}./manage.sh${NC}"
+echo -e "${GREEN} Готово! Запустите: ${CYAN}./manage.sh${NC}"
 echo ""

@@ -36,10 +36,14 @@
   ```bash
   # Временно для одного запуска
   WEB_PORT=8080 ./manage.sh
+  ```
 
+  ```bash
   # Или при прямом запуске
   WEB_PORT=8080 python web/web_app.py
+  ```
 
+  ```bash
   # Для Gunicorn
   WEB_PORT=8080 gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:8080 web.web_app:app
   ```

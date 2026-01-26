@@ -110,7 +110,7 @@ start_all() {
     echo -e "${GREEN}Запуск всех сервисов...${NC}"
     sudo systemctl start $BOT_SERVICE
     sudo systemctl start $WEB_SERVICE
-    echo -e "${GREEN}✓ Сервисы запущены${NC}"
+    echo -e "${GREEN} Сервисы запущены${NC}"
     sleep 2
 }
 
@@ -118,7 +118,7 @@ stop_all() {
     echo -e "${YELLOW}Остановка всех сервисов...${NC}"
     sudo systemctl stop $BOT_SERVICE
     sudo systemctl stop $WEB_SERVICE
-    echo -e "${GREEN}✓ Сервисы остановлены${NC}"
+    echo -e "${GREEN} Сервисы остановлены${NC}"
     sleep 2
 }
 
@@ -126,7 +126,7 @@ restart_all() {
     echo -e "${YELLOW}Перезапуск всех сервисов...${NC}"
     sudo systemctl restart $BOT_SERVICE
     sudo systemctl restart $WEB_SERVICE
-    echo -e "${GREEN}✓ Сервисы перезапущены${NC}"
+    echo -e "${GREEN} Сервисы перезапущены${NC}"
     sleep 2
 }
 
@@ -184,7 +184,7 @@ start_web_terminal() {
     if [ ! -d "$VENV_DIR" ]; then
         echo -e "${YELLOW}Виртуальное окружение не найдено. Создаём...${NC}"
         python3 -m venv $VENV_DIR
-        echo -e "${GREEN}✓ Виртуальное окружение создано${NC}"
+        echo -e "${GREEN} Виртуальное окружение создано${NC}"
     fi
     
     # Активация виртуального окружения
@@ -220,9 +220,9 @@ start_web_terminal() {
         echo -e "${YELLOW}Установка зависимостей...${NC}"
         pip install -q --upgrade pip
         pip install -q flask-socketio python-socketio eventlet ptyprocess gunicorn
-        echo -e "${GREEN}✓ Все зависимости установлены${NC}"
+        echo -e "${GREEN} Все зависимости установлены${NC}"
     else
-        echo -e "${GREEN}✓ Все зависимости уже установлены${NC}"
+        echo -e "${GREEN} Все зависимости уже установлены${NC}"
     fi
     
     echo ""
@@ -232,7 +232,7 @@ start_web_terminal() {
     sudo systemctl stop telegramweb 2>/dev/null
     sudo lsof -ti:$WEB_PORT | xargs -r kill -9 2>/dev/null
     sleep 1
-    echo -e "${GREEN}✓ Порт $WEB_PORT освобожден${NC}"
+    echo -e "${GREEN} Порт $WEB_PORT освобожден${NC}"
     echo ""
     
     # Запуск Gunicorn с eventlet
@@ -294,7 +294,7 @@ check_status() {
     for PORT in 5000 5001 8080 3000; do
         local PORT_STATUS=$(sudo lsof -i :$PORT 2>/dev/null)
         if [ -n "$PORT_STATUS" ]; then
-            echo -e "${GREEN}✓ Порт $PORT:${NC}"
+            echo -e "${GREEN} Порт $PORT:${NC}"
             echo "$PORT_STATUS" | grep -E "gunicorn|python|flask" | awk '{print "  "$1" (PID: "$2")"}'
         fi
     done
@@ -370,7 +370,7 @@ update_project() {
         git log HEAD..origin/$(git branch --show-current) --oneline --decorate --color
         echo ""
     else
-        echo -e "${GREEN}✓ Проект уже актуален${NC}"
+        echo -e "${GREEN} Проект уже актуален${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
@@ -380,7 +380,7 @@ update_project() {
         git pull origin $(git branch --show-current)
         
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✓ Код обновлен${NC}"
+            echo -e "${GREEN} Код обновлен${NC}"
             echo ""
             
             # Проверяем, обновился ли manage.sh и перезапускаем его
@@ -398,17 +398,17 @@ update_project() {
             fi
             pip install -q --upgrade pip
             pip install -q -r requirements.txt --upgrade
-            echo -e "${GREEN}✓ Зависимости обновлены${NC}"
+            echo -e "${GREEN} Зависимости обновлены${NC}"
             echo ""
             
             # Перезапуск сервисов
             echo -e "${CYAN}Перезапуск сервисов...${NC}"
             sudo systemctl daemon-reload
             sudo systemctl start $BOT_SERVICE $WEB_SERVICE 2>/dev/null
-            echo -e "${GREEN}✓ Сервисы перезапущены${NC}"
+            echo -e "${GREEN} Сервисы перезапущены${NC}"
             echo ""
             
-            echo -e "${GREEN}✓ Обновление завершено!${NC}"
+            echo -e "${GREEN} Обновление завершено!${NC}"
         else
             echo -e "${RED}✗ Ошибка при обновлении${NC}"
             echo -e "${YELLOW}Попробуйте вручную: git pull${NC}"
@@ -431,7 +431,7 @@ update_dependencies() {
     pip install --upgrade pip
     pip install -r requirements.txt --upgrade
     
-    echo -e "${GREEN}✓ Зависимости обновлены${NC}"
+    echo -e "${GREEN} Зависимости обновлены${NC}"
     read -p "Нажмите Enter для продолжения..."
 }
 
@@ -454,7 +454,7 @@ test_terminal() {
     
     for pkg in "${packages[@]}"; do
         if pip show ${pkg} &>/dev/null; then
-            echo -e "  ${GREEN}✓${NC} ${pkg}"
+            echo -e "  ${GREEN}${NC} ${pkg}"
         else
             echo -e "  ${RED}✗${NC} ${pkg} - не установлен"
             all_ok=false
@@ -473,7 +473,7 @@ test_terminal() {
     
     for file in "${files[@]}"; do
         if [ -f "$PROJECT_DIR/$file" ]; then
-            echo -e "  ${GREEN}✓${NC} $file"
+            echo -e "  ${GREEN}${NC} $file"
         else
             echo -e "  ${RED}✗${NC} $file - не найден"
             all_ok=false
@@ -486,21 +486,21 @@ test_terminal() {
     echo -e "${YELLOW}Проверка интеграции в web_app.py:${NC}"
     
     if grep -q "from flask_socketio import SocketIO" $PROJECT_DIR/web/web_app.py; then
-        echo -e "  ${GREEN}✓${NC} Flask-SocketIO импортирован"
+        echo -e "  ${GREEN}${NC} Flask-SocketIO импортирован"
     else
         echo -e "  ${RED}✗${NC} Flask-SocketIO не импортирован"
         all_ok=false
     fi
     
     if grep -q "socketio.run(app" $PROJECT_DIR/web/web_app.py; then
-        echo -e "  ${GREEN}✓${NC} Приложение использует socketio.run()"
+        echo -e "  ${GREEN}${NC} Приложение использует socketio.run()"
     else
         echo -e "  ${YELLOW}⚠${NC} Приложение может использовать Gunicorn (это нормально)"
     fi
     
     # Проверка роутов
     if grep -q "@app.route('/terminal')" $PROJECT_DIR/web/web_app.py || grep -q "@app.route(\"/terminal\")" $PROJECT_DIR/web/web_app.py; then
-        echo -e "  ${GREEN}✓${NC} Роут /terminal настроен"
+        echo -e "  ${GREEN}${NC} Роут /terminal настроен"
     else
         echo -e "  ${RED}✗${NC} Роут /terminal не найден"
         all_ok=false
@@ -509,7 +509,7 @@ test_terminal() {
     echo ""
     
     if $all_ok; then
-        echo -e "${GREEN}✓ Все проверки пройдены!${NC}"
+        echo -e "${GREEN} Все проверки пройдены!${NC}"
         echo -e "${CYAN}Можете запустить веб с терминалом (опция 6)${NC}"
     else
         echo -e "${RED}✗ Обнаружены проблемы${NC}"
@@ -560,7 +560,7 @@ setup_systemd() {
     esac
     
     echo ""
-    echo -e "${GREEN}✓ Выбран порт: ${WHITE}$SYSTEMD_PORT${NC}"
+    echo -e "${GREEN} Выбран порт: ${WHITE}$SYSTEMD_PORT${NC}"
     echo ""
     
     read -p "Продолжить? (y/n): " confirm
@@ -596,7 +596,7 @@ EOF
         sudo systemctl daemon-reload
         
         echo ""
-        echo -e "${GREEN}✓ Сервис создан с портом $SYSTEMD_PORT${NC}"
+        echo -e "${GREEN} Сервис создан с портом $SYSTEMD_PORT${NC}"
         echo ""
         echo -e "${YELLOW}Команды управления:${NC}"
         echo -e "  ${WHITE}sudo systemctl enable telegrambolt-web${NC}  - добавить в автозагрузку"
@@ -626,14 +626,14 @@ check_install_libraries() {
         echo -e "${GREEN}Создаём виртуальное окружение...${NC}"
         python3 -m venv $VENV_DIR
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✓ Виртуальное окружение создано${NC}"
+            echo -e "${GREEN} Виртуальное окружение создано${NC}"
         else
             echo -e "${RED}✗ Ошибка создания виртуального окружения${NC}"
             read -p "Нажмите Enter для продолжения..."
             return
         fi
     else
-        echo -e "${GREEN}✓ Виртуальное окружение найдено${NC}"
+        echo -e "${GREEN} Виртуальное окружение найдено${NC}"
     fi
     
     echo ""
@@ -670,7 +670,7 @@ check_install_libraries() {
             # Проверяем установлен ли пакет
             if pip show "$package_name" &>/dev/null; then
                 INSTALLED_PACKAGES+=("$package_name")
-                echo -e "${GREEN}✓${NC} $package_name"
+                echo -e "${GREEN}${NC} $package_name"
             else
                 MISSING_PACKAGES+=("$line")
                 echo -e "${RED}✗${NC} $package_name (не установлен)"
@@ -702,7 +702,7 @@ check_install_libraries() {
             
             if [ $? -eq 0 ]; then
                 echo ""
-                echo -e "${GREEN}✓ Все пакеты успешно установлены${NC}"
+                echo -e "${GREEN} Все пакеты успешно установлены${NC}"
             else
                 echo ""
                 echo -e "${RED}✗ Произошли ошибки при установке${NC}"
@@ -711,7 +711,7 @@ check_install_libraries() {
             echo -e "${YELLOW}Установка отменена${NC}"
         fi
     else
-        echo -e "${GREEN}✓ Все необходимые библиотеки установлены${NC}"
+        echo -e "${GREEN} Все необходимые библиотеки установлены${NC}"
     fi
     
     echo ""
