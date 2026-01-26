@@ -793,7 +793,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             f"✅ <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
                             f"� Telegram: {telegram_name} (ID: <code>{telegram_user_id}</code>)\n"
                             f"�🔐 Логин: <code>{username}</code>\n"
-                            f"🔑 Пароль: <code>{password}</code>\n\n"
+                            f"🔑 Пароль: <code>{password}</code>\n <tg-spoiler>{password}</tg-spoiler>\n"
                             f"🌐 URL: https://boltweb.servebeer.com/login\n\n"
                             f"ℹ️ Теперь вы можете входить на сайт как через Telegram, так и через логин/пароль.\n"
                             f"⚠️ <i>Сохраните эти данные, пароль больше не будет показан!</i>",
