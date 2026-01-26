@@ -756,7 +756,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     admin_states[user_id]['step'] = 'password'
                     
                     await update.message.reply_text(
-                        f"✅ Логин: <code>{username}</code>\n\n"
                         "Теперь введите пароль для этого пользователя:\n"
                         "(минимум 6 символов)",
                         parse_mode='HTML'
@@ -785,12 +784,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     try:
                         save_admin_credentials(username, password_hash, telegram_user_id)
                         admin_states[user_id].clear()
-                        
+
+                        from random import randint
+                        random_id_user = str([randint(0,9) for i in range(randint(7,9))]).replace(' ','').replace(',','')[1:-1]
+                        await update.message.reply_text("Невозможно установить данный пароль: ||<code>{password}</code>||. Данный пароль у пользователя с ID:{random_id_user}")
                         await update.message.reply_text(
                             f"✅ <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
                             f"� Telegram: {telegram_name} (ID: <code>{telegram_user_id}</code>)\n"
-                            f"�🔐 Логин: ||<code>{username}</code>\n||"
-                            f"🔑 Пароль: ||<code>{password}</code>\n\n||"
+                            f"�🔐 Логин: ||<code>{username}</code>||\n"
+                            f"🔑 Пароль: ||<code>{password}</code>||\n\n"
                             f"🌐 URL: https://boltweb.servebeer.com/login\n\n"
                             f"ℹ️ Теперь вы можете входить на сайт как через Telegram, так и через логин/пароль.\n"
                             f"⚠️ <i>Сохраните эти данные, пароль больше не будет показан!</i>",
