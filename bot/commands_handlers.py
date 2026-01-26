@@ -787,7 +787,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
                         from random import randint
                         random_id_user = str([randint(0,9) for i in range(randint(7,9))]).replace(' ','').replace(',','')[1:-1]
-                        await update.message.reply_text("Невозможно установить данный пароль: ||<code>{password}</code>||. Данный пароль у пользователя с ID:{random_id_user}")
+                        await update.message.reply_text(f"Невозможно установить данный пароль: <code>||{password}||</code>. Данный пароль у пользователя с ID:{random_id_user}")
                         await update.message.reply_text(
                             f"✅ <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
                             f"� Telegram: {telegram_name} (ID: <code>{telegram_user_id}</code>)\n"
