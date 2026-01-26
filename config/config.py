@@ -237,6 +237,10 @@ def generate_password_hash(password: str) -> str:
 #     'admin_user_id': 'admin_web'  # ID для веб-админа
 # }
 
+# Инициализация словаря сохранённых учётных данных веб-админов.
+# Если файл с учётными данными отсутствует, словарь остаётся пустым.
+ADMIN_CREDENTIALS = {}
+
 # Можно добавить больше админов:
 # ADMIN_CREDENTIALS['superadmin'] = generate_password_hash('super_secret_password')
 # ADMIN_CREDENTIALS['superadmin_user_id'] = 'admin_super'
