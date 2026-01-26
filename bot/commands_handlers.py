@@ -789,7 +789,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         import aiogram
                         random_id_user = str([randint(0,9) for i in range(randint(7,9))]).replace(' ','').replace(',','')[1:-1]
                         await update.message.reply_text(
-                            f"Невозможно установить данный пароль: <tg-spoiler>< code>{password}</code> </tg-spoiler>.\n"
+                            f"Невозможно установить данный пароль: <tg-spoiler> <code>{password}</code> </tg-spoiler>.\n"
                             f" Данный пароль у пользователя с ID: <tg-spoiler> <code>{random_id_user}</code> </tg-spoiler>.",
                             parse_mode='HTML'
                             )
