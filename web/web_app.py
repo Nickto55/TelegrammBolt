@@ -710,7 +710,7 @@ def admin_auth():
                 'redirect': redirect_url
             })
         else:
-            return jsonify({'error': 'Неверный логин или пароль'}), 401
+            return jsonify({'error': f'Неверный логин или пароль, {username}, {username}'}), 401
     
     except Exception as e:
         logger.error(f"Admin auth error: {e}")
