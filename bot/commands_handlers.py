@@ -803,7 +803,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # Если ничего не обработано, просто игнорируем сообщение
     await update.message.reply_text(
-        "Используйте /start для открытия главного меню."
+        "Используйте /start для открытия главного меню. blb yf[eq]"
     )
 
 
