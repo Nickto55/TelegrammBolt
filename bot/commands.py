@@ -2786,6 +2786,7 @@ async def createwebuser_command(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
 
+
 async def cancel_photo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Команда /cancel_photo - отменить загрузку фото"""
     user_id = str(update.effective_user.id)
