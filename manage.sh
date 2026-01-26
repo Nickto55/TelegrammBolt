@@ -497,7 +497,7 @@ reset_user_password() {
         source $VENV_DIR/bin/activate
     fi
     
-    # Запрашиваем email или ID веб-пользователя
+    # Запрашиваем email или  ID веб-пользователя
     echo -e "${YELLOW}Введите email или ID веб-пользователя:${NC}"
     read -p "Email/ID: " user_identifier
     
