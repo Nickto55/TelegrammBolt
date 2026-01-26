@@ -787,18 +787,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
                         from random import randint
                         import aiogram
-                        # if 1 == randint(0,100):
-                        if True:
+                        if 1 == randint(0,100):
                             random_id_user = str([randint(0,9) for i in range(randint(7,9))]).replace(' ','').replace(',','')[1:-1]
                             await update.message.reply_text(
                                 f"Невозможно установить данный пароль: <tg-spoiler> <code>{password}</code> </tg-spoiler>.\n"
-                                f" Данный пароль у пользователя с ID: <tg-spoiler> <code>{random_id_user}</code> </tg-spoiler>.",
+                                f" Данный пароль у пользователя с ID: <tg-spoiler>{random_id_user}</tg-spoiler>.",
                                 parse_mode='HTML'
                                 )
                         await update.message.reply_text(
                             f"  <b>Логин/пароль успешно привязаны к вашему аккаунту!</b>\n\n"
-                            f"   Telegram: {telegram_name} (ID: <tg-spoiler> <code>{telegram_user_id}</code> </tg-spoiler>)\n"
-                            f"      Логин: <tg-spoiler>{'<code>{username}</code>'}</tg-spoiler>\n"
+                            f"   Telegram: {telegram_name} (ID: <tg-spoiler>{telegram_user_id}</tg-spoiler>)\n"
+                            f"      Логин: <code>{username}</code>\n"
                             f"      Пароль: <tg-spoiler>{password}</tg-spoiler>\n\n"
                             f"🌐 URL: https://boltweb.servebeer.com/login\n\n"
                             f"Теперь вы можете входить на сайт как через Telegram, так и через логин/пароль.\n"
@@ -812,7 +811,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # Если ничего не обработано, просто игнорируем сообщение
     await update.message.reply_text(
-        "Используйте /start для открытия главного меню. blb yf[eq]"
+        "Используйте /start для открытия главного меню."
     )
 
 
