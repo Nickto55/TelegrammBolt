@@ -105,6 +105,8 @@
                             <li><a class="dropdown-item" href="{{ url_for('invites_page') }}"><i
                                         class="bi bi-qr-code"></i> QR Приглашения</a></li>
                             {% endif %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin_chat') }}"><i
+                                        class="bi bi-briefcase"></i> Управление заявками</a></li>
                             {% if permissions.terminal %}
                             <li><a class="dropdown-item" href="{{ url_for('terminal') }}"><i class="bi bi-terminal"></i>
                                     Веб-терминал</a></li>

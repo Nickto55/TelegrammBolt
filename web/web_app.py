@@ -264,6 +264,15 @@ def delete_dse(dse_id):
         return {"success": False, "error": str(e)}
 
 
+def is_admin(user_id):
+    """Проверить, является ли пользователь администратором"""
+    try:
+        role = get_user_role(user_id)
+        return role in ['admin', 'superadmin', 'moderator']
+    except:
+        return False
+
+
 def get_chat_history(user_id):
     """Заглушка для получения истории чата - требует реализации"""
     # TODO: реализовать получение истории из chat_manager или отдельного файла
@@ -1969,8 +1978,52 @@ def api_get_messages():
     if not has_permission(user_id, 'chat_dse'):
         return jsonify({'error': 'Доступ запрещен'}), 403
     
-    messages = get_chat_history(user_id)
-    return jsonify(messages)
+    chat_id = request.args.get('chat_id')
+    if not chat_id:
+        return jsonify({'error': 'chat_id обязателен'}), 400
+    
+    # Получаем сообщения из хранилища
+    try:
+        data = load_data()
+        chats = data.get('chats', {})
+        messages = chats.get(str(chat_id), {}).get('messages', [])
+        return jsonify({'success': True, 'messages': messages})
+    except Exception as e:
+        logger.error(f"Error loading messages: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/list', methods=['GET'])
+@login_required
+def api_chat_list():
+    """API: Получить список чатов"""
+    user_id = session['user_id']
+    
+    if not has_permission(user_id, 'chat_dse'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    try:
+        data = load_data()
+        chats_data = data.get('chats', {})
+        
+        chats = []
+        for chat_id, chat_info in chats_data.items():
+            if chat_info.get('status') == 'accepted':  # Только принятые заявки
+                messages = chat_info.get('messages', [])
+                last_message = messages[-1]['text'] if messages else 'Нет сообщений'
+                
+                chats.append({
+                    'id': int(chat_id),
+                    'name': chat_info.get('subject', 'Чат'),
+                    'last_message': last_message,
+                    'time': '',
+                    'is_online': True
+                })
+        
+        return jsonify({'success': True, 'chats': chats})
+    except Exception as e:
+        logger.error(f"Error loading chat list: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/chat/send', methods=['POST'])
@@ -1983,14 +2036,363 @@ def api_send_message():
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     data = request.json
-    message = data.get('message')
-    target_user_id = data.get('target_user_id')
+    chat_id = data.get('chat_id')
+    text = data.get('text', '').strip()
     
-    if not message:
-        return jsonify({'error': 'Сообщение не может быть пустым'}), 400
+    if not text or not chat_id:
+        return jsonify({'success': False, 'error': 'Текст и chat_id обязательны'}), 400
     
-    result = send_chat_message(user_id, target_user_id, message)
-    return jsonify(result)
+    try:
+        all_data = load_data()
+        chats = all_data.get('chats', {})
+        
+        if str(chat_id) not in chats:
+            return jsonify({'success': False, 'error': 'Чат не найден'}), 404
+        
+        message = {
+            'user_id': user_id,
+            'text': text,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        chats[str(chat_id)]['messages'].append(message)
+        all_data['chats'] = chats
+        save_data(all_data)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error sending message: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/requests', methods=['GET'])
+@login_required
+def api_get_requests():
+    """API: Получить список заявок пользователя"""
+    user_id = session['user_id']
+    
+    try:
+        data = load_data()
+        requests_data = data.get('requests', {})
+        
+        user_requests = []
+        for req_id, req_info in requests_data.items():
+            if req_info.get('user_id') == user_id:
+                user_requests.append({
+                    'id': int(req_id),
+                    'subject': req_info.get('subject', 'Заявка'),
+                    'message': req_info.get('message', ''),
+                    'status': req_info.get('status', 'pending'),
+                    'created_at': req_info.get('created_at', datetime.now().isoformat())
+                })
+        
+        return jsonify({'success': True, 'requests': user_requests})
+    except Exception as e:
+        logger.error(f"Error loading requests: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/create-request', methods=['POST'])
+@login_required
+def api_create_request():
+    """API: Создать новую заявку"""
+    user_id = session['user_id']
+    
+    data = request.json
+    subject = data.get('subject', '').strip()
+    message = data.get('message', '').strip()
+    
+    if not subject or not message:
+        return jsonify({'success': False, 'error': 'Тема и описание обязательны'}), 400
+    
+    try:
+        all_data = load_data()
+        requests_data = all_data.get('requests', {})
+        
+        # Генерируем ID заявки
+        req_id = max([int(k) for k in requests_data.keys()] if requests_data else [0]) + 1
+        
+        requests_data[str(req_id)] = {
+            'user_id': user_id,
+            'subject': subject,
+            'message': message,
+            'status': 'pending',
+            'created_at': datetime.now().isoformat(),
+            'messages': [{
+                'user_id': user_id,
+                'text': message,
+                'timestamp': datetime.now().isoformat()
+            }]
+        }
+        
+        all_data['requests'] = requests_data
+        save_data(all_data)
+        
+        return jsonify({'success': True, 'request_id': req_id})
+    except Exception as e:
+        logger.error(f"Error creating request: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/request-messages', methods=['GET'])
+@login_required
+def api_get_request_messages():
+    """API: Получить сообщения заявки"""
+    user_id = session['user_id']
+    request_id = request.args.get('request_id')
+    
+    if not request_id:
+        return jsonify({'error': 'request_id обязателен'}), 400
+    
+    try:
+        data = load_data()
+        requests_data = data.get('requests', {})
+        
+        if str(request_id) not in requests_data:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+        
+        req_info = requests_data[str(request_id)]
+        
+        # Проверяем доступ
+        if req_info.get('user_id') != user_id and not is_admin(user_id):
+            return jsonify({'success': False, 'error': 'Доступ запрещен'}), 403
+        
+        messages = req_info.get('messages', [])
+        return jsonify({'success': True, 'messages': messages})
+    except Exception as e:
+        logger.error(f"Error loading request messages: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/request-message', methods=['POST'])
+@login_required
+def api_add_request_message():
+    """API: Добавить сообщение в заявку"""
+    user_id = session['user_id']
+    
+    data = request.json
+    request_id = data.get('request_id')
+    text = data.get('text', '').strip()
+    
+    if not text or not request_id:
+        return jsonify({'success': False, 'error': 'Текст и request_id обязательны'}), 400
+    
+    try:
+        all_data = load_data()
+        requests_data = all_data.get('requests', {})
+        
+        if str(request_id) not in requests_data:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+        
+        req_info = requests_data[str(request_id)]
+        
+        # Проверяем доступ
+        if req_info.get('user_id') != user_id and not is_admin(user_id):
+            return jsonify({'success': False, 'error': 'Доступ запрещен'}), 403
+        
+        message = {
+            'user_id': user_id,
+            'text': text,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        req_info['messages'].append(message)
+        requests_data[str(request_id)] = req_info
+        all_data['requests'] = requests_data
+        save_data(all_data)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error adding request message: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# ADMIN API ENDPOINTS
+# ============================================================================
+
+@app.route('/admin/chat', methods=['GET'])
+@login_required
+def admin_chat():
+    """Admin panel для управления заявками"""
+    user_id = session['user_id']
+    
+    if not is_admin(user_id):
+        return "Доступ запрещен", 403
+    
+    return render_template('chat_admin.html')
+
+
+@app.route('/api/admin/requests', methods=['GET'])
+@login_required
+def api_admin_get_requests():
+    """API: Получить все заявки для администратора"""
+    user_id = session['user_id']
+    
+    if not is_admin(user_id):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    try:
+        data = load_data()
+        requests_data = data.get('requests', {})
+        users_data = get_users_data()
+        
+        requests_list = []
+        for req_id, req_info in requests_data.items():
+            user_id_req = req_info.get('user_id')
+            user_info = users_data.get(str(user_id_req), {})
+            
+            requests_list.append({
+                'id': int(req_id),
+                'subject': req_info.get('subject', 'Заявка'),
+                'message': req_info.get('message', ''),
+                'status': req_info.get('status', 'pending'),
+                'created_at': req_info.get('created_at', ''),
+                'user_id': user_id_req,
+                'user_name': user_info.get('first_name', '') + ' ' + user_info.get('last_name', '')
+            })
+        
+        # Сортируем по дате (новые сверху)
+        requests_list.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        return jsonify({'success': True, 'requests': requests_list})
+    except Exception as e:
+        logger.error(f"Error loading admin requests: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/request-messages', methods=['GET'])
+@login_required
+def api_admin_get_request_messages():
+    """API: Получить сообщения заявки (админ)"""
+    user_id = session['user_id']
+    request_id = request.args.get('request_id')
+    
+    if not is_admin(user_id):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    if not request_id:
+        return jsonify({'error': 'request_id обязателен'}), 400
+    
+    try:
+        data = load_data()
+        requests_data = data.get('requests', {})
+        users_data = get_users_data()
+        
+        if str(request_id) not in requests_data:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+        
+        req_info = requests_data[str(request_id)]
+        messages = req_info.get('messages', [])
+        
+        # Добавляем информацию о пользователе
+        messages_with_names = []
+        for msg in messages:
+            msg_user_id = msg.get('user_id')
+            user_info = users_data.get(str(msg_user_id), {})
+            
+            messages_with_names.append({
+                'user_id': msg_user_id,
+                'user_name': user_info.get('first_name', '') + ' ' + user_info.get('last_name', ''),
+                'text': msg.get('text', ''),
+                'timestamp': msg.get('timestamp', ''),
+                'is_admin': is_admin(msg_user_id)
+            })
+        
+        return jsonify({'success': True, 'messages': messages_with_names})
+    except Exception as e:
+        logger.error(f"Error loading admin request messages: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/request-reply', methods=['POST'])
+@login_required
+def api_admin_request_reply():
+    """API: Добавить ответ администратора"""
+    user_id = session['user_id']
+    
+    if not is_admin(user_id):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    data = request.json
+    request_id = data.get('request_id')
+    text = data.get('text', '').strip()
+    
+    if not text or not request_id:
+        return jsonify({'success': False, 'error': 'Текст и request_id обязательны'}), 400
+    
+    try:
+        all_data = load_data()
+        requests_data = all_data.get('requests', {})
+        
+        if str(request_id) not in requests_data:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+        
+        message = {
+            'user_id': user_id,
+            'text': text,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        requests_data[str(request_id)]['messages'].append(message)
+        all_data['requests'] = requests_data
+        save_data(all_data)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error adding admin reply: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/request-status', methods=['POST'])
+@login_required
+def api_admin_update_request_status():
+    """API: Обновить статус заявки"""
+    user_id = session['user_id']
+    
+    if not is_admin(user_id):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    data = request.json
+    request_id = data.get('request_id')
+    status = data.get('status', 'pending')
+    
+    if status not in ['pending', 'accepted', 'rejected']:
+        return jsonify({'success': False, 'error': 'Неверный статус'}), 400
+    
+    try:
+        all_data = load_data()
+        requests_data = all_data.get('requests', {})
+        
+        if str(request_id) not in requests_data:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+        
+        req_info = requests_data[str(request_id)]
+        req_info['status'] = status
+        
+        # Если заявка принята, создаём чат
+        if status == 'accepted':
+            chats = all_data.get('chats', {})
+            chat_id = max([int(k) for k in chats.keys()] if chats else [0]) + 1
+            
+            chats[str(chat_id)] = {
+                'request_id': int(request_id),
+                'user_id': req_info.get('user_id'),
+                'subject': req_info.get('subject'),
+                'status': 'accepted',
+                'created_at': datetime.now().isoformat(),
+                'messages': []
+            }
+            all_data['chats'] = chats
+        
+        requests_data[str(request_id)] = req_info
+        all_data['requests'] = requests_data
+        save_data(all_data)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating request status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ============================================================================

@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+
+{% block title %}Управление заявками - TelegrammBolt{% endblock %}
+
+{% block extra_head %}
+<style>
+    .admin-container {
+        display: flex;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .admin-panel {
+        flex: 1;
+    }
+
+    .requests-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .requests-table th {
+        background-color: #f5f5f5;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 1px solid #e5e5ea;
+    }
+
+    .requests-table td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e5ea;
+    }
+
+    .requests-table tr:hover {
+        background-color: #f9f9f9;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .status-pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .status-accepted {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .status-rejected {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-small {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    .btn-small:hover {
+        opacity: 0.8;
+    }
+
+    .btn-accept {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .btn-reject {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .btn-message {
+        background-color: #0084ff;
+        color: white;
+    }
+
+    .detail-panel {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        min-height: 400px;
+    }
+
+    .detail-header {
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e5e5ea;
+    }
+
+    .detail-messages {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-height: 300px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+    }
+
+    .message {
+        padding: 12px;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+    }
+
+    .message.admin {
+        background-color: #e5f0ff;
+        text-align: right;
+    }
+
+    .message-user {
+        font-size: 12px;
+        color: #8a8a8e;
+        margin-bottom: 4px;
+    }
+
+    .message-text {
+        font-size: 14px;
+    }
+
+    .reply-area {
+        display: flex;
+        gap: 8px;
+    }
+
+    .reply-input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #e5e5ea;
+        border-radius: 4px;
+        font-family: inherit;
+        outline: none;
+    }
+
+    .reply-input:focus {
+        border-color: #0084ff;
+    }
+
+    .reply-btn {
+        padding: 10px 20px;
+        background-color: #0084ff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .reply-btn:hover {
+        opacity: 0.9;
+    }
+
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 16px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .stat-number {
+        font-size: 24px;
+        font-weight: 700;
+        color: #0084ff;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #8a8a8e;
+        margin-top: 4px;
+    }
+
+    .no-selection {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #8a8a8e;
+        height: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="bi bi-briefcase"></i> Управление заявками
+            </h1>
+        </div>
+    </div>
+
+    <div class="admin-container">
+        <!-- Список заявок -->
+        <div class="admin-panel" style="flex: 0 0 60%;">
+            <!-- Статистика -->
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="statPending">0</div>
+                    <div class="stat-label">В ожидании</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statAccepted">0</div>
+                    <div class="stat-label">Принято</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statTotal">0</div>
+                    <div class="stat-label">Всего</div>
+                </div>
+            </div>
+
+            <!-- Таблица заявок -->
+            <table class="requests-table">
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">Тема</th>
+                        <th style="width: 20%;">Статус</th>
+                        <th style="width: 20%;">Пользователь</th>
+                        <th style="width: 20%;">Дата</th>
+                        <th style="width: 10%;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="requestsTableBody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px;">
+                            Загрузка...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Детали заявки -->
+        <div class="detail-panel" style="flex: 0 0 40%;">
+            <div id="noSelection" class="no-selection">
+                <div>
+                    <i class="bi bi-inbox" style="font-size: 48px; display: block; margin-bottom: 12px; opacity: 0.3;"></i>
+                    <p>Выберите заявку</p>
+                </div>
+            </div>
+
+            <div id="detailContent" style="display: none;">
+                <div class="detail-header">
+                    <h3 id="detailSubject" style="margin: 0 0 8px 0;">Заявка</h3>
+                    <div id="detailMeta" style="font-size: 12px; color: #8a8a8e;">
+                        <span id="detailUser"></span> • <span id="detailDate"></span>
+                    </div>
+                </div>
+
+                <div class="detail-messages" id="detailMessages"></div>
+
+                <div class="reply-area">
+                    <input 
+                        type="text" 
+                        class="reply-input" 
+                        id="replyInput" 
+                        placeholder="Введите ответ..."
+                    >
+                    <button class="reply-btn" onclick="sendReply()">Ответить</button>
+                </div>
+
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button class="btn-small btn-accept" id="acceptBtn" onclick="acceptRequest()">Принять</button>
+                    <button class="btn-small btn-reject" id="rejectBtn" onclick="rejectRequest()">Отклонить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentRequestId = null;
+let currentUserId = {{ session.user_id|default(0) }};
+let allRequests = [];
+let requestPollingInterval = null;
+
+// Load all requests
+function loadRequests() {
+    fetch('/api/admin/requests')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                allRequests = data.requests || [];
+                renderRequestsTable();
+                updateStats();
+            }
+        })
+        .catch(error => console.error('Error loading requests:', error));
+}
+
+// Render requests table
+function renderRequestsTable() {
+    const tbody = document.getElementById('requestsTableBody');
+    
+    if (allRequests.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 40px; color: #8a8a8e;">
+                    Нет заявок
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = '';
+    allRequests.forEach(req => {
+        const statusClass = `status-${req.status}`;
+        const statusText = {
+            'pending': 'Ожидание',
+            'accepted': 'Принято',
+            'rejected': 'Отклонено'
+        }[req.status] || 'Неизвестно';
+
+        const date = new Date(req.created_at).toLocaleDateString('ru-RU');
+        const isActive = req.id === currentRequestId ? 'style="background-color: #f0f0f0;"' : '';
+
+        html += `
+            <tr onclick="selectRequest(${req.id})" ${isActive} style="cursor: pointer;">
+                <td>${req.subject}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>${req.user_name || 'Пользователь'}</td>
+                <td>${date}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-small btn-message" onclick="event.stopPropagation(); selectRequest(${req.id})">
+                            <i class="bi bi-chat"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+// Select request
+function selectRequest(requestId) {
+    currentRequestId = requestId;
+    const request = allRequests.find(r => r.id === requestId);
+    
+    if (!request) return;
+
+    // Update detail view
+    document.getElementById('noSelection').style.display = 'none';
+    document.getElementById('detailContent').style.display = 'block';
+
+    document.getElementById('detailSubject').textContent = request.subject;
+    document.getElementById('detailUser').textContent = `👤 ${request.user_name || 'Пользователь'}`;
+    document.getElementById('detailDate').textContent = new Date(request.created_at).toLocaleString('ru-RU');
+
+    // Load messages
+    loadMessages(requestId);
+
+    // Update button states
+    const acceptBtn = document.getElementById('acceptBtn');
+    const rejectBtn = document.getElementById('rejectBtn');
+    
+    if (request.status === 'accepted') {
+        acceptBtn.style.display = 'none';
+        rejectBtn.textContent = 'Закрыть';
+        rejectBtn.classList.remove('btn-reject');
+        rejectBtn.style.backgroundColor = '#6c757d';
+    } else if (request.status === 'rejected') {
+        acceptBtn.style.display = 'none';
+        rejectBtn.style.display = 'none';
+    } else {
+        acceptBtn.style.display = 'inline-block';
+        rejectBtn.style.display = 'inline-block';
+        rejectBtn.classList.add('btn-reject');
+        rejectBtn.textContent = 'Отклонить';
+        rejectBtn.style.backgroundColor = '#dc3545';
+    }
+
+    renderRequestsTable();
+}
+
+// Load messages
+function loadMessages(requestId) {
+    fetch(`/api/admin/request-messages?request_id=${requestId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const container = document.getElementById('detailMessages');
+                const messages = data.messages || [];
+
+                if (messages.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; color: #8a8a8e;">Нет сообщений</div>';
+                    return;
+                }
+
+                let html = '';
+                messages.forEach(msg => {
+                    const isAdmin = msg.is_admin;
+                    const time = new Date(msg.timestamp).toLocaleTimeString('ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+
+                    html += `
+                        <div class="message ${isAdmin ? 'admin' : ''}">
+                            <div class="message-user">
+                                ${msg.is_admin ? '👨‍💼 Администратор' : '👤 ' + (msg.user_name || 'Пользователь')}
+                                <br>${time}
+                            </div>
+                            <div class="message-text">${msg.text}</div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight;
+            }
+        })
+        .catch(error => console.error('Error loading messages:', error));
+}
+
+// Send reply
+function sendReply() {
+    const input = document.getElementById('replyInput');
+    const text = input.value.trim();
+
+    if (!text || !currentRequestId) return;
+
+    fetch('/api/admin/request-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            request_id: currentRequestId,
+            text: text
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            input.value = '';
+            loadMessages(currentRequestId);
+        }
+    })
+    .catch(error => console.error('Error sending reply:', error));
+}
+
+// Accept request
+function acceptRequest() {
+    if (confirm('Принять эту заявку?')) {
+        updateRequestStatus('accepted');
+    }
+}
+
+// Reject request
+function rejectRequest() {
+    if (confirm('Отклонить/закрыть эту заявку?')) {
+        updateRequestStatus('rejected');
+    }
+}
+
+// Update request status
+function updateRequestStatus(status) {
+    fetch('/api/admin/request-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            request_id: currentRequestId,
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadRequests();
+            selectRequest(currentRequestId);
+        }
+    })
+    .catch(error => console.error('Error updating status:', error));
+}
+
+// Update stats
+function updateStats() {
+    const pending = allRequests.filter(r => r.status === 'pending').length;
+    const accepted = allRequests.filter(r => r.status === 'accepted').length;
+    const total = allRequests.length;
+
+    document.getElementById('statPending').textContent = pending;
+    document.getElementById('statAccepted').textContent = accepted;
+    document.getElementById('statTotal').textContent = total;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadRequests();
+    requestPollingInterval = setInterval(loadRequests, 3000);
+});
+
+// Cleanup
+window.addEventListener('beforeunload', function() {
+    if (requestPollingInterval) clearInterval(requestPollingInterval);
+});
+</script>
+{% endblock %}

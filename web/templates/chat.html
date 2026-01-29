@@ -12,6 +12,145 @@
         background-color: #fff;
     }
 
+    /* Модальное окно */
+    .modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+
+    .modal-backdrop.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-dialog {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 5px 40px rgba(0, 0, 0, 0.16);
+        max-width: 400px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(30px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .modal-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e5e5ea;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: #8a8a8e;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .modal-footer {
+        padding: 16px 20px;
+        border-top: 1px solid #e5e5ea;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        font-size: 14px;
+        color: #000;
+    }
+
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e5e5ea;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+        border-color: #0084ff;
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        outline: none;
+    }
+
+    .btn:hover {
+        opacity: 0.8;
+    }
+
+    .btn-primary {
+        background-color: #0084ff;
+        color: white;
+    }
+
+    .btn-secondary {
+        background-color: #e5e5ea;
+        color: #000;
+    }
+
+    .btn-danger {
+        background-color: #ef4444;
+        color: white;
+    }
+
     /* Левая панель со списком диалогов */
     .chat-sidebar {
         width: 320px;
@@ -33,6 +172,39 @@
         font-size: 32px;
         font-weight: 700;
         margin: 0;
+        color: #000;
+    }
+
+    .chat-sidebar-tabs {
+        display: flex;
+        padding: 0 8px;
+        gap: 8px;
+        border-bottom: 1px solid #e5e5ea;
+        background-color: #f9f9f9;
+    }
+
+    .chat-tab {
+        flex: 1;
+        padding: 12px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: #8a8a8e;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .chat-tab.active {
+        color: #0084ff;
+        border-bottom-color: #0084ff;
+    }
+
+    .chat-tab:hover {
         color: #000;
     }
 
@@ -376,27 +548,136 @@
             max-width: 75%;
         }
     }
+
+    /* Заявки */
+    .request-item {
+        padding: 12px;
+        margin: 0 8px;
+        border: 1px solid #e5e5ea;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background-color: #fff;
+    }
+
+    .request-item:hover {
+        background-color: #f9f9f9;
+        border-color: #0084ff;
+    }
+
+    .request-item.pending {
+        background-color: #fff3cd;
+        border-color: #ffc107;
+    }
+
+    .request-item.accepted {
+        background-color: #d4edda;
+        border-color: #28a745;
+    }
+
+    .request-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .request-name {
+        font-weight: 600;
+        color: #000;
+        margin: 0;
+    }
+
+    .request-status {
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    .request-status.pending {
+        background-color: #ffc107;
+        color: #000;
+    }
+
+    .request-status.accepted {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .request-subject {
+        font-size: 13px;
+        color: #8a8a8e;
+        margin: 4px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .request-date {
+        font-size: 12px;
+        color: #bbb;
+    }
+
+    .requests-empty {
+        padding: 40px 20px;
+        text-align: center;
+        color: #8a8a8e;
+    }
+
+    .btn-create-request {
+        padding: 12px 20px;
+        margin: 12px;
+        background-color: #0084ff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        width: calc(100% - 24px);
+    }
+
+    .btn-create-request:hover {
+        opacity: 0.9;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="telegram-chat-layout">
-    <!-- Левая панель со списком чатов/пользователей -->
+    <!-- Левая панель со списком чатов/заявок -->
     <div class="chat-sidebar">
         <div class="chat-sidebar-header">
             <h1>Чаты</h1>
-            <button class="input-action-btn" title="Новый чат">
-                <i class="bi bi-pencil-square"></i>
-            </button>
         </div>
 
+        <!-- Вкладки: Чаты и Заявки -->
+        <div class="chat-sidebar-tabs">
+            <button class="chat-tab active" onclick="switchTab('chats')">💬 Чаты</button>
+            <button class="chat-tab" onclick="switchTab('requests')">📋 Заявки</button>
+        </div>
+
+        <!-- Поиск -->
         <div class="chat-sidebar-search">
-            <input type="text" id="searchInput" placeholder="Поиск по чатам..." />
+            <input type="text" id="searchInput" placeholder="Поиск..." />
         </div>
 
-        <div class="chat-sidebar-list" id="chatList">
+        <!-- Содержимое чатов -->
+        <div class="chat-sidebar-list" id="chatListContainer">
             <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
                 <p style="margin: 0;">Загрузка чатов...</p>
+            </div>
+        </div>
+
+        <!-- Содержимое заявок -->
+        <div class="chat-sidebar-list" id="requestsListContainer" style="display: none;">
+            <button class="btn-create-request" onclick="openCreateRequestModal()">
+                <i class="bi bi-plus"></i> Новая заявка
+            </button>
+            <div id="requestsList" style="padding: 20px;">
+                <div style="text-align: center; color: #8a8a8e;">
+                    <p>Загрузка заявок...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -417,6 +698,18 @@
                 <button class="input-action-btn" title="Информация">
                     <i class="bi bi-info-circle"></i>
                 </button>
+            </div>
+        </div>
+
+        <!-- Заголовок заявки -->
+        <div class="chat-header" id="requestHeader" style="display: none;">
+            <div class="chat-header-info">
+                <div>
+                    <div class="chat-header-title">
+                        <h2 id="requestTitle">Заявка</h2>
+                    </div>
+                    <div class="chat-header-subtitle" id="requestSubtitle"></div>
+                </div>
             </div>
         </div>
 
@@ -452,11 +745,37 @@
     </div>
 </div>
 
+<!-- Модальное окно создания заявки -->
+<div class="modal-backdrop" id="createRequestModal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>Новая заявка</h3>
+            <button class="modal-close" onclick="closeCreateRequestModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="requestSubjectInput">Тема заявки</label>
+                <input type="text" id="requestSubjectInput" placeholder="Укажите тему заявки...">
+            </div>
+            <div class="form-group">
+                <label for="requestMessageInput">Описание</label>
+                <textarea id="requestMessageInput" placeholder="Опишите вашу проблему или вопрос..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeCreateRequestModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="createRequest()">Отправить заявку</button>
+        </div>
+    </div>
+</div>
+
 <script>
 let currentChatId = null;
+let currentRequestId = null;
 let currentUserId = {{ session.user_id|default(0) }};
+let currentTab = 'chats';
 let messagePollingInterval = null;
-let usersPollingInterval = null;
+let listPollingInterval = null;
 
 // Auto-expand textarea
 function autoExpandTextarea() {
@@ -467,18 +786,55 @@ function autoExpandTextarea() {
     }
 }
 
+// Переключение вкладок
+function switchTab(tab) {
+    currentTab = tab;
+    currentChatId = null;
+    currentRequestId = null;
+    
+    // Обновляем активный класс
+    document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    
+    // Показываем/скрываем контейнеры
+    if (tab === 'chats') {
+        document.getElementById('chatListContainer').style.display = 'flex';
+        document.getElementById('requestsListContainer').style.display = 'none';
+        loadChatList();
+    } else {
+        document.getElementById('chatListContainer').style.display = 'none';
+        document.getElementById('requestsListContainer').style.display = 'flex';
+        loadRequestsList();
+    }
+    
+    // Скрываем область сообщений
+    document.getElementById('chatHeader').style.display = 'none';
+    document.getElementById('requestHeader').style.display = 'none';
+    document.getElementById('inputArea').style.display = 'none';
+    document.getElementById('messagesContainer').innerHTML = `
+        <div class="messages-empty">
+            <div class="messages-empty-icon">
+                <i class="bi bi-chat-dots"></i>
+            </div>
+            <p style="margin: 0;">Выберите ${tab === 'chats' ? 'чат' : 'заявку'} для начала общения</p>
+        </div>
+    `;
+}
+
 // Load chat list
 function loadChatList() {
     fetch('/api/chat/list')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const chatList = document.getElementById('chatList');
+                const chatList = document.getElementById('chatListContainer').querySelector('.chat-sidebar-list') || 
+                                document.getElementById('chatListContainer');
                 
                 if (!data.chats || data.chats.length === 0) {
                     chatList.innerHTML = `
                         <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
                             <p style="margin: 0;">Нет активных чатов</p>
+                            <p style="font-size: 12px; margin-top: 8px;">Создайте заявку, чтобы начать</p>
                         </div>
                     `;
                     return;
@@ -492,7 +848,7 @@ function loadChatList() {
                     const lastMessage = chat.last_message ? chat.last_message.substring(0, 40) + (chat.last_message.length > 40 ? '...' : '') : 'Нет сообщений';
                     
                     html += `
-                        <div class="chat-item ${isActive}" onclick="selectChat(${chat.id}, '${chat.name}', ${chat.is_online ? 'true' : 'false'})">
+                        <div class="chat-item ${isActive}" onclick="selectChat(${chat.id}, '${chat.name.replace(/'/g, "\\'")}', ${chat.is_online ? 'true' : 'false'})">
                             <div class="chat-item-avatar ${isOnline}">
                                 ${initials}
                             </div>
@@ -511,14 +867,59 @@ function loadChatList() {
         .catch(error => console.error('Error loading chat list:', error));
 }
 
+// Load requests list
+function loadRequestsList() {
+    fetch('/api/chat/requests')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const requestsList = document.getElementById('requestsList');
+                
+                if (!data.requests || data.requests.length === 0) {
+                    requestsList.innerHTML = `
+                        <div class="requests-empty">
+                            <i class="bi bi-inbox" style="font-size: 32px; opacity: 0.5; display: block; margin-bottom: 12px;"></i>
+                            <p>Нет заявок</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                data.requests.forEach(req => {
+                    const isActive = req.id === currentRequestId ? 'active' : '';
+                    const status = req.status === 'pending' ? 'Ожидание' : 'Принято';
+                    const statusClass = req.status === 'pending' ? 'pending' : 'accepted';
+                    const date = new Date(req.created_at).toLocaleDateString('ru-RU');
+                    
+                    html += `
+                        <div class="request-item ${statusClass} ${isActive}" onclick="selectRequest(${req.id}, '${req.subject.replace(/'/g, "\\'")}')">
+                            <div class="request-header">
+                                <p class="request-name">${req.subject}</p>
+                                <span class="request-status ${statusClass}">${status}</span>
+                            </div>
+                            <p class="request-subject">${req.message.substring(0, 50)}...</p>
+                            <p class="request-date">${date}</p>
+                        </div>
+                    `;
+                });
+                
+                requestsList.innerHTML = html;
+            }
+        })
+        .catch(error => console.error('Error loading requests:', error));
+}
+
 // Select chat
 function selectChat(chatId, chatName, isOnline) {
     currentChatId = chatId;
+    currentRequestId = null;
     
     // Update UI
     document.getElementById('chatTitle').textContent = chatName;
     document.getElementById('chatSubtitle').textContent = isOnline ? '🟢 онлайн' : '🔘 был(а) недавно';
     document.getElementById('chatHeader').style.display = 'flex';
+    document.getElementById('requestHeader').style.display = 'none';
     document.getElementById('inputArea').style.display = 'flex';
     
     // Highlight active chat
@@ -535,11 +936,41 @@ function selectChat(chatId, chatName, isOnline) {
     messagePollingInterval = setInterval(loadMessages, 3000);
 }
 
+// Select request
+function selectRequest(requestId, subject) {
+    currentRequestId = requestId;
+    currentChatId = null;
+    
+    // Update UI
+    document.getElementById('requestTitle').textContent = subject;
+    document.getElementById('requestSubtitle').textContent = '📋 Заявка';
+    document.getElementById('chatHeader').style.display = 'none';
+    document.getElementById('requestHeader').style.display = 'flex';
+    document.getElementById('inputArea').style.display = 'flex';
+    
+    // Highlight active request
+    document.querySelectorAll('.request-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    event.currentTarget.classList.add('active');
+    
+    // Load messages
+    loadMessages();
+    
+    // Stop old polling and start new
+    if (messagePollingInterval) clearInterval(messagePollingInterval);
+    messagePollingInterval = setInterval(loadMessages, 3000);
+}
+
 // Load messages
 function loadMessages() {
-    if (!currentChatId) return;
+    if (!currentChatId && !currentRequestId) return;
     
-    fetch(`/api/chat/messages?chat_id=${currentChatId}`)
+    const endpoint = currentChatId 
+        ? `/api/chat/messages?chat_id=${currentChatId}`
+        : `/api/chat/request-messages?request_id=${currentRequestId}`;
+    
+    fetch(endpoint)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -566,13 +997,11 @@ function loadMessages() {
                     const isSent = msg.user_id === currentUserId;
                     const groupClass = isSent ? 'sent' : 'received';
                     
-                    // Check if we need to close previous group
                     if (currentUserId_ !== msg.user_id && currentGroup !== null) {
-                        html += '</div>'; // Close previous group
+                        html += '</div>';
                         currentGroup = null;
                     }
                     
-                    // Open new group if needed
                     if (currentUserId_ !== msg.user_id) {
                         html += `<div class="messages-group ${groupClass}">`;
                         currentGroup = groupClass;
@@ -600,7 +1029,6 @@ function loadMessages() {
                 
                 container.innerHTML = html;
                 
-                // Scroll to bottom
                 if (wasAtBottom) {
                     container.scrollTop = container.scrollHeight;
                 }
@@ -614,15 +1042,17 @@ function sendMessage() {
     const textarea = document.getElementById('messageInput');
     const text = textarea.value.trim();
     
-    if (!text || !currentChatId) return;
+    if (!text || (!currentChatId && !currentRequestId)) return;
     
-    fetch('/api/chat/send', {
+    const endpoint = currentChatId ? '/api/chat/send' : '/api/chat/request-message';
+    const body = currentChatId 
+        ? { chat_id: currentChatId, text: text }
+        : { request_id: currentRequestId, text: text };
+    
+    fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            chat_id: currentChatId,
-            text: text
-        })
+        body: JSON.stringify(body)
     })
     .then(response => response.json())
     .then(data => {
@@ -631,9 +1061,54 @@ function sendMessage() {
             autoExpandTextarea();
             loadMessages();
             loadChatList();
+            loadRequestsList();
         }
     })
     .catch(error => console.error('Error sending message:', error));
+}
+
+// Create request modal
+function openCreateRequestModal() {
+    document.getElementById('createRequestModal').classList.add('active');
+}
+
+function closeCreateRequestModal() {
+    document.getElementById('createRequestModal').classList.remove('active');
+    document.getElementById('requestSubjectInput').value = '';
+    document.getElementById('requestMessageInput').value = '';
+}
+
+function createRequest() {
+    const subject = document.getElementById('requestSubjectInput').value.trim();
+    const message = document.getElementById('requestMessageInput').value.trim();
+    
+    if (!subject || !message) {
+        alert('Заполните все поля');
+        return;
+    }
+    
+    fetch('/api/chat/create-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            subject: subject,
+            message: message
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeCreateRequestModal();
+            loadRequestsList();
+            switchTab('requests');
+        } else {
+            alert(data.error || 'Ошибка при создании заявки');
+        }
+    })
+    .catch(error => {
+        console.error('Error creating request:', error);
+        alert('Ошибка при создании заявки');
+    });
 }
 
 // Event listeners
@@ -641,7 +1116,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const textarea = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
     
-    // Send on Enter
     textarea.addEventListener('keypress', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -649,34 +1123,42 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Auto-expand on input
     textarea.addEventListener('input', autoExpandTextarea);
-    
-    // Send button
     sendBtn.addEventListener('click', sendMessage);
     
-    // Load initial data
     loadChatList();
-    
-    // Polling
-    usersPollingInterval = setInterval(loadChatList, 5000);
+    listPollingInterval = setInterval(() => {
+        if (currentTab === 'chats') {
+            loadChatList();
+        } else {
+            loadRequestsList();
+        }
+    }, 5000);
 });
 
-// Cleanup on page leave
+// Cleanup
 window.addEventListener('beforeunload', function() {
     if (messagePollingInterval) clearInterval(messagePollingInterval);
-    if (usersPollingInterval) clearInterval(usersPollingInterval);
+    if (listPollingInterval) clearInterval(listPollingInterval);
 });
 
 // Search
 document.getElementById('searchInput')?.addEventListener('input', function(e) {
     const query = e.target.value.toLowerCase();
-    const chatItems = document.querySelectorAll('.chat-item');
+    const items = document.querySelectorAll('.chat-item, .request-item');
     
-    chatItems.forEach(item => {
-        const name = item.querySelector('.chat-item-name').textContent.toLowerCase();
+    items.forEach(item => {
+        const name = item.querySelector('.chat-item-name')?.textContent.toLowerCase() || 
+                    item.querySelector('.request-name')?.textContent.toLowerCase() || '';
         item.style.display = name.includes(query) ? '' : 'none';
     });
+});
+
+// Close modal by clicking backdrop
+document.getElementById('createRequestModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeCreateRequestModal();
+    }
 });
 </script>
 {% endblock %}
