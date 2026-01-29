@@ -668,9 +668,12 @@ def admin_auth():
         username = auth_data.get('username', '').strip()
         password = auth_data.get('password', '').strip()
         
+        logger.info(f"Попытка авторизации. auth_data: {auth_data}, username: {username}, password: {password}")
+
         # Загружаем админ-креды из config
         import config.config as config
         admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
+        logger.info(f"{admin_credentials}, {username in admin_credentials and admin_credentials[username] == hashlib.sha256(password.encode()).hexdigest()}")
         
         # Проверка логина/пароля
         if username in admin_credentials and admin_credentials[username] == hashlib.sha256(password.encode()).hexdigest():
