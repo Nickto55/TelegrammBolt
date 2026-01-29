@@ -4,303 +4,679 @@
 
 {% block extra_head %}
 <style>
-    .chat-container {
-        height: calc(100vh - 250px);
+    /* Telegram-like Chat Styling */
+    .telegram-chat-layout {
+        display: flex;
+        height: calc(100vh - 80px);
+        gap: 0;
+        background-color: #fff;
+    }
+
+    /* Левая панель со списком диалогов */
+    .chat-sidebar {
+        width: 320px;
+        border-right: 1px solid #e5e5ea;
         display: flex;
         flex-direction: column;
+        background: #fff;
     }
-    
+
+    .chat-sidebar-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e5e5ea;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .chat-sidebar-header h1 {
+        font-size: 32px;
+        font-weight: 700;
+        margin: 0;
+        color: #000;
+    }
+
+    .chat-sidebar-search {
+        padding: 8px 20px;
+        border-bottom: 1px solid #e5e5ea;
+    }
+
+    .chat-sidebar-search input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e5e5ea;
+        border-radius: 20px;
+        background-color: #f0f0f0;
+        font-size: 14px;
+        outline: none;
+        transition: all 0.3s;
+    }
+
+    .chat-sidebar-search input:focus {
+        background-color: #e5e5ea;
+        border-color: #d0d0d5;
+    }
+
+    .chat-sidebar-list {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .chat-item {
+        padding: 8px 8px;
+        margin: 0 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: background-color 0.2s;
+    }
+
+    .chat-item:hover {
+        background-color: #f0f0f0;
+    }
+
+    .chat-item.active {
+        background-color: #e5f0ff;
+    }
+
+    .chat-item-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 18px;
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .chat-item-avatar.online::after {
+        content: '';
+        width: 14px;
+        height: 14px;
+        background-color: #31a24c;
+        border: 3px solid white;
+        border-radius: 50%;
+        position: absolute;
+        bottom: 0;
+        right: 0;
+    }
+
+    .chat-item-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .chat-item-name {
+        font-weight: 500;
+        color: #000;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .chat-item-message {
+        font-size: 13px;
+        color: #8a8a8e;
+        margin: 4px 0 0 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .chat-item-time {
+        font-size: 12px;
+        color: #8a8a8e;
+        flex-shrink: 0;
+    }
+
+    /* Основная область чата */
+    .chat-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background-color: #fff;
+    }
+
+    .chat-header {
+        padding: 12px 20px;
+        border-bottom: 1px solid #e5e5ea;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: #fff;
+    }
+
+    .chat-header-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .chat-header-title {
+        margin: 0;
+    }
+
+    .chat-header-title h2 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        color: #000;
+    }
+
+    .chat-header-subtitle {
+        font-size: 12px;
+        color: #8a8a8e;
+        margin-top: 2px;
+    }
+
+    .chat-header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .chat-header-actions button {
+        background: none;
+        border: none;
+        color: #0084ff;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 8px;
+    }
+
+    /* Область сообщений */
     .chat-messages {
         flex: 1;
         overflow-y: auto;
-        padding: 20px;
-        background-color: var(--bs-light);
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-    
-    .message {
-        margin-bottom: 15px;
-        padding: 12px 16px;
-        border-radius: 12px;
-        max-width: 70%;
-        word-wrap: break-word;
-    }
-    
-    .message-sent {
-        background-color: #007bff;
-        color: white;
-        margin-left: auto;
-        text-align: right;
-    }
-    
-    .message-received {
-        background-color: white;
-        color: #333;
-        margin-right: auto;
-        border: 1px solid #dee2e6;
-    }
-    
-    .message-info {
-        font-size: 0.75rem;
-        opacity: 0.8;
-        margin-top: 5px;
-    }
-    
-    .chat-input-container {
+        padding: 16px 20px;
         display: flex;
-        gap: 10px;
-        padding: 15px;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        flex-direction: column;
+        gap: 8px;
+        background-color: #fff;
     }
-    
-    .chat-input {
+
+    .messages-group {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-bottom: 8px;
+    }
+
+    .messages-group.sent {
+        align-items: flex-end;
+    }
+
+    .messages-group.received {
+        align-items: flex-start;
+    }
+
+    .message-bubble {
+        padding: 8px 12px;
+        border-radius: 18px;
+        max-width: 55%;
+        word-wrap: break-word;
+        font-size: 15px;
+        line-height: 1.4;
+        position: relative;
+    }
+
+    .message-bubble.sent {
+        background-color: #0084ff;
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    .message-bubble.received {
+        background-color: #e5e5ea;
+        color: #000;
+        border-bottom-left-radius: 4px;
+    }
+
+    .message-time {
+        font-size: 12px;
+        color: #8a8a8e;
+        margin-top: 4px;
+        padding: 0 12px;
+    }
+
+    .messages-separator {
+        text-align: center;
+        margin: 16px 0;
+        color: #8a8a8e;
+        font-size: 12px;
+    }
+
+    .messages-empty {
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #8a8a8e;
+        gap: 12px;
     }
-    
-    .online-users {
-        background-color: white;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 20px;
+
+    .messages-empty-icon {
+        font-size: 64px;
+        opacity: 0.3;
     }
-    
-    .user-status {
-        display: inline-block;
+
+    /* Input area */
+    .chat-input-area {
+        padding: 12px 20px 20px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+        border-top: 1px solid #e5e5ea;
+        background-color: #fff;
+    }
+
+    .input-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .input-action-btn {
+        background: none;
+        border: none;
+        color: #0084ff;
+        cursor: pointer;
+        font-size: 20px;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .input-action-btn:hover {
+        opacity: 0.7;
+    }
+
+    .message-input-container {
+        flex: 1;
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+    }
+
+    .message-input {
+        flex: 1;
+        padding: 10px 16px;
+        border: 1px solid #e5e5ea;
+        border-radius: 20px;
+        font-size: 15px;
+        font-family: inherit;
+        resize: none;
+        max-height: 100px;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .message-input:focus {
+        border-color: #0084ff;
+    }
+
+    .send-btn {
+        background: none;
+        border: none;
+        color: #0084ff;
+        cursor: pointer;
+        font-size: 20px;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .send-btn:hover {
+        opacity: 0.7;
+    }
+
+    /* Scrollbar styling */
+    .chat-messages::-webkit-scrollbar,
+    .chat-sidebar-list::-webkit-scrollbar {
         width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        margin-right: 8px;
     }
-    
-    .user-online {
-        background-color: #28a745;
+
+    .chat-messages::-webkit-scrollbar-track,
+    .chat-sidebar-list::-webkit-scrollbar-track {
+        background: transparent;
     }
-    
-    .user-offline {
-        background-color: #6c757d;
+
+    .chat-messages::-webkit-scrollbar-thumb,
+    .chat-sidebar-list::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 4px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb:hover,
+    .chat-sidebar-list::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+
+    @media (max-width: 768px) {
+        .chat-sidebar {
+            width: 100%;
+            max-height: 50%;
+        }
+
+        .telegram-chat-layout {
+            flex-direction: column;
+        }
+
+        .message-bubble {
+            max-width: 75%;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="mb-4">
-                <i class="bi bi-chat-dots"></i> Чат
-            </h1>
+<div class="telegram-chat-layout">
+    <!-- Левая панель со списком чатов/пользователей -->
+    <div class="chat-sidebar">
+        <div class="chat-sidebar-header">
+            <h1>Чаты</h1>
+            <button class="input-action-btn" title="Новый чат">
+                <i class="bi bi-pencil-square"></i>
+            </button>
         </div>
-    </div>
-    
-    <div class="row">
-        <!-- Список пользователей -->
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-people"></i> Участники</h5>
-                </div>
-                <div class="card-body">
-                    <div id="usersList">
-                        <p class="text-muted">Загрузка...</p>
-                    </div>
-                </div>
+
+        <div class="chat-sidebar-search">
+            <input type="text" id="searchInput" placeholder="Поиск по чатам..." />
+        </div>
+
+        <div class="chat-sidebar-list" id="chatList">
+            <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
+                <p style="margin: 0;">Загрузка чатов...</p>
             </div>
         </div>
-        
-        <!-- Чат -->
-        <div class="col-md-9">
-            <div class="chat-container">
-                <div class="chat-messages" id="chatMessages">
-                    {% if messages %}
-                        {% for msg in messages %}
-                        <div class="message {% if msg.is_own %}message-sent{% else %}message-received{% endif %}">
-                            <div class="message-content">
-                                {% if not msg.is_own %}
-                                <strong>{{ msg.username }}</strong><br>
-                                {% endif %}
-                                {{ msg.text }}
-                            </div>
-                            <div class="message-info">
-                                {{ msg.timestamp }}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                    <div class="text-center text-muted py-5">
-                        <i class="bi bi-chat-text display-1 d-block mb-3"></i>
-                        <p>Нет сообщений. Начните общение!</p>
+    </div>
+
+    <!-- Основная область чата -->
+    <div class="chat-main">
+        <!-- Заголовок чата -->
+        <div class="chat-header" id="chatHeader" style="display: none;">
+            <div class="chat-header-info">
+                <div>
+                    <div class="chat-header-title">
+                        <h2 id="chatTitle">Выберите чат</h2>
                     </div>
-                    {% endif %}
+                    <div class="chat-header-subtitle" id="chatSubtitle">онлайн</div>
                 </div>
-                
-                <div class="chat-input-container">
-                    <input 
-                        type="text" 
-                        class="form-control chat-input" 
-                        id="messageInput" 
-                        placeholder="Введите сообщение..."
-                        autocomplete="off"
-                    >
-                    <button class="btn btn-primary" onclick="sendMessage()">
-                        <i class="bi bi-send"></i> Отправить
-                    </button>
+            </div>
+            <div class="chat-header-actions">
+                <button class="input-action-btn" title="Информация">
+                    <i class="bi bi-info-circle"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Область сообщений -->
+        <div class="chat-messages" id="messagesContainer">
+            <div class="messages-empty">
+                <div class="messages-empty-icon">
+                    <i class="bi bi-chat-dots"></i>
                 </div>
+                <p style="margin: 0;">Выберите чат для начала общения</p>
+            </div>
+        </div>
+
+        <!-- Input area -->
+        <div class="chat-input-area" id="inputArea" style="display: none;">
+            <div class="input-actions">
+                <button class="input-action-btn" title="Прикрепить файл">
+                    <i class="bi bi-plus-circle"></i>
+                </button>
+            </div>
+            <div class="message-input-container">
+                <textarea 
+                    class="message-input" 
+                    id="messageInput" 
+                    placeholder="Напишите сообщение..."
+                    rows="1"
+                ></textarea>
+                <button class="send-btn" id="sendBtn" title="Отправить">
+                    <i class="bi bi-send-fill"></i>
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+let currentChatId = null;
 let currentUserId = {{ session.user_id|default(0) }};
-let pollingInterval;
+let messagePollingInterval = null;
+let usersPollingInterval = null;
 
-// Загрузка списка пользователей
-function loadUsers() {
-    fetch('/api/users/list')
+// Auto-expand textarea
+function autoExpandTextarea() {
+    const textarea = document.getElementById('messageInput');
+    if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+    }
+}
+
+// Load chat list
+function loadChatList() {
+    fetch('/api/chat/list')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const usersList = document.getElementById('usersList');
-                let html = '<div class="list-group list-group-flush">';
+                const chatList = document.getElementById('chatList');
                 
-                data.users.forEach(user => {
-                    const isOnline = user.is_online || false;
-                    const statusClass = isOnline ? 'user-online' : 'user-offline';
-                    const statusText = isOnline ? 'онлайн' : 'оффлайн';
+                if (!data.chats || data.chats.length === 0) {
+                    chatList.innerHTML = `
+                        <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
+                            <p style="margin: 0;">Нет активных чатов</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                data.chats.forEach(chat => {
+                    const isActive = chat.id === currentChatId ? 'active' : '';
+                    const initials = (chat.name || 'U').substring(0, 2).toUpperCase();
+                    const isOnline = chat.is_online ? 'online' : '';
+                    const lastMessage = chat.last_message ? chat.last_message.substring(0, 40) + (chat.last_message.length > 40 ? '...' : '') : 'Нет сообщений';
                     
                     html += `
-                        <div class="list-group-item px-0">
-                            <span class="user-status ${statusClass}"></span>
-                            ${user.username || user.first_name || 'Пользователь'}
-                            <small class="text-muted">(${statusText})</small>
+                        <div class="chat-item ${isActive}" onclick="selectChat(${chat.id}, '${chat.name}', ${chat.is_online ? 'true' : 'false'})">
+                            <div class="chat-item-avatar ${isOnline}">
+                                ${initials}
+                            </div>
+                            <div class="chat-item-info">
+                                <p class="chat-item-name">${chat.name}</p>
+                                <p class="chat-item-message">${lastMessage}</p>
+                            </div>
+                            <div class="chat-item-time">${chat.time || ''}</div>
                         </div>
                     `;
                 });
                 
-                html += '</div>';
-                usersList.innerHTML = html;
+                chatList.innerHTML = html;
             }
         })
-        .catch(error => {
-            console.error('Ошибка загрузки пользователей:', error);
-        });
+        .catch(error => console.error('Error loading chat list:', error));
 }
 
-// Отправка сообщения
-function sendMessage() {
-    const input = document.getElementById('messageInput');
-    const text = input.value.trim();
+// Select chat
+function selectChat(chatId, chatName, isOnline) {
+    currentChatId = chatId;
     
-    if (!text) return;
+    // Update UI
+    document.getElementById('chatTitle').textContent = chatName;
+    document.getElementById('chatSubtitle').textContent = isOnline ? '🟢 онлайн' : '🔘 был(а) недавно';
+    document.getElementById('chatHeader').style.display = 'flex';
+    document.getElementById('inputArea').style.display = 'flex';
+    
+    // Highlight active chat
+    document.querySelectorAll('.chat-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    event.currentTarget.classList.add('active');
+    
+    // Load messages
+    loadMessages();
+    
+    // Stop old polling and start new
+    if (messagePollingInterval) clearInterval(messagePollingInterval);
+    messagePollingInterval = setInterval(loadMessages, 3000);
+}
+
+// Load messages
+function loadMessages() {
+    if (!currentChatId) return;
+    
+    fetch(`/api/chat/messages?chat_id=${currentChatId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const container = document.getElementById('messagesContainer');
+                const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+                
+                if (!data.messages || data.messages.length === 0) {
+                    container.innerHTML = `
+                        <div class="messages-empty">
+                            <div class="messages-empty-icon">
+                                <i class="bi bi-chat-dots"></i>
+                            </div>
+                            <p style="margin: 0;">Начните общение</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                let currentGroup = null;
+                let currentUserId_ = null;
+
+                data.messages.forEach((msg, index) => {
+                    const isSent = msg.user_id === currentUserId;
+                    const groupClass = isSent ? 'sent' : 'received';
+                    
+                    // Check if we need to close previous group
+                    if (currentUserId_ !== msg.user_id && currentGroup !== null) {
+                        html += '</div>'; // Close previous group
+                        currentGroup = null;
+                    }
+                    
+                    // Open new group if needed
+                    if (currentUserId_ !== msg.user_id) {
+                        html += `<div class="messages-group ${groupClass}">`;
+                        currentGroup = groupClass;
+                        currentUserId_ = msg.user_id;
+                    }
+                    
+                    const timeStr = new Date(msg.timestamp).toLocaleTimeString('ru-RU', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                    
+                    html += `
+                        <div>
+                            <div class="message-bubble ${isSent ? 'sent' : 'received'}">
+                                ${msg.text}
+                            </div>
+                            <div class="message-time">${timeStr}</div>
+                        </div>
+                    `;
+                });
+                
+                if (currentGroup !== null) {
+                    html += '</div>';
+                }
+                
+                container.innerHTML = html;
+                
+                // Scroll to bottom
+                if (wasAtBottom) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+        })
+        .catch(error => console.error('Error loading messages:', error));
+}
+
+// Send message
+function sendMessage() {
+    const textarea = document.getElementById('messageInput');
+    const text = textarea.value.trim();
+    
+    if (!text || !currentChatId) return;
     
     fetch('/api/chat/send', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            chat_id: currentChatId,
             text: text
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            input.value = '';
+            textarea.value = '';
+            autoExpandTextarea();
             loadMessages();
-        } else {
-            alert('Ошибка отправки сообщения');
+            loadChatList();
         }
     })
-    .catch(error => {
-        console.error('Ошибка отправки:', error);
-        alert('Ошибка отправки сообщения');
-    });
+    .catch(error => console.error('Error sending message:', error));
 }
 
-// Загрузка сообщений
-function loadMessages() {
-    fetch('/api/chat/messages')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const chatMessages = document.getElementById('chatMessages');
-                const scrolledToBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 100;
-                
-                let html = '';
-                
-                if (data.messages.length === 0) {
-                    html = `
-                        <div class="text-center text-muted py-5">
-                            <i class="bi bi-chat-text display-1 d-block mb-3"></i>
-                            <p>Нет сообщений. Начните общение!</p>
-                        </div>
-                    `;
-                } else {
-                    data.messages.forEach(msg => {
-                        const isOwn = msg.user_id === currentUserId;
-                        const messageClass = isOwn ? 'message-sent' : 'message-received';
-                        
-                        html += `
-                            <div class="message ${messageClass}">
-                                <div class="message-content">
-                                    ${!isOwn ? '<strong>' + (msg.username || 'Пользователь') + '</strong><br>' : ''}
-                                    ${msg.text}
-                                </div>
-                                <div class="message-info">
-                                    ${msg.timestamp}
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-                
-                chatMessages.innerHTML = html;
-                
-                // Прокрутка вниз если был внизу
-                if (scrolledToBottom) {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка загрузки сообщений:', error);
-        });
-}
-
-// Отправка по Enter
+// Event listeners
 document.addEventListener('DOMContentLoaded', function() {
-    const input = document.getElementById('messageInput');
+    const textarea = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
     
-    input.addEventListener('keypress', function(e) {
+    // Send on Enter
+    textarea.addEventListener('keypress', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
     });
     
-    // Начальная загрузка
-    loadUsers();
-    loadMessages();
+    // Auto-expand on input
+    textarea.addEventListener('input', autoExpandTextarea);
     
-    // Автообновление каждые 3 секунды
-    pollingInterval = setInterval(() => {
-        loadMessages();
-        loadUsers();
-    }, 3000);
+    // Send button
+    sendBtn.addEventListener('click', sendMessage);
     
-    // Прокрутка вниз при загрузке
-    const chatMessages = document.getElementById('chatMessages');
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Load initial data
+    loadChatList();
+    
+    // Polling
+    usersPollingInterval = setInterval(loadChatList, 5000);
 });
 
-// Очистка интервала при уходе со страницы
+// Cleanup on page leave
 window.addEventListener('beforeunload', function() {
-    if (pollingInterval) {
-        clearInterval(pollingInterval);
-    }
+    if (messagePollingInterval) clearInterval(messagePollingInterval);
+    if (usersPollingInterval) clearInterval(usersPollingInterval);
+});
+
+// Search
+document.getElementById('searchInput')?.addEventListener('input', function(e) {
+    const query = e.target.value.toLowerCase();
+    const chatItems = document.querySelectorAll('.chat-item');
+    
+    chatItems.forEach(item => {
+        const name = item.querySelector('.chat-item-name').textContent.toLowerCase();
+        item.style.display = name.includes(query) ? '' : 'none';
+    });
 });
 </script>
 {% endblock %}
