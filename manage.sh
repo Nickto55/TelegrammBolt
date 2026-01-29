@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # TelegramBolt Management Panel
-# Панель управления для TelegramBolt с поддержкой веб-терминала
+# Панель        управления для TelegramBolt с поддержкой веб-терминала
 
 # Цвета
 RED='\033[0;31m'
@@ -27,8 +27,8 @@ DEFAULT_TERMINAL_PORT=5001
 show_header() {
     clear
     echo -e "${WHITE}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${WHITE}║${NC}        ${WHITE}TelegramBolt Management Panel${NC}               ${CYAN}║${NC}"
-    echo -e "${WHITE}║${NC}        ${PURPLE}Панель управления с веб-терминалом${NC}          ${CYAN}║${NC}"
+    echo -e "${WHITE}║${NC}        ${WHITE}TelegramBolt Management Panel${NC}                 ${CYAN}║${NC}"
+    echo -e "${WHITE}║${NC}        ${PURPLE}Панель управления с веб-терминалом${NC}            ${CYAN}║${NC}"
     echo -e "${WHITE}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
