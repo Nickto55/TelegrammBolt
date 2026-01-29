@@ -677,6 +677,8 @@ def admin_auth():
         # Проверка логина/пароля (безопасно, через get чтобы избежать KeyError)
         hashed_input = hashlib.sha256(password.encode()).hexdigest()
         stored_hash = admin_credentials.get(username)
+
+        logger.info("1")
         if stored_hash and stored_hash == hashed_input:
             # Получаем user_id админа из конфига или создаём специальный
             admin_user_id = admin_credentials.get(f'{username}_user_id', f'admin_{username}')
@@ -693,7 +695,7 @@ def admin_auth():
                 # Пользователь существует - убедимся что у него роль admin
                 from bot.user_manager import set_user_role
                 set_user_role(admin_user_id, 'admin')
-            
+            logger.info("2")
             # Сохранение данных в сессию (не проверяем get_user_role, т.к. только что установили)
             session.permanent = True
             session['user_id'] = admin_user_id
@@ -705,7 +707,7 @@ def admin_auth():
             session['auth_type'] = 'admin'  # Помечаем тип авторизации
             
             logger.info(f"Admin {username} logged in via credentials")
-            
+            logger.info("3")
             redirect_url = url_for('dashboard')
             logger.info(f"Redirecting to: {redirect_url}")
             
