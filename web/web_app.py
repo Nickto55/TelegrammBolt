@@ -673,6 +673,7 @@ def admin_auth():
         # Загружаем админ-креды из config
         import config.config as config
         admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
+        logger.info(f"Admin credentials loaded: {list(admin_credentials.keys())}")
 
         # Проверка логина/пароля (безопасно, через get чтобы избежать KeyError)
         hashed_input = hashlib.sha256(password.encode()).hexdigest()
