@@ -455,27 +455,41 @@ async def handle_responder_confirmation(update: Update, context: ContextTypes.DE
         # ВАЖНО: Сохраняем dse_value ДО любых изменений состояния
         dse_value = dse_chat_states[initiator_user_id].get('dse', 'Unknown')
 
-        # Создаём запись чата в общем хранилище, чтобы веб-интерфейс мог увидеть чат
+        # Создаём запись чата в общем хранилище, чтобы веб-интерфейс мог увидеть чат (или переиспользуем существующий)
         try:
             data = load_data(DATA_FILE)
             chats = data.get('chats', {})
-            chat_id = max([int(k) for k in chats.keys()] if chats else [0]) + 1
+            
+            # Проверяем, не существует ли уже чат по этому ДСЕ
+            existing_chat_id = None
+            for cid, chat_info in chats.items():
+                if chat_info.get('dse') == dse_value and chat_info.get('status') == 'accepted':
+                    existing_chat_id = cid
+                    break
+            
+            if existing_chat_id:
+                # Переиспользуем существующий чат
+                chat_id = existing_chat_id
+                print(f"🔄 Переиспользую существующий чат {chat_id} для ДСЕ '{dse_value}'")
+            else:
+                # Создаём новый чат
+                chat_id = max([int(k) for k in chats.keys()] if chats else [0]) + 1
 
-            # Попробуем получить короткое имя/описание ДСЕ из записей
-            records = get_dse_records_by_dse_value(dse_value)
-            dse_name = ''
-            if records and isinstance(records, list) and len(records) > 0:
-                dse_name = records[0].get('description', '') or records[0].get('dse', '')
+                # Попробуем получить короткое имя/описание ДСЕ из записей
+                records = get_dse_records_by_dse_value(dse_value)
+                dse_name = ''
+                if records and isinstance(records, list) and len(records) > 0:
+                    dse_name = records[0].get('description', '') or records[0].get('dse', '')
 
-            chats[str(chat_id)] = {
-                'participants': [initiator_user_id, responder_user_id],
-                'dse': dse_value,
-                'dse_name': dse_name,
-                'activated_on': 'telegram',
-                'status': 'accepted',
-                'created_at': datetime.now().isoformat(),
-                'messages': []
-            }
+                chats[str(chat_id)] = {
+                    'participants': [initiator_user_id, responder_user_id],
+                    'dse': dse_value,
+                    'dse_name': dse_name,
+                    'activated_on': 'telegram',
+                    'status': 'accepted',
+                    'created_at': datetime.now().isoformat(),
+                    'messages': []
+                }
             data['chats'] = chats
             save_data(data, DATA_FILE)
         except Exception as e:

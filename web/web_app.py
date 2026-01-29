@@ -2101,7 +2101,33 @@ def api_send_message():
         try:
             # Отправляем только если чат активирован в Telegram
             chat_info = chats.get(str(chat_id), {})
-            if chat_info.get('activated_on') == 'telegram':
+            
+            # Если чат активирован на веб и это первое сообщение, отправляем уведомление в Telegram
+            if chat_info.get('activated_on') == 'web' and len(chats[str(chat_id)]['messages']) == 1:
+                participants = chat_info.get('participants', [])
+                if participants:
+                    for p in participants:
+                        if str(p) == str(user_id):
+                            continue
+                        tg_id = None
+                        try:
+                            int(p)
+                            tg_id = str(p)
+                        except Exception:
+                            try:
+                                tg = get_telegram_id_by_web_user(p)
+                                if tg:
+                                    tg_id = str(tg)
+                            except Exception:
+                                tg_id = None
+                        if tg_id:
+                            try:
+                                _telegram_send_queue.put((tg_id, f"💬 Начат чат по ДСЕ '{chat_info.get('dse', '')}' на сайте!\n\nПервое сообщение: {text}"))
+                            except Exception:
+                                pass
+            
+            # Отправляем обычные сообщения если чат активирован в Telegram
+            elif chat_info.get('activated_on') == 'telegram':
                 participants = chat_info.get('participants', [])
                 if participants:
                     for p in participants:
@@ -2141,25 +2167,32 @@ def api_send_message():
 @app.route('/api/chat/requests', methods=['GET'])
 @login_required
 def api_get_requests():
-    """API: Получить список заявок пользователя"""
+    """API: Получить список всех заявок по ДСЕ"""
     user_id = session['user_id']
     
     try:
         data = load_data(DATA_FILE)
         requests_data = data.get('requests', {})
+        users_data = get_users_data()
         
-        user_requests = []
+        all_requests = []
         for req_id, req_info in requests_data.items():
-            if req_info.get('user_id') == user_id:
-                user_requests.append({
-                    'id': int(req_id),
-                    'subject': req_info.get('subject', 'Заявка'),
-                    'message': req_info.get('message', ''),
-                    'status': req_info.get('status', 'pending'),
-                    'created_at': req_info.get('created_at', datetime.now().isoformat())
-                })
+            req_user_id = req_info.get('user_id')
+            user_info = users_data.get(str(req_user_id), {})
+            
+            all_requests.append({
+                'id': int(req_id),
+                'subject': req_info.get('subject', 'Заявка'),
+                'message': req_info.get('message', ''),
+                'status': req_info.get('status', 'pending'),
+                'created_at': req_info.get('created_at', datetime.now().isoformat()),
+                'dse': req_info.get('dse', ''),
+                'user_id': req_user_id,
+                'user_name': user_info.get('first_name', '') + ' ' + user_info.get('last_name', ''),
+                'is_own': req_user_id == user_id
+            })
         
-        return jsonify({'success': True, 'requests': user_requests})
+        return jsonify({'success': True, 'requests': all_requests})
     except Exception as e:
         logger.error(f"Error loading requests: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -2443,22 +2476,35 @@ def api_admin_update_request_status():
         req_info = requests_data[str(request_id)]
         req_info['status'] = status
         
-        # Если заявка принята, создаём чат
+        # Если заявка принята, создаём чат (или переиспользуем существующий для этого ДСЕ)
         if status == 'accepted':
             chats = all_data.get('chats', {})
-            chat_id = max([int(k) for k in chats.keys()] if chats else [0]) + 1
+            dse_value = req_info.get('dse', '')
             
-            chats[str(chat_id)] = {
-                'request_id': int(request_id),
-                'user_id': req_info.get('user_id'),
-                'subject': req_info.get('subject'),
-                'dse': req_info.get('dse', ''),
-                'dse_name': req_info.get('dse_name', req_info.get('subject', '')),
-                'activated_on': 'web',
-                'status': 'accepted',
-                'created_at': datetime.now().isoformat(),
-                'messages': []
-            }
+            # Проверяем, не существует ли уже чат по этому ДСЕ
+            existing_chat_id = None
+            for cid, chat_info in chats.items():
+                if chat_info.get('dse') == dse_value and chat_info.get('status') == 'accepted':
+                    existing_chat_id = cid
+                    break
+            
+            if existing_chat_id:
+                # Переиспользуем существующий чат
+                chat_id = existing_chat_id
+            else:
+                # Создаём новый чат
+                chat_id = max([int(k) for k in chats.keys()] if chats else [0]) + 1
+                chats[str(chat_id)] = {
+                    'request_id': int(request_id),
+                    'user_id': req_info.get('user_id'),
+                    'subject': req_info.get('subject'),
+                    'dse': req_info.get('dse', ''),
+                    'dse_name': req_info.get('dse_name', req_info.get('subject', '')),
+                    'activated_on': 'web',
+                    'status': 'accepted',
+                    'created_at': datetime.now().isoformat(),
+                    'messages': []
+                }
             all_data['chats'] = chats
         
         requests_data[str(request_id)] = req_info
