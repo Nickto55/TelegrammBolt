@@ -1984,7 +1984,7 @@ def api_get_messages():
     
     # Получаем сообщения из хранилища
     try:
-        data = load_data()
+        data = load_data(DATA_FILE)
         chats = data.get('chats', {})
         messages = chats.get(str(chat_id), {}).get('messages', [])
         return jsonify({'success': True, 'messages': messages})
@@ -2003,7 +2003,7 @@ def api_chat_list():
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     try:
-        data = load_data()
+        data = load_data(DATA_FILE)
         chats_data = data.get('chats', {})
         
         chats = []
@@ -2014,6 +2014,8 @@ def api_chat_list():
                 
                 chats.append({
                     'id': int(chat_id),
+                    'dse': chat_info.get('dse') or chat_info.get('request_id') or '',
+                    'dse_name': chat_info.get('dse_name') or chat_info.get('subject') or '',
                     'name': chat_info.get('subject', 'Чат'),
                     'last_message': last_message,
                     'time': '',
@@ -2043,7 +2045,7 @@ def api_send_message():
         return jsonify({'success': False, 'error': 'Текст и chat_id обязательны'}), 400
     
     try:
-        all_data = load_data()
+        all_data = load_data(DATA_FILE)
         chats = all_data.get('chats', {})
         
         if str(chat_id) not in chats:
@@ -2057,8 +2059,40 @@ def api_send_message():
         
         chats[str(chat_id)]['messages'].append(message)
         all_data['chats'] = chats
-        save_data(all_data)
-        
+        save_data(all_data, DATA_FILE)
+
+        # Попробуем отправить сообщение участникам чата через Telegram (если они телеграм-юзеры)
+        try:
+            participants = chats.get(str(chat_id), {}).get('participants', [])
+            if participants:
+                from telegram import Bot
+                import asyncio
+
+                async def _send_to_participants():
+                    bot = Bot(token=BOT_TOKEN)
+                    for p in participants:
+                        # Пропускаем текущего веб-пользователя
+                        if str(p) == str(user_id):
+                            continue
+                        try:
+                            # Попробуем преобразовать id в int и отправить
+                            await bot.send_message(chat_id=int(p), text=f"💬 (Веб) {text}")
+                        except Exception:
+                            # Игнорируем ошибки отправки (пользователь может не быть в Telegram или иметь другой id)
+                            pass
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(_send_to_participants())
+                finally:
+                    try:
+                        loop.close()
+                    except:
+                        pass
+        except Exception as e:
+            logger.warning(f"Не удалось отправить сообщение участникам через Telegram: {e}")
+
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"Error sending message: {e}")
@@ -2072,7 +2106,7 @@ def api_get_requests():
     user_id = session['user_id']
     
     try:
-        data = load_data()
+        data = load_data(DATA_FILE)
         requests_data = data.get('requests', {})
         
         user_requests = []
@@ -2106,7 +2140,7 @@ def api_create_request():
         return jsonify({'success': False, 'error': 'Тема и описание обязательны'}), 400
     
     try:
-        all_data = load_data()
+        all_data = load_data(DATA_FILE)
         requests_data = all_data.get('requests', {})
         
         # Генерируем ID заявки
@@ -2126,7 +2160,7 @@ def api_create_request():
         }
         
         all_data['requests'] = requests_data
-        save_data(all_data)
+        save_data(all_data, DATA_FILE)
         
         return jsonify({'success': True, 'request_id': req_id})
     except Exception as e:
@@ -2145,7 +2179,7 @@ def api_get_request_messages():
         return jsonify({'error': 'request_id обязателен'}), 400
     
     try:
-        data = load_data()
+        data = load_data(DATA_FILE)
         requests_data = data.get('requests', {})
         
         if str(request_id) not in requests_data:
@@ -2178,7 +2212,7 @@ def api_add_request_message():
         return jsonify({'success': False, 'error': 'Текст и request_id обязательны'}), 400
     
     try:
-        all_data = load_data()
+        all_data = load_data(DATA_FILE)
         requests_data = all_data.get('requests', {})
         
         if str(request_id) not in requests_data:
@@ -2199,7 +2233,7 @@ def api_add_request_message():
         req_info['messages'].append(message)
         requests_data[str(request_id)] = req_info
         all_data['requests'] = requests_data
-        save_data(all_data)
+        save_data(all_data, DATA_FILE)
         
         return jsonify({'success': True})
     except Exception as e:
@@ -2233,7 +2267,7 @@ def api_admin_get_requests():
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     try:
-        data = load_data()
+        data = load_data(DATA_FILE)
         requests_data = data.get('requests', {})
         users_data = get_users_data()
         
@@ -2275,7 +2309,7 @@ def api_admin_get_request_messages():
         return jsonify({'error': 'request_id обязателен'}), 400
     
     try:
-        data = load_data()
+        data = load_data(DATA_FILE)
         requests_data = data.get('requests', {})
         users_data = get_users_data()
         
@@ -2322,7 +2356,7 @@ def api_admin_request_reply():
         return jsonify({'success': False, 'error': 'Текст и request_id обязательны'}), 400
     
     try:
-        all_data = load_data()
+        all_data = load_data(DATA_FILE)
         requests_data = all_data.get('requests', {})
         
         if str(request_id) not in requests_data:
@@ -2336,7 +2370,7 @@ def api_admin_request_reply():
         
         requests_data[str(request_id)]['messages'].append(message)
         all_data['requests'] = requests_data
-        save_data(all_data)
+        save_data(all_data, DATA_FILE)
         
         return jsonify({'success': True})
     except Exception as e:
@@ -2361,7 +2395,7 @@ def api_admin_update_request_status():
         return jsonify({'success': False, 'error': 'Неверный статус'}), 400
     
     try:
-        all_data = load_data()
+        all_data = load_data(DATA_FILE)
         requests_data = all_data.get('requests', {})
         
         if str(request_id) not in requests_data:
@@ -2379,6 +2413,8 @@ def api_admin_update_request_status():
                 'request_id': int(request_id),
                 'user_id': req_info.get('user_id'),
                 'subject': req_info.get('subject'),
+                'dse': req_info.get('dse', ''),
+                'dse_name': req_info.get('dse_name', req_info.get('subject', '')),
                 'status': 'accepted',
                 'created_at': datetime.now().isoformat(),
                 'messages': []
@@ -2387,7 +2423,7 @@ def api_admin_update_request_status():
         
         requests_data[str(request_id)] = req_info
         all_data['requests'] = requests_data
-        save_data(all_data)
+        save_data(all_data, DATA_FILE)
         
         return jsonify({'success': True})
     except Exception as e:

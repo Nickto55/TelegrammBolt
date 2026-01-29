@@ -8,7 +8,8 @@ from telegram.ext import ContextTypes
 # Добавляем корневую директорию проекта в sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from config.config import load_data, DATA_FILE, USERS_FILE
+from config.config import load_data, save_data, DATA_FILE, USERS_FILE
+from datetime import datetime
 
 dse_chat_states = {}
 active_chats = {}
@@ -454,9 +455,34 @@ async def handle_responder_confirmation(update: Update, context: ContextTypes.DE
         # ВАЖНО: Сохраняем dse_value ДО любых изменений состояния
         dse_value = dse_chat_states[initiator_user_id].get('dse', 'Unknown')
 
-        # Устанавливаем активный чат со статусом 'active'
-        active_chats[initiator_user_id] = {'partner_id': responder_user_id, 'status': 'active', 'dse': dse_value}
-        active_chats[responder_user_id] = {'partner_id': initiator_user_id, 'status': 'active', 'dse': dse_value}
+        # Создаём запись чата в общем хранилище, чтобы веб-интерфейс мог увидеть чат
+        try:
+            data = load_data(DATA_FILE)
+            chats = data.get('chats', {})
+            chat_id = max([int(k) for k in chats.keys()] if chats else [0]) + 1
+
+            # Попробуем получить короткое имя/описание ДСЕ из записей
+            records = get_dse_records_by_dse_value(dse_value)
+            dse_name = ''
+            if records and isinstance(records, list) and len(records) > 0:
+                dse_name = records[0].get('description', '') or records[0].get('dse', '')
+
+            chats[str(chat_id)] = {
+                'participants': [initiator_user_id, responder_user_id],
+                'dse': dse_value,
+                'dse_name': dse_name,
+                'status': 'accepted',
+                'created_at': datetime.now().isoformat(),
+                'messages': []
+            }
+            data['chats'] = chats
+            save_data(data, DATA_FILE)
+        except Exception as e:
+            print(f"⚠️ Ошибка при создании записи чата в файле: {e}")
+
+        # Устанавливаем активный чат со статусом 'active' и привязываем chat_id
+        active_chats[initiator_user_id] = {'partner_id': responder_user_id, 'status': 'active', 'dse': dse_value, 'chat_id': str(chat_id)}
+        active_chats[responder_user_id] = {'partner_id': initiator_user_id, 'status': 'active', 'dse': dse_value, 'chat_id': str(chat_id)}
 
         # Очищаем временное состояние поиска
         del dse_chat_states[initiator_user_id]
@@ -619,6 +645,23 @@ async def handle_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             text=f"👤 {user.first_name}: {text}"
         )
         print(f"💬 {user.first_name} -> (чат) -> {text}")
+
+        # Сохраняем сообщение в общем хранилище (DATA_FILE), если чат связан с chat_id
+        chat_id = chat_info.get('chat_id')
+        if chat_id:
+            try:
+                data = load_data(DATA_FILE)
+                chats = data.get('chats', {})
+                if str(chat_id) in chats:
+                    chats[str(chat_id)].setdefault('messages', []).append({
+                        'user_id': user_id,
+                        'text': text,
+                        'timestamp': datetime.now().isoformat()
+                    })
+                    data['chats'] = chats
+                    save_data(data, DATA_FILE)
+            except Exception as e:
+                print(f"⚠️ Не удалось сохранить сообщение в DATA_FILE: {e}")
     except Exception as e:
         # Если не удалось отправить сообщение, завершаем чат для обоих пользователей
         await end_chat_for_users(user_id, partner_id, context, reason="Собеседник отключился или заблокировал бота.")
