@@ -668,12 +668,11 @@ def admin_auth():
         username = auth_data.get('username', '').strip()
         password = auth_data.get('password', '').strip()
         
-        logger.info(f"Попытка авторизации. auth_data: {auth_data}, username: {username}, password: {password}")
+        
 
         # Загружаем админ-креды из config
         import config.config as config
         admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
-        logger.info(f"Admin credentials loaded: {list(admin_credentials.keys())}")
 
         # Проверка логина/пароля (безопасно, через get чтобы избежать KeyError)
         hashed_input = hashlib.sha256(password.encode()).hexdigest()
@@ -696,7 +695,6 @@ def admin_auth():
                 # Пользователь существует - убедимся что у него роль admin
                 from bot.user_manager import set_user_role
                 set_user_role(admin_user_id, 'admin')
-            logger.info("2")
             # Сохранение данных в сессию (не проверяем get_user_role, т.к. только что установили)
             session.permanent = True
             session['user_id'] = admin_user_id
@@ -708,7 +706,6 @@ def admin_auth():
             session['auth_type'] = 'admin'  # Помечаем тип авторизации
             
             logger.info(f"Admin {username} logged in via credentials")
-            logger.info("3")
             redirect_url = url_for('dashboard')
             logger.info(f"Redirecting to: {redirect_url}")
             
@@ -717,6 +714,10 @@ def admin_auth():
                 'redirect': redirect_url
             })
         else:
+            if stored_hash is None:
+                logger.warning(f"Admin auth failed: username '{username}' not found")
+                return jsonify({'error': 'Такого пользователя не существует'}), 401
+            logger.info(f"Попытка авторизации. auth_data: {auth_data}")
             logger.info(f"Admin auth failed for '{username}': stored_hash_present={stored_hash is not None}, hashed_match={stored_hash==hashed_input if stored_hash else False}")
             return jsonify({'error': 'Неверный логин или пароль'}), 401
     

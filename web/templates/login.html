@@ -27,6 +27,11 @@
                 <!-- Вкладки: Telegram / QR Код / Логин-пароль -->
                 <ul class="nav nav-pills nav-fill mb-4" id="loginTabs" role="tablist">
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab">
+                            <i class="bi bi-shield-lock"></i> Login
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="telegram-tab" data-bs-toggle="tab" data-bs-target="#telegram" type="button" role="tab">
                             <i class="bi bi-telegram"></i> Telegram
                         </button>
@@ -36,11 +41,7 @@
                             <i class="bi bi-qr-code-scan"></i> QR Код
                         </button>
                     </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab">
-                            <i class="bi bi-shield-lock"></i> Администратор
-                        </button>
-                    </li>
+                    
                 </ul>
                 
                 <div class="tab-content">
@@ -137,7 +138,7 @@
                         
                         <div class="text-center mt-3">
                             <small class="text-muted">
-                                <i class="bi bi-shield-lock"></i> Только для администраторов
+                                <i class="bi bi-shield-lock"></i> В случае ошибки молитесь админу
                             </small>
                         </div>
                     </div>
@@ -147,7 +148,7 @@
         
         <div class="text-center mt-4">
             <p class="small text-muted">
-                При входе вы соглашаетесь с условиями использования
+                При входе вы соглашаетесь с условиями использования (Не ломать систему! по возможности)
             </p>
         </div>
     </div>
