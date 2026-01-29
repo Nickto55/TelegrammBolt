@@ -678,7 +678,7 @@ def admin_auth():
         hashed_input = hashlib.sha256(password.encode()).hexdigest()
         stored_hash = admin_credentials.get(username)
 
-        logger.info("1")
+        logger.info(f"1, {stored_hash and stored_hash == hashed_input,stored_hash,hashed_input}")
         if stored_hash and stored_hash == hashed_input:
             # Получаем user_id админа из конфига или создаём специальный
             admin_user_id = admin_credentials.get(f'{username}_user_id', f'admin_{username}')
