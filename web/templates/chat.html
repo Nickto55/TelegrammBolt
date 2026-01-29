@@ -749,10 +749,14 @@
 <div class="modal-backdrop" id="createRequestModal">
     <div class="modal-dialog">
         <div class="modal-header">
-            <h3>Новая заявка</h3>
+            <h3>Новая заявка по ДСЕ</h3>
             <button class="modal-close" onclick="closeCreateRequestModal()">×</button>
         </div>
         <div class="modal-body">
+            <div class="form-group">
+                <label for="requestDseInput">Номер ДСЕ *</label>
+                <input type="text" id="requestDseInput" placeholder="Укажите номер ДСЕ..." required>
+            </div>
             <div class="form-group">
                 <label for="requestSubjectInput">Тема заявки</label>
                 <input type="text" id="requestSubjectInput" placeholder="Укажите тему заявки...">
@@ -1077,15 +1081,17 @@ function openCreateRequestModal() {
 
 function closeCreateRequestModal() {
     document.getElementById('createRequestModal').classList.remove('active');
+    document.getElementById('requestDseInput').value = '';
     document.getElementById('requestSubjectInput').value = '';
     document.getElementById('requestMessageInput').value = '';
 }
 
 function createRequest() {
+    const dse = document.getElementById('requestDseInput').value.trim();
     const subject = document.getElementById('requestSubjectInput').value.trim();
     const message = document.getElementById('requestMessageInput').value.trim();
     
-    if (!subject || !message) {
+    if (!dse || !subject || !message) {
         alert('Заполните все поля');
         return;
     }
@@ -1094,6 +1100,7 @@ function createRequest() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            dse: dse,
             subject: subject,
             message: message
         })

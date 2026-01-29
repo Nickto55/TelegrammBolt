@@ -103,30 +103,42 @@ _telegram_send_queue = queue.Queue()
 def _telegram_sender_worker():
     import asyncio
     from telegram import Bot
+    import time
+
+    # Создаём один event loop для всего поточика
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    bot = Bot(token=BOT_TOKEN)
 
     while True:
         try:
-            item = _telegram_send_queue.get()
+            item = _telegram_send_queue.get(timeout=1)
             if item is None:
                 break
             tg_id, text = item
             try:
+                logger.info(f"📤 Sending message to Telegram {tg_id}: {text[:50]}...")
+                
                 async def _send():
-                    bot = Bot(token=BOT_TOKEN)
                     await bot.send_message(chat_id=int(tg_id), text=text)
 
-                asyncio.run(_send())
-            except Exception:
-                # Игнорируем ошибки отправки — пользователь может быть недоступен
-                pass
-        except Exception:
-            # Небольшая пауза при ошибках
+                loop.run_until_complete(_send())
+                logger.info(f"✅ Message sent to {tg_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to send to {tg_id}: {e}")
+        except queue.Empty:
+            # Таймаут при получении — продолжаем ждать
+            continue
+        except Exception as e:
+            logger.error(f"Worker error: {e}")
             import time
             time.sleep(0.5)
 
 # Запускаем daemon-поток
 _telegram_thread = threading.Thread(target=_telegram_sender_worker, daemon=True)
 _telegram_thread.start()
+logger.info("Telegram background sender started")
 
 # Импортируем менеджер терминалов
 from web.terminal_manager import terminal_manager
@@ -2205,11 +2217,12 @@ def api_create_request():
     user_id = session['user_id']
     
     data = request.json
+    dse = data.get('dse', '').strip()
     subject = data.get('subject', '').strip()
     message = data.get('message', '').strip()
     
-    if not subject or not message:
-        return jsonify({'success': False, 'error': 'Тема и описание обязательны'}), 400
+    if not dse or not subject or not message:
+        return jsonify({'success': False, 'error': 'Номер ДСЕ, тема и описание обязательны'}), 400
     
     try:
         all_data = load_data(DATA_FILE)
@@ -2220,6 +2233,7 @@ def api_create_request():
         
         requests_data[str(req_id)] = {
             'user_id': user_id,
+            'dse': dse,
             'subject': subject,
             'message': message,
             'status': 'pending',
