@@ -23,6 +23,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file, flash
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
+import threading
+import queue
+
+# Для получения связи web_user_id -> telegram_id
+from bot.account_linking import get_telegram_id_by_web_user
 
 # Импорты из существующих модулей бота
 from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR, load_data, save_data
@@ -91,6 +96,37 @@ CORS(app)
 
 # Инициализация SocketIO для веб-терминала
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
+# Очередь и простой background-sender для отправки сообщений в Telegram без блокировки запроса
+_telegram_send_queue = queue.Queue()
+
+def _telegram_sender_worker():
+    import asyncio
+    from telegram import Bot
+
+    while True:
+        try:
+            item = _telegram_send_queue.get()
+            if item is None:
+                break
+            tg_id, text = item
+            try:
+                async def _send():
+                    bot = Bot(token=BOT_TOKEN)
+                    await bot.send_message(chat_id=int(tg_id), text=text)
+
+                asyncio.run(_send())
+            except Exception:
+                # Игнорируем ошибки отправки — пользователь может быть недоступен
+                pass
+        except Exception:
+            # Небольшая пауза при ошибках
+            import time
+            time.sleep(0.5)
+
+# Запускаем daemon-поток
+_telegram_thread = threading.Thread(target=_telegram_sender_worker, daemon=True)
+_telegram_thread.start()
 
 # Импортируем менеджер терминалов
 from web.terminal_manager import terminal_manager
@@ -2063,33 +2099,36 @@ def api_send_message():
 
         # Попробуем отправить сообщение участникам чата через Telegram (если они телеграм-юзеры)
         try:
-            participants = chats.get(str(chat_id), {}).get('participants', [])
-            if participants:
-                from telegram import Bot
-                import asyncio
-
-                async def _send_to_participants():
-                    bot = Bot(token=BOT_TOKEN)
+            # Отправляем только если чат активирован в Telegram
+            chat_info = chats.get(str(chat_id), {})
+            if chat_info.get('activated_on') == 'telegram':
+                participants = chat_info.get('participants', [])
+                if participants:
                     for p in participants:
                         # Пропускаем текущего веб-пользователя
                         if str(p) == str(user_id):
                             continue
-                        try:
-                            # Попробуем преобразовать id в int и отправить
-                            await bot.send_message(chat_id=int(p), text=f"💬 (Веб) {text}")
-                        except Exception:
-                            # Игнорируем ошибки отправки (пользователь может не быть в Telegram или иметь другой id)
-                            pass
 
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(_send_to_participants())
-                finally:
-                    try:
-                        loop.close()
-                    except:
-                        pass
+                        tg_id = None
+                        # Если участник выглядит как веб-id, попробуем получить telegram id
+                        try:
+                            # Числовой id (уже telegram)
+                            int(p)
+                            tg_id = str(p)
+                        except Exception:
+                            # попытка получить telegram id по web user id
+                            try:
+                                tg = get_telegram_id_by_web_user(p)
+                                if tg:
+                                    tg_id = str(tg)
+                            except Exception:
+                                tg_id = None
+
+                        if tg_id:
+                            try:
+                                _telegram_send_queue.put((tg_id, f"💬 (Веб) {text}"))
+                            except Exception:
+                                pass
         except Exception as e:
             logger.warning(f"Не удалось отправить сообщение участникам через Telegram: {e}")
 
@@ -2415,6 +2454,7 @@ def api_admin_update_request_status():
                 'subject': req_info.get('subject'),
                 'dse': req_info.get('dse', ''),
                 'dse_name': req_info.get('dse_name', req_info.get('subject', '')),
+                'activated_on': 'web',
                 'status': 'accepted',
                 'created_at': datetime.now().isoformat(),
                 'messages': []

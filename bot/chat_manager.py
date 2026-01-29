@@ -471,6 +471,7 @@ async def handle_responder_confirmation(update: Update, context: ContextTypes.DE
                 'participants': [initiator_user_id, responder_user_id],
                 'dse': dse_value,
                 'dse_name': dse_name,
+                'activated_on': 'telegram',
                 'status': 'accepted',
                 'created_at': datetime.now().isoformat(),
                 'messages': []
