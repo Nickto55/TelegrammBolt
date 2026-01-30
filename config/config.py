@@ -245,8 +245,8 @@ ADMIN_CREDENTIALS = {}
 # ADMIN_CREDENTIALS['superadmin'] = generate_password_hash('super_secret_password')
 # ADMIN_CREDENTIALS['superadmin_user_id'] = 'admin_super'
 
-def save_admin_credentials(username: str, password_hash: str, telegram_user_id: str = None):
-    """Сохраняет учётные данные администратора в файл с привязкой к Telegram ID"""
+def save_admin_credentials(username: str, password_hash: str, telegram_user_id: str = None, role: str = 'initiator'):
+    """Сохраняет учётные данные администратора в файл с привязкой к Telegram ID и ролью"""
     import json
     import os
     
@@ -262,11 +262,12 @@ def save_admin_credentials(username: str, password_hash: str, telegram_user_id: 
     else:
         data = {}
     
-    # Добавление нового пользователя с привязкой к Telegram ID
+    # Добавление нового пользователя с привязкой к Telegram ID и ролью
     data[username] = {
         'password_hash': password_hash,
         'user_id': telegram_user_id if telegram_user_id else f'{username}_web',
         'telegram_user_id': telegram_user_id,
+        'role': role,
         'created_at': dt.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
@@ -297,6 +298,8 @@ def load_admin_credentials():
                 # Используем telegram_user_id если есть, иначе user_id
                 user_id = creds.get('telegram_user_id') or creds.get('user_id')
                 ADMIN_CREDENTIALS[f'{username}_user_id'] = user_id
+                # Добавляем роль
+                ADMIN_CREDENTIALS[f'{username}_role'] = creds.get('role', 'initiator')
             
             print(f"✅ Загружено {len(data)} веб-пользователей из {credentials_file}")
         except Exception as e:

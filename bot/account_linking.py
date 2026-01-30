@@ -433,8 +433,8 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
         # ВАЖНО: Сохраняем изменения в account_linking.json!
         save_linking_data(linking_data)
         
-        # ВАЖНО: Также сохраняем в admin_credentials для входа через веб-форму!
-        save_admin_credentials(username, password_hash, telegram_id)
+        # ВАЖНО: Также сохраняем в admin_credentials для входа через веб-форму с сохранением роли!
+        save_admin_credentials(username, password_hash, telegram_id, role=user_role)
         
         logger.info(f"create_or_update_web_credentials: Обновлен аккаунт {existing_web_user_id}, email {old_email} -> {username}")
         
@@ -461,8 +461,8 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
         # ВАЖНО: Сохраняем изменения в account_linking.json!
         save_linking_data(linking_data)
         
-        # ВАЖНО: Также сохраняем в admin_credentials для входа через веб-форму!
-        save_admin_credentials(username, password_hash, telegram_id)
+        # ВАЖНО: Также сохраняем в admin_credentials для входа через веб-форму с сохранением роли!
+        save_admin_credentials(username, password_hash, telegram_id, role=user_role)
         
         logger.info(f"create_or_update_web_credentials: Создан аккаунт {web_user_id}, username: {username}")
         
