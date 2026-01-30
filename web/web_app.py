@@ -898,7 +898,15 @@ def dashboard():
         # Статистика доступна только admin и responder с дополнительным правом
         can_view_stats = has_permission(user_id, 'view_dashboard_stats')
         
-        stats = None
+        # Инициализируем stats с пустыми значениями по умолчанию
+        stats = {
+            'total_dse': 0,
+            'active_users': 0,
+            'recent_dse': 0,
+            'problem_types': {},
+            'top_problem_type': 'Нет данных'
+        }
+        
         if can_view_stats:
             # Статистика
             dse_data = get_all_dse()
@@ -932,13 +940,13 @@ def dashboard():
                 except:
                     pass
             
-            stats = {
+            stats.update({
                 'total_dse': len(dse_data),
                 'active_users': active_users,
                 'recent_dse': recent_dse,
                 'problem_types': problem_types,
                 'top_problem_type': top_problem_type
-            }
+            })
         
         return render_template('dashboard.html', 
                              user=user_data,

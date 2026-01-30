@@ -19,9 +19,11 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f8f9fa;
+    color: #212529;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 main {
@@ -49,7 +51,7 @@ main {
     border: none;
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .card:hover {
@@ -144,6 +146,7 @@ main {
 /* Tables */
 .table {
     background-color: white;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .table thead th {
@@ -625,4 +628,52 @@ main {
 
 .shadow-sm-hover:hover {
     box-shadow: 0 0.125rem 0.25rem rgba(30, 94, 255, 0.2) !important;
+}
+
+/* Темная тема - дополнительные стили */
+[data-bs-theme="dark"] .chat-message.received {
+    background-color: #2d2d2d;
+}
+
+[data-bs-theme="dark"] .dse-status.active {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: #4ade80;
+}
+
+[data-bs-theme="dark"] .dse-status.pending {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: #facc15;
+}
+
+[data-bs-theme="dark"] .dse-status.completed {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+[data-bs-theme="dark"] .photo-with-error {
+    background-color: #2d2d2d;
+}
+
+[data-bs-theme="dark"] .file-upload-label {
+    background-color: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .file-upload-label:hover {
+    background-color: #3d3d3d;
+    border-color: #1E5EFF;
+}
+
+[data-bs-theme="dark"] .image-loading {
+    background: #2d2d2d;
+}
+
+[data-bs-theme="dark"] .image-loading::after {
+    color: #888888;
+}
+
+[data-bs-theme="dark"] .skeleton {
+    background: linear-gradient(to right, #2d2d2d 4%, #3d3d3d 25%, #2d2d2d 36%);
+    background-size: 1000px 100%;
 }
