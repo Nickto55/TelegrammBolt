@@ -90,8 +90,6 @@
                                     Чат</a></li>
                             {% endif %}
                             
-                            <li><a class="dropdown-item" href="{{ url_for('scan_invite_page') }}"><i
-                                        class="bi bi-qr-code-scan"></i> Сканировать QR</a></li>
                             
                             {% if permissions.admin_panel %}
                             <li>
@@ -119,9 +117,10 @@
                                     Профиль</a></li>
                             
                             {% if session.auth_type != 'qr' %}
-                            <li><a class="dropdown-item" href="{{ url_for('change_password_page') }}"><i
-                                        class="bi bi-key"></i> Сменить пароль</a></li>
                             {% endif %}
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i
                                         class="bi bi-box-arrow-right"></i> Выход</a></li>
