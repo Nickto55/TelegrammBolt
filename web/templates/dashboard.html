@@ -253,7 +253,7 @@
 // Данные для диаграммы
 const problemTypesData = {
     labels: [
-        {% for problem_type, count in stats.problem_types.items() %}
+        {% for problem_type, count in stats.problem_types.items() | sort(attribute='1', reverse=true) %}
         "{{ problem_type }}",
         {% endfor %}
     ],
