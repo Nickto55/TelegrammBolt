@@ -725,19 +725,31 @@ def admin_auth():
         username = auth_data.get('username', '').strip()
         password = auth_data.get('password', '').strip()
         
+        # Загружаем админ-креды СВЕЖИЕ из файла каждый раз
+        import json
+        credentials_file = 'web_credentials.json'
+        admin_credentials = {}
         
-
-        # Загружаем админ-креды из config
-        import config.config as config
-        admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
+        if os.path.exists(credentials_file):
+            try:
+                with open(credentials_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for user, creds in data.items():
+                        admin_credentials[user] = creds.get('password_hash', '')
+                        admin_credentials[f'{user}_user_id'] = creds.get('telegram_user_id') or creds.get('user_id')
+            except Exception as e:
+                logger.error(f"Error loading web_credentials.json: {e}")
+        
+        logger.info(f"Admin auth attempt for '{username}'. Loaded credentials: {list(admin_credentials.keys())}")
 
         # Проверка логина/пароля (безопасно, через get чтобы избежать KeyError)
         hashed_input = hashlib.sha256(password.encode()).hexdigest()
         stored_hash = admin_credentials.get(username)
 
-        logger.info(f"1, {stored_hash and stored_hash == hashed_input,stored_hash,hashed_input}")
+        logger.info(f"Admin auth: username={username}, hash_match={stored_hash == hashed_input if stored_hash else False}")
+        
         if stored_hash and stored_hash == hashed_input:
-            # Получаем user_id админа из конфига или создаём специальный
+            # Получаем user_id админа из файла или создаём специальный
             admin_user_id = admin_credentials.get(f'{username}_user_id', f'admin_{username}')
             
             # Проверяем, что пользователь зарегистрирован и является админом
@@ -762,9 +774,8 @@ def admin_auth():
             session['photo_url'] = ''
             session['auth_type'] = 'admin'  # Помечаем тип авторизации
             
-            logger.info(f"Admin {username} logged in via credentials")
+            logger.info(f"Admin {username} (ID: {admin_user_id}) logged in via credentials")
             redirect_url = url_for('dashboard')
-            logger.info(f"Redirecting to: {redirect_url}")
             
             return jsonify({
                 'success': True,
@@ -772,10 +783,9 @@ def admin_auth():
             })
         else:
             if stored_hash is None:
-                logger.warning(f"Admin auth failed: username '{username}' not found")
+                logger.warning(f"Admin auth failed: username '{username}' not found in web_credentials.json")
                 return jsonify({'error': 'Такого пользователя не существует'}), 401
-            logger.info(f"Попытка авторизации. auth_data: {auth_data}")
-            logger.info(f"Admin auth failed for '{username}': stored_hash_present={stored_hash is not None}, hashed_match={stored_hash==hashed_input if stored_hash else False}")
+            logger.warning(f"Admin auth failed for '{username}': invalid password")
             return jsonify({'error': 'Неверный логин или пароль'}), 401
     
     except Exception as e:

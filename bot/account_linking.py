@@ -422,6 +422,7 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
     if existing_web_user_id:
         # Обновляем существующий аккаунт
         import logging
+        from config.config import save_admin_credentials
         logger = logging.getLogger(__name__)
         
         old_email = linking_data["web_users"][existing_web_user_id].get("email", "")
@@ -429,13 +430,21 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
         linking_data["web_users"][existing_web_user_id]["password_hash"] = password_hash
         linking_data["web_users"][existing_web_user_id]["password_changed_at"] = datetime.now().isoformat()
         
-        # ВАЖНО: Сохраняем изменения!
+        # ВАЖНО: Сохраняем изменения в account_linking.json!
         save_linking_data(linking_data)
+        
+        # ВАЖНО: Также сохраняем в admin_credentials для входа через веб-форму!
+        save_admin_credentials(username, password_hash, telegram_id)
+        
         logger.info(f"create_or_update_web_credentials: Обновлен аккаунт {existing_web_user_id}, email {old_email} -> {username}")
         
         return {"success": True, "message": "Логин и пароль обновлены", "web_user_id": existing_web_user_id}
     else:
         # Создаём новый веб-аккаунт
+        import logging
+        from config.config import save_admin_credentials
+        logger = logging.getLogger(__name__)
+        
         user_data = get_user_data(telegram_id)
         web_user_id = f"web_{int(datetime.now().timestamp())}"
         
@@ -449,5 +458,12 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
             "role": user_role
         }
         
+        # ВАЖНО: Сохраняем изменения в account_linking.json!
         save_linking_data(linking_data)
+        
+        # ВАЖНО: Также сохраняем в admin_credentials для входа через веб-форму!
+        save_admin_credentials(username, password_hash, telegram_id)
+        
+        logger.info(f"create_or_update_web_credentials: Создан аккаунт {web_user_id}, username: {username}")
+        
         return {"success": True, "message": "Веб-аккаунт создан", "web_user_id": web_user_id}
