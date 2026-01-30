@@ -279,7 +279,7 @@ function displayTableView() {
         tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Нет данных для отображения</td></tr>';
         return;
     }
-    logger.info(item)
+    
     tbody.innerHTML = pageData.map(item => `
         <tr>
             <td><strong>${item.dse || '-'}</strong></td>
