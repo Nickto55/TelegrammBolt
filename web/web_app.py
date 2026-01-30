@@ -760,10 +760,8 @@ def admin_auth():
         if stored_hash and stored_hash == hashed_input:
             # Получаем user_id админа из файла или создаём специальный
             admin_user_id = admin_credentials.get(f'{username}_user_id', f'admin_{username}')
-            # Получаем роль из файла (по умолчанию 'initiator')
-            user_role = admin_credentials.get(f'{username}_role', 'initiator')
             
-            logger.info(f"Admin auth: username={username}, user_id={admin_user_id}, role={user_role}")
+            logger.info(f"Admin auth: username={username}, user_id={admin_user_id}")
             
             # Проверяем, что пользователь зарегистрирован
             users_data = get_users_data()
@@ -771,9 +769,11 @@ def admin_auth():
                 # Регистрируем пользователя если его нет
                 register_user(admin_user_id, username, 'Пользователь', '')
             
-            # Устанавливаем роль из web_credentials.json (НЕ всегда admin!)
-            from bot.user_manager import set_user_role
-            set_user_role(admin_user_id, user_role)
+            # ПОЛУЧАЕМ ПРАВИЛЬНУЮ РОЛЬ ИЗ users_data.json (не из web_credentials.json!)
+            from bot.user_manager import get_user_role
+            user_role = get_user_role(admin_user_id)
+            
+            logger.info(f"Admin auth: Using role from users_data: {user_role}")
             
             # Сохранение данных в сессию
             session.permanent = True
