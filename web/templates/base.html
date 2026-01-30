@@ -70,10 +70,7 @@
                             {{ session.first_name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            {% if permissions.dashboard %}
-                            <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i
-                                        class="bi bi-speedometer2"></i> Панель управления</a></li>
-                            {% endif %}
+                            
                             
                             {% if permissions.view_dse %}
                             <li><a class="dropdown-item" href="{{ url_for('dse_list') }}"><i class="bi bi-list-ul"></i>
@@ -103,9 +100,18 @@
                             <li><a class="dropdown-item" href="{{ url_for('invites_page') }}"><i
                                         class="bi bi-qr-code"></i> QR Приглашения</a></li>
                             {% endif %}
+
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+
                             {% if permissions.terminal %}
                             <li><a class="dropdown-item" href="{{ url_for('terminal') }}"><i class="bi bi-terminal"></i>
                                     Веб-терминал</a></li>
+                            {% endif %}
+                            {% if permissions.dashboard %}
+                            <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i
+                                        class="bi bi-speedometer2"></i> Панель управления</a></li>
                             {% endif %}
                             {% endif %}
                             
@@ -121,7 +127,7 @@
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
-                            
+
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i
                                         class="bi bi-box-arrow-right"></i> Выход</a></li>
                         </ul>
