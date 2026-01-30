@@ -319,7 +319,6 @@
             </div>
 
             <!-- Действия -->
-            {% if permissions.export_data %}
             <div class="card shadow-sm">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
@@ -328,10 +327,16 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    <a href="{{ url_for('chat') }}?dse={{ dse.get('dse', '') }}" 
+                       class="btn btn-info w-100 mb-2">
+                        <i class="bi bi-chat-dots me-2"></i>
+                        Открыть чат по ДСЕ
+                    </a>
                     <button class="btn btn-primary w-100 mb-2" onclick="window.print()">
                         <i class="bi bi-printer me-2"></i>
                         Печать
                     </button>
+                    {% if permissions.export_data %}
                     <a href="{{ url_for('pdf_export_page') }}?preselect={{ dse.get('dse', '') }}" 
                        class="btn btn-danger w-100 mb-2">
                         <i class="bi bi-file-pdf me-2"></i>
@@ -342,9 +347,9 @@
                         <i class="bi bi-file-excel me-2"></i>
                         Экспорт в Excel
                     </a>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>
