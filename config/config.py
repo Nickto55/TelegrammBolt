@@ -295,9 +295,12 @@ def load_admin_credentials():
             # Обновление ADMIN_CREDENTIALS
             for username, creds in data.items():
                 ADMIN_CREDENTIALS[username] = creds['password_hash']
+                print(f"Загружен веб-пользователь: {username}")
                 # Используем telegram_user_id если есть, иначе user_id
                 user_id = creds.get('telegram_user_id') or creds.get('user_id')
+                print(f" - Привязан к Telegram ID: {user_id}")
                 ADMIN_CREDENTIALS[f'{username}_user_id'] = user_id
+                print(f" - Роль: {creds.get('role', 'initiator')}")
                 # Добавляем роль
                 ADMIN_CREDENTIALS[f'{username}_role'] = creds.get('role', 'initiator')
             
@@ -307,6 +310,4 @@ def load_admin_credentials():
 
 # Загрузка сохранённых учётных данных при старте
 load_admin_credentials()
-
-print(f"ℹ️  Веб-админ логин: admin / admin123 (измените пароль в config.py!)")
 

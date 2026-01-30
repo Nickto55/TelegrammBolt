@@ -467,3 +467,59 @@ def create_or_update_web_credentials(telegram_id, username, password_hash, email
         logger.info(f"create_or_update_web_credentials: Создан аккаунт {web_user_id}, username: {username}")
         
         return {"success": True, "message": "Веб-аккаунт создан", "web_user_id": web_user_id}
+
+
+def admin_change_password(web_user_id, new_password_hash):
+    """
+    Администраторская функция для смены пароля пользователя по web_user_id
+    Используется скриптом manage.sh для сброса пароля
+    
+    Args:
+        web_user_id: ID веб-пользователя (например: web_123456)
+        new_password_hash: SHA256 хеш нового пароля
+    
+    Returns:
+        dict: результат операции
+    """
+    import logging
+    from config.config import save_admin_credentials
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        linking_data = load_linking_data()
+        
+        # Ищем пользователя в account_linking.json
+        if web_user_id not in linking_data.get("web_users", {}):
+            return {"success": False, "error": f"Пользователь {web_user_id} не найден"}
+        
+        user_data = linking_data["web_users"][web_user_id]
+        
+        # Обновляем пароль в account_linking.json
+        linking_data["web_users"][web_user_id]["password_hash"] = new_password_hash
+        linking_data["web_users"][web_user_id]["password_changed_at"] = datetime.now().isoformat()
+        
+        # Сохраняем в account_linking.json
+        save_linking_data(linking_data)
+        
+        # Также сохраняем в web_credentials.json через save_admin_credentials
+        email = user_data.get("email", "")
+        telegram_id = user_data.get("telegram_id")
+        role = user_data.get("role", "initiator")
+        
+        if email:
+            save_admin_credentials(email, new_password_hash, telegram_id, role=role)
+            logger.info(f"admin_change_password: Пароль изменен для пользователя {web_user_id} (email: {email})")
+        else:
+            logger.warning(f"admin_change_password: Email не найден для {web_user_id}, сохранено только в account_linking.json")
+        
+        return {
+            "success": True,
+            "message": "Пароль успешно изменен",
+            "web_user_id": web_user_id,
+            "email": email
+        }
+    
+    except Exception as e:
+        logger.error(f"admin_change_password: Ошибка: {e}")
+        return {"success": False, "error": str(e)}

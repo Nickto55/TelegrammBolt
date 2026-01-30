@@ -675,6 +675,9 @@ def telegram_auth():
         
         user_id = str(auth_data['id'])
         
+        # ВАЖНО: Очищаем старую сессию перед новым логином
+        session.clear()
+        
         # Проверка регистрации пользователя в боте
         users_data = get_users_data()
         if user_id not in users_data:
@@ -701,6 +704,7 @@ def telegram_auth():
         session['last_name'] = auth_data.get('last_name', '')
         session['username'] = auth_data.get('username', '')
         session['photo_url'] = auth_data.get('photo_url', '')
+        session['auth_type'] = 'telegram'
         
         logger.info(f"User {user_id} logged in via Telegram")
         
@@ -725,6 +729,9 @@ def admin_auth():
         username = auth_data.get('username', '').strip()
         password = auth_data.get('password', '').strip()
         
+        # ВАЖНО: Очищаем старую сессию перед новым логином
+        session.clear()
+        
         # Загружаем админ-креды СВЕЖИЕ из файла каждый раз
         import json
         credentials_file = 'web_credentials.json'
@@ -737,6 +744,8 @@ def admin_auth():
                     for user, creds in data.items():
                         admin_credentials[user] = creds.get('password_hash', '')
                         admin_credentials[f'{user}_user_id'] = creds.get('telegram_user_id') or creds.get('user_id')
+                        # Добавляем роль
+                        admin_credentials[f'{user}_role'] = creds.get('role', 'initiator')
             except Exception as e:
                 logger.error(f"Error loading web_credentials.json: {e}")
         
@@ -808,6 +817,9 @@ def qr_auth():
             logger.error("qr_auth: Код приглашения не указан")
             return jsonify({'error': 'Код приглашения не указан'}), 400
         
+        # ВАЖНО: Очищаем старую сессию перед новым логином
+        session.clear()
+        
         # Проверяем и используем приглашение
         from bot.invite_manager import use_invite, validate_invite
         
@@ -859,6 +871,7 @@ def qr_auth():
         session['last_name'] = ''
         session['username'] = ''
         session['photo_url'] = ''
+        session['auth_type'] = 'qr'
         session['auth_type'] = 'qr'
         session['telegram_linked'] = False  # Telegram не подключен
         
