@@ -107,8 +107,8 @@
                         <table class="table table-hover table-striped mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width: 8%;">ДСЕ</th>
-                                    <th style="width: 15%;">Тип проблемы</th>
+                                    <th style="width: 15%;">ДСЕ</th>
+                                    <th style="width: 8%;">Тип проблемы</th>
                                     <th style="width: 8%;">Станок</th>
                                     <th style="width: 12%;">Наладчик</th>
                                     <th style="width: 12%;">Программист</th>
@@ -282,7 +282,7 @@ function displayTableView() {
     
     tbody.innerHTML = pageData.map(item => `
         <tr>
-            <td><strong>${item.dse || '-'}</strong></td>
+            <td><strong>${item.dse || '-'} - ${item.dse_name || '-'}</strong></td>
             <td><span class="badge bg-info">${item.problem_type || 'Не указано'}</span></td>
             <td>${item.machine_number || '-'}</td>
             <td><small>${item.installer_fio || '-'}</small></td>
@@ -315,7 +315,7 @@ function displayCardView() {
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
                     <h5 class="card-title">
-                        <i class="bi bi-file-earmark-text text-primary"></i> ${item.dse || 'Без номера'}
+                        <i class="bi bi-file-earmark-text text-primary"></i> ${item.dse || 'Без номера'} - ${item.dse_name || 'Без наименования'}
                     </h5>
                     <h6 class="card-subtitle mb-2">
                         <span class="badge bg-info">${item.problem_type || 'Не указано'}</span>

@@ -171,6 +171,58 @@
         </div>
     </div>
 </div>
+
+<!-- Модальное окно редактирования персональных данных -->
+<div class="modal fade" id="editProfileModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Редактирование данных профиля</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="editFirstName" class="form-label fw-bold">Имя:</label>
+                    <input type="text" class="form-control" id="editFirstName" placeholder="Введите ваше имя">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="editLastName" class="form-label fw-bold">Фамилия:</label>
+                    <input type="text" class="form-control" id="editLastName" placeholder="Введите вашу фамилию">
+                </div>
+                
+                <hr>
+                
+                <h6 class="mb-3">Смена пароля</h6>
+                
+                <div class="alert alert-info">
+                    <small><i class="bi bi-info-circle"></i> Оставьте поля пусты, если не хотите менять пароль</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="editCurrentPassword" class="form-label fw-bold">Текущий пароль:</label>
+                    <input type="password" class="form-control" id="editCurrentPassword" placeholder="Введите текущий пароль">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="editNewPassword" class="form-label fw-bold">Новый пароль:</label>
+                    <input type="password" class="form-control" id="editNewPassword" placeholder="Введите новый пароль">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="editConfirmPassword" class="form-label fw-bold">Подтвердите пароль:</label>
+                    <input type="password" class="form-control" id="editConfirmPassword" placeholder="Подтвердите новый пароль">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveProfileChanges()">
+                    <i class="bi bi-save"></i> Сохранить изменения
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -247,6 +299,11 @@ function testEmailNotification() {
 // Загрузка статистики
 document.addEventListener('DOMContentLoaded', function() {
     loadUserStats();
+
+    // Загружаем текущие данные профиля при открытии модального окна
+    document.getElementById('editProfileModal').addEventListener('show.bs.modal', function() {
+        loadProfileData();
+    });
 });
 
 function loadUserStats() {
@@ -261,6 +318,86 @@ function loadUserStats() {
         .catch(error => {
             console.error('Ошибка загрузки статистики:', error);
         });
+}
+
+function loadProfileData() {
+    const firstNameEl = document.querySelector('table tr:nth-child(2) td');
+    const fullName = firstNameEl ? firstNameEl.textContent.trim() : '{{ session.first_name }} {{ session.last_name }}';
+    
+    const nameParts = fullName.split(' ');
+    const firstName = nameParts[0] || '{{ session.first_name }}';
+    const lastName = nameParts.slice(1).join(' ') || '{{ session.last_name }}';
+    
+    document.getElementById('editFirstName').value = firstName;
+    document.getElementById('editLastName').value = lastName;
+    
+    document.getElementById('editCurrentPassword').value = '';
+    document.getElementById('editNewPassword').value = '';
+    document.getElementById('editConfirmPassword').value = '';
+}
+
+function saveProfileChanges() {
+    const firstName = document.getElementById('editFirstName').value.trim();
+    const lastName = document.getElementById('editLastName').value.trim();
+    const currentPassword = document.getElementById('editCurrentPassword').value;
+    const newPassword = document.getElementById('editNewPassword').value;
+    const confirmPassword = document.getElementById('editConfirmPassword').value;
+    
+    if (!firstName) {
+        alert('Пожалуйста, введите имя');
+        return;
+    }
+    
+    if (newPassword && newPassword !== confirmPassword) {
+        alert('Новый пароль и подтверждение не совпадают');
+        return;
+    }
+    
+    if (newPassword && newPassword.length < 6) {
+        alert('Новый пароль должен быть не менее 6 символов');
+        return;
+    }
+    
+    if (newPassword && !currentPassword) {
+        alert('Для смены пароля введите текущий пароль');
+        return;
+    }
+    
+    const updateData = {
+        first_name: firstName,
+        last_name: lastName
+    };
+    
+    if (newPassword) {
+        updateData.current_password = currentPassword;
+        updateData.new_password = newPassword;
+    }
+    
+    fetch('/api/profile/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const modalElement = document.getElementById('editProfileModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+            alert('Данные профиля успешно обновлены!');
+            location.reload();
+        } else {
+            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('Ошибка при сохранении изменений');
+    });
 }
 </script>
 
@@ -277,163 +414,4 @@ function loadUserStats() {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 </style>
-
-<!-- Модальное окно редактирования персональных данных -->
-<div class="modal fade" id="editProfileModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-pencil"></i> Редактирование данных профиля</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label for="editFirstName" class="form-label fw-bold">Имя:</label>
-                    <input type="text" class="form-control" id="editFirstName" placeholder="Введите ваше имя">
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editLastName" class="form-label fw-bold">Фамилия:</label>
-                    <input type="text" class="form-control" id="editLastName" placeholder="Введите вашу фамилию">
-                </div>
-                
-                <hr>
-                
-                <h6 class="mb-3">Смена пароля</h6>
-                
-                <div class="alert alert-info">
-                    <small><i class="bi bi-info-circle"></i> Оставьте поля пусты, если не хотите менять пароль</small>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editCurrentPassword" class="form-label fw-bold">Текущий пароль:</label>
-                    <input type="password" class="form-control" id="editCurrentPassword" placeholder="Введите текущий пароль">
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editNewPassword" class="form-label fw-bold">Новый пароль:</label>
-                    <input type="password" class="form-control" id="editNewPassword" placeholder="Введите новый пароль">
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editConfirmPassword" class="form-label fw-bold">Подтвердите пароль:</label>
-                    <input type="password" class="form-control" id="editConfirmPassword" placeholder="Подтвердите новый пароль">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="saveProfileChanges()">
-                    <i class="bi bi-save"></i> Сохранить изменения
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', function() {
-    // Загружаем текущие данные профиля при открытии модального окна
-    document.getElementById('editProfileModal').addEventListener('show.bs.modal', function() {
-        loadProfileData();
-    });
-});
-
-function loadProfileData() {
-    // Получаем данные из сессии (из шаблона)
-    const firstNameEl = document.querySelector('table tr:nth-child(2) td');
-    const fullName = firstNameEl ? firstNameEl.textContent.trim() : '{{ session.first_name }} {{ session.last_name }}';
-    
-    // Простое разделение на имя и фамилию
-    const nameParts = fullName.split(' ');
-    const firstName = nameParts[0] || '{{ session.first_name }}';
-    const lastName = nameParts.slice(1).join(' ') || '{{ session.last_name }}';
-    
-    document.getElementById('editFirstName').value = firstName;
-    document.getElementById('editLastName').value = lastName;
-    
-    // Очищаем поля пароля
-    document.getElementById('editCurrentPassword').value = '';
-    document.getElementById('editNewPassword').value = '';
-    document.getElementById('editConfirmPassword').value = '';
-}
-
-function saveProfileChanges() {
-    const firstName = document.getElementById('editFirstName').value.trim();
-    const lastName = document.getElementById('editLastName').value.trim();
-    const currentPassword = document.getElementById('editCurrentPassword').value;
-    const newPassword = document.getElementById('editNewPassword').value;
-    const confirmPassword = document.getElementById('editConfirmPassword').value;
-    
-    // Валидация
-    if (!firstName) {
-        alert('Пожалуйста, введите имя');
-        return;
-    }
-    
-    // Проверка совпадения паролей
-    if (newPassword && newPassword !== confirmPassword) {
-        alert('Новый пароль и подтверждение не совпадают');
-        return;
-    }
-    
-    // Проверка длины нового пароля
-    if (newPassword && newPassword.length < 6) {
-        alert('Новый пароль должен быть не менее 6 символов');
-        return;
-    }
-    
-    // Если меняем пароль, проверяем текущий пароль
-    if (newPassword && !currentPassword) {
-        alert('Для смены пароля введите текущий пароль');
-        return;
-    }
-    
-    // Подготовка данных
-    const updateData = {
-        first_name: firstName,
-        last_name: lastName
-    };
-    
-    if (newPassword) {
-        updateData.current_password = currentPassword;
-        updateData.new_password = newPassword;
-    }
-    
-    // Отправка на сервер
-    fetch('/api/profile/update', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updateData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Закрытие модального окна
-            const modalElement = document.getElementById('editProfileModal');
-            const modalInstance = bootstrap.Modal.getInstance(modalElement);
-            if (modalInstance) {
-                modalInstance.hide();
-            }
-            
-            // Показ уведомления
-            alert('Данные профиля успешно обновлены!');
-            
-            // Перезагрузка страницы
-            location.reload();
-        } else {
-            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        alert('Ошибка при сохранении изменений');
-    });
-}
-</script>
 {% endblock %}

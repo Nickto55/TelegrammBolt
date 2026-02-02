@@ -9,7 +9,7 @@
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Главная</a></li>
             <li class="breadcrumb-item"><a href="{{ url_for('dse_list') }}">ДСЕ</a></li>
-            <li class="breadcrumb-item active">{{ dse.get('dse', 'N/A') }}</li>
+            <li class="breadcrumb-item active">{{ dse.get('dse', 'N/A') }} - {{ dse.get('dse_name', 'N/A') }}</li>
         </ol>
     </nav>
 
@@ -40,6 +40,10 @@
                         <div class="col-md-6">
                             <label class="text-muted small mb-1">Номер ДСЕ</label>
                             <h4 class="text-primary">{{ dse.get('dse', 'N/A') }}</h4>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small mb-1">Название ДСЕ</label>
+                            <h4 class="text-primary">{{ dse.get('dse_name', 'N/A') }}</h4>
                         </div>
                         <div class="col-md-6">
                             <label class="text-muted small mb-1">Дата создания</label>
