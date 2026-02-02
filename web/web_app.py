@@ -152,21 +152,23 @@ def inject_permissions():
     """Автоматически добавляет права пользователя во все шаблоны"""
     if 'user_id' in session:
         return {
-            'permissions': get_user_permissions(session['user_id'])
+            'permissions': get_user_permissions(session['user_id']),
+            'user_role': get_user_role(session['user_id'])
         }
     return {
-        'permissions': {}
+        'permissions': {},
+        'user_role': None
     }
 
-def get_all_dse():
+def get_all_dse(include_hidden: bool = False):
     """Обертка для получения всех ДСЕ"""
-    return get_all_dse_records()
+    return get_all_dse_records(include_hidden=include_hidden)
 
 
 def get_dse_by_id(dse_id):
     """Получить конкретное ДСЕ по ID (фильтрация из всех записей)"""
     try:
-        records = get_all_dse_records()
+        records = get_all_dse_records(include_hidden=True)
         if not records:
             logger.warning("get_all_dse_records() returned empty list")
             return None
@@ -279,34 +281,75 @@ def update_dse(dse_id, data):
 
 
 def delete_dse(dse_id):
-    """Удаление ДСЕ"""
+    """Скрытие ДСЕ (soft delete)"""
     try:
         from config.config import load_data, save_data, DATA_FILE
-        
+        from datetime import datetime
+
         # Загружаем данные
         data_dict = load_data(DATA_FILE)
-        
-        # Ищем и удаляем запись
+
+        # Ищем и скрываем запись
         found = False
         for user_id in data_dict:
             for i, record in enumerate(data_dict[user_id]):
                 if str(record.get('dse', '')) == str(dse_id) or str(i) == str(dse_id):
-                    del data_dict[user_id][i]
+                    if record.get('hidden'):
+                        return {"success": True, "message": "ДСЕ уже скрыто"}
+                    record['hidden'] = True
+                    record['hidden_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    record['hidden_by'] = str(session.get('user_id', ''))
+                    data_dict[user_id][i] = record
                     found = True
                     break
             if found:
                 break
-        
+
         if not found:
             return {"success": False, "error": "ДСЕ не найден"}
-        
+
         # Сохраняем
         save_data(data_dict, DATA_FILE)
-        
-        logger.info(f"DSE deleted: {dse_id}")
-        return {"success": True, "message": "ДСЕ успешно удален"}
+
+        logger.info(f"DSE hidden: {dse_id}")
+        return {"success": True, "message": "ДСЕ скрыто из списка"}
     except Exception as e:
         logger.error(f"Error in delete_dse: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+def restore_dse(dse_id):
+    """Восстановление скрытого ДСЕ"""
+    try:
+        from config.config import load_data, save_data, DATA_FILE
+
+        data_dict = load_data(DATA_FILE)
+
+        found = False
+        for user_id in data_dict:
+            for i, record in enumerate(data_dict[user_id]):
+                if str(record.get('dse', '')) == str(dse_id) or str(i) == str(dse_id):
+                    if not record.get('hidden'):
+                        return {"success": True, "message": "ДСЕ не скрыто"}
+                    record.pop('hidden', None)
+                    record.pop('hidden_at', None)
+                    record.pop('hidden_by', None)
+                    data_dict[user_id][i] = record
+                    found = True
+                    break
+            if found:
+                break
+
+        if not found:
+            return {"success": False, "error": "ДСЕ не найден"}
+
+        save_data(data_dict, DATA_FILE)
+        logger.info(f"DSE restored: {dse_id}")
+        return {"success": True, "message": "ДСЕ восстановлено"}
+    except Exception as e:
+        logger.error(f"Error in restore_dse: {e}")
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
@@ -339,17 +382,17 @@ def generate_pdf_report(options):
     """Генерация PDF отчета с новыми опциями"""
     import tempfile
     import zipfile
-    from telegram import Bot
-    import asyncio
+    from PyPDF2 import PdfMerger
     
     dse_numbers = options.get('dse_numbers', [])
     mode = options.get('mode', 'single')
-    include_photos = options.get('include_photos', True)
-    include_description = options.get('include_description', True)
-    include_user_info = options.get('include_user_info', True)
-    include_timestamp = options.get('include_timestamp', True)
-    page_format = options.get('page_format', 'A4')
-    page_orientation = options.get('page_orientation', 'portrait')
+    # Опции оставлены для совместимости с UI (формирование PDF в стиле bot/pdf_generator.py)
+    options.get('include_photos', True)
+    options.get('include_description', True)
+    options.get('include_user_info', True)
+    options.get('include_timestamp', True)
+    options.get('page_format', 'A4')
+    options.get('page_orientation', 'portrait')
     
     # Получаем записи по номерам ДСЕ
     all_records = get_all_dse()
@@ -360,106 +403,81 @@ def generate_pdf_report(options):
     
     logger.info(f"Generating PDF for {len(selected_records)} records in mode: {mode}")
     
-    if mode == 'single':
-        # Один PDF файл со всеми ДСЕ
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-        temp_file.close()
-        
-        try:
-            # Создаем PDF с множественными записями
-            from bot.pdf_generator import create_multi_dse_pdf_report
-            success = create_multi_dse_pdf_report(
-                selected_records, 
-                temp_file.name,
-                options={
-                    'include_photos': include_photos,
-                    'include_description': include_description,
-                    'include_user_info': include_user_info,
-                    'include_timestamp': include_timestamp,
-                    'page_format': page_format,
-                    'page_orientation': page_orientation,
-                    'bot_token': BOT_TOKEN if include_photos else None
-                }
-            )
-            
-            if not success:
-                raise Exception("Ошибка создания PDF файла")
-            
-            # Проверяем что файл существует и не пустой
-            if not os.path.exists(temp_file.name) or os.path.getsize(temp_file.name) == 0:
-                raise Exception("PDF файл пустой или не создан")
-            
-            logger.info(f"PDF created successfully: {temp_file.name}, size: {os.path.getsize(temp_file.name)} bytes")
-            return temp_file.name
-            
-        except Exception as e:
-            logger.error(f"Error creating PDF: {e}")
-            # Удаляем поврежденный файл
+    from bot.pdf_generator import create_dse_pdf_report
+
+    temp_pdfs = []
+    try:
+        for i, record in enumerate(selected_records):
+            temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+            temp_pdf.close()
+
+            pdf_path = create_dse_pdf_report(record, temp_pdf.name)
+            if not pdf_path or not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+                raise Exception(f"Ошибка создания PDF для записи {i + 1}")
+
+            temp_pdfs.append(pdf_path)
+
+        if mode == 'single':
+            if len(temp_pdfs) == 1:
+                logger.info(f"PDF created successfully: {temp_pdfs[0]}, size: {os.path.getsize(temp_pdfs[0])} bytes")
+                return temp_pdfs[0], 'pdf'
+
+            merged_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+            merged_pdf.close()
+
+            merger = PdfMerger()
             try:
-                if os.path.exists(temp_file.name):
-                    os.remove(temp_file.name)
-            except:
-                pass
-            raise
-    
-    else:
-        # Множественные PDF файлы в ZIP архиве
+                for pdf in temp_pdfs:
+                    merger.append(pdf)
+                merger.write(merged_pdf.name)
+            finally:
+                merger.close()
+
+            for pdf in temp_pdfs:
+                try:
+                    if os.path.exists(pdf):
+                        os.remove(pdf)
+                except Exception:
+                    pass
+
+            if not os.path.exists(merged_pdf.name) or os.path.getsize(merged_pdf.name) == 0:
+                raise Exception("PDF файл пустой или не создан")
+
+            logger.info(f"Merged PDF created successfully: {merged_pdf.name}, size: {os.path.getsize(merged_pdf.name)} bytes")
+            return merged_pdf.name, 'pdf'
+
         temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
         temp_zip.close()
-        
-        try:
-            with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for i, record in enumerate(selected_records):
-                    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-                    temp_pdf.close()
-                    
-                    try:
-                        # Создаем PDF для каждой записи
-                        from bot.pdf_generator import create_single_dse_pdf_report
-                        success = create_single_dse_pdf_report(
-                            record,
-                            temp_pdf.name,
-                            options={
-                                'include_photos': include_photos,
-                                'include_description': include_description,
-                                'include_user_info': include_user_info,
-                                'include_timestamp': include_timestamp,
-                                'page_format': page_format,
-                                'page_orientation': page_orientation,
-                                'bot_token': BOT_TOKEN if include_photos else None
-                            }
-                        )
-                        
-                        if success and os.path.exists(temp_pdf.name):
-                            # Добавляем в ZIP
-                            dse_safe = str(record.get('dse', f'dse_{i}')).replace('/', '_').replace('\\', '_')
-                            zipf.write(temp_pdf.name, f'DSE_{dse_safe}.pdf')
-                            logger.info(f"Added to ZIP: DSE_{dse_safe}.pdf")
-                        
-                    finally:
-                        # Удаляем временный PDF
-                        try:
-                            if os.path.exists(temp_pdf.name):
-                                os.remove(temp_pdf.name)
-                        except:
-                            pass
-            
-            # Проверяем что ZIP создан
-            if not os.path.exists(temp_zip.name) or os.path.getsize(temp_zip.name) == 0:
-                raise Exception("ZIP архив пустой или не создан")
-            
-            logger.info(f"ZIP created successfully: {temp_zip.name}, size: {os.path.getsize(temp_zip.name)} bytes")
-            return temp_zip.name
-            
-        except Exception as e:
-            logger.error(f"Error creating ZIP: {e}")
-            # Удаляем поврежденный файл
+
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for i, record in enumerate(selected_records):
+                pdf_path = temp_pdfs[i]
+                dse_safe = str(record.get('dse', f'dse_{i}')).replace('/', '_').replace('\\', '_')
+                zipf.write(pdf_path, f'DSE_{dse_safe}.pdf')
+                logger.info(f"Added to ZIP: DSE_{dse_safe}.pdf")
+
+        for pdf in temp_pdfs:
             try:
-                if os.path.exists(temp_zip.name):
-                    os.remove(temp_zip.name)
-            except:
+                if os.path.exists(pdf):
+                    os.remove(pdf)
+            except Exception:
                 pass
-            raise
+
+        if not os.path.exists(temp_zip.name) or os.path.getsize(temp_zip.name) == 0:
+            raise Exception("ZIP архив пустой или не создан")
+
+        logger.info(f"ZIP created successfully: {temp_zip.name}, size: {os.path.getsize(temp_zip.name)} bytes")
+        return temp_zip.name, 'zip'
+
+    except Exception as e:
+        logger.error(f"Error creating PDF/ZIP: {e}")
+        for pdf in temp_pdfs:
+            try:
+                if os.path.exists(pdf):
+                    os.remove(pdf)
+            except Exception:
+                pass
+        raise
 
 
 def save_users_data(users_data):
@@ -1865,8 +1883,13 @@ def api_get_dse():
     
     if not has_permission(user_id, 'view_dse'):
         return jsonify({'error': 'Доступ запрещен'}), 403
-    
-    dse_data = get_all_dse()
+
+    include_hidden = False
+    if request.args.get('include_hidden') in {'1', 'true', 'True'}:
+        if get_user_role(user_id) != 'user':
+            include_hidden = True
+
+    dse_data = get_all_dse(include_hidden=include_hidden)
     return jsonify(dse_data)
 
 
@@ -1926,6 +1949,19 @@ def api_delete_dse(dse_id):
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     result = delete_dse(dse_id)
+    return jsonify(result)
+
+
+@app.route('/api/dse/<int:dse_id>/restore', methods=['POST'])
+@login_required
+def api_restore_dse(dse_id):
+    """API: Восстановить скрытое ДСЕ"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'delete_dse'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    result = restore_dse(dse_id)
     return jsonify(result)
 
 
@@ -2014,6 +2050,150 @@ def api_export_excel():
         return jsonify({'error': f'Ошибка экспорта: {str(e)}'}), 500
 
 
+@app.route('/api/export/report', methods=['GET'])
+@login_required
+def api_export_report():
+    """API: Экспорт отчёта из страницы /reports"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'export_data'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    try:
+        import tempfile
+        import pandas as pd
+
+        report_type = request.args.get('type', 'summary')
+        date_from = request.args.get('dateFrom')
+        date_to = request.args.get('dateTo')
+        status = request.args.get('status')
+
+        dse_data = get_all_dse()
+        if not dse_data:
+            return jsonify({'error': 'Нет данных для экспорта'}), 400
+
+        def parse_dse_date(record):
+            raw = record.get('created_at') or record.get('datetime') or record.get('date')
+            if not raw:
+                return None
+            try:
+                return datetime.fromisoformat(str(raw))
+            except Exception:
+                try:
+                    return datetime.fromisoformat(str(raw).replace(' ', 'T'))
+                except Exception:
+                    return None
+
+        filtered = list(dse_data)
+
+        if status:
+            filtered = [dse for dse in filtered if dse.get('status') == status]
+
+        from_dt = datetime.fromisoformat(date_from) if date_from else None
+        to_dt = datetime.fromisoformat(date_to) if date_to else None
+
+        if from_dt or to_dt:
+            filtered_with_dates = []
+            for dse in filtered:
+                dse_date = parse_dse_date(dse)
+                if not dse_date:
+                    continue
+                if from_dt and dse_date < from_dt:
+                    continue
+                if to_dt:
+                    to_dt_end = to_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    if dse_date > to_dt_end:
+                        continue
+                filtered_with_dates.append(dse)
+            filtered = filtered_with_dates
+
+        if not filtered:
+            return jsonify({'error': 'Нет данных для экспорта'}), 400
+
+        if report_type == 'detailed':
+            rows = []
+            for dse in filtered:
+                dse_date = parse_dse_date(dse)
+                rows.append({
+                    'ID': dse.get('id') or '',
+                    'Дата': dse_date.strftime('%d.%m.%Y') if dse_date else '',
+                    'Адрес': dse.get('address') or '',
+                    'Проблема': dse.get('problem_type') or '',
+                    'Статус': dse.get('status') or ''
+                })
+            df = pd.DataFrame(rows)
+        elif report_type == 'byProblem':
+            counts = {}
+            for dse in filtered:
+                problem = dse.get('problem_type') or 'Не указано'
+                counts[problem] = counts.get(problem, 0) + 1
+            rows = []
+            total = len(filtered)
+            for problem, count in sorted(counts.items(), key=lambda x: x[1], reverse=True):
+                rows.append({
+                    'Тип проблемы': problem,
+                    'Количество': count,
+                    'Процент': round((count / total) * 100, 1)
+                })
+            df = pd.DataFrame(rows)
+        elif report_type == 'byUser':
+            counts = {}
+            for dse in filtered:
+                user = dse.get('username') or dse.get('user_id') or 'Неизвестно'
+                counts[user] = counts.get(user, 0) + 1
+            rows = []
+            for user, count in sorted(counts.items(), key=lambda x: x[1], reverse=True):
+                rows.append({
+                    'Пользователь': user,
+                    'Количество заявок': count
+                })
+            df = pd.DataFrame(rows)
+        else:
+            counts = {}
+            for dse in filtered:
+                st = dse.get('status') or 'Не указано'
+                counts[st] = counts.get(st, 0) + 1
+            rows = []
+            total = len(filtered)
+            for st, count in counts.items():
+                rows.append({
+                    'Статус': st,
+                    'Количество': count,
+                    'Процент': round((count / total) * 100, 1)
+                })
+            df = pd.DataFrame(rows)
+
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        temp_file.close()
+
+        with pd.ExcelWriter(temp_file.name, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Отчет')
+            worksheet = writer.sheets['Отчет']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except Exception:
+                        pass
+                worksheet.column_dimensions[column_letter].width = min(max_length + 2, 50)
+
+        filename = f'report_{report_type}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        logger.error(f"Report export error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Ошибка экспорта: {str(e)}'}), 500
+
+
 @app.route('/api/export/pdf', methods=['POST'])
 @login_required
 def api_export_pdf():
@@ -2029,10 +2209,10 @@ def api_export_pdf():
         if not options.get('dse_numbers'):
             return jsonify({'error': 'Не указаны номера ДСЕ'}), 400
         
-        pdf_path = generate_pdf_report(options)
+        pdf_path, output_type = generate_pdf_report(options)
         
         # Определяем MIME тип и имя файла
-        if options.get('mode') == 'multiple':
+        if output_type == 'zip':
             mimetype = 'application/zip'
             download_name = f'DSE_Export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip'
         else:
