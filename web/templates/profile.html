@@ -38,7 +38,7 @@
                         {% if session.username %}
                         <tr>
                             <th>Username:</th>
-                            <td>@{{ session.username }}</td>
+                            <td>{{ session.username }}</td>
                         </tr>
                         {% endif %}
                         <tr>
@@ -202,14 +202,14 @@ function saveEmailSubscription() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('✅ Настройки сохранены успешно!');
+            alert('Настройки сохранены успешно!');
         } else {
-            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
         }
     })
     .catch(error => {
         console.error('Ошибка:', error);
-        alert('❌ Ошибка при сохранении настроек');
+        alert('Ошибка при сохранении настроек');
     });
 }
 
@@ -233,14 +233,14 @@ function testEmailNotification() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('✅ Тестовое письмо отправлено! Проверьте почту.');
+            alert('Тестовое письмо отправлено! Проверьте почту.');
         } else {
-            alert('❌ Ошибка отправки: ' + (data.error || 'Неизвестная ошибка'));
+            alert('Ошибка отправки: ' + (data.error || 'Неизвестная ошибка'));
         }
     })
     .catch(error => {
         console.error('Ошибка:', error);
-        alert('❌ Ошибка при отправке письма');
+        alert('Ошибка при отправке письма');
     });
 }
 
@@ -370,25 +370,25 @@ function saveProfileChanges() {
     
     // Валидация
     if (!firstName) {
-        alert('❌ Пожалуйста, введите имя');
+        alert('Пожалуйста, введите имя');
         return;
     }
     
     // Проверка совпадения паролей
     if (newPassword && newPassword !== confirmPassword) {
-        alert('❌ Новый пароль и подтверждение не совпадают');
+        alert('Новый пароль и подтверждение не совпадают');
         return;
     }
     
     // Проверка длины нового пароля
     if (newPassword && newPassword.length < 6) {
-        alert('❌ Новый пароль должен быть не менее 6 символов');
+        alert('Новый пароль должен быть не менее 6 символов');
         return;
     }
     
     // Если меняем пароль, проверяем текущий пароль
     if (newPassword && !currentPassword) {
-        alert('❌ Для смены пароля введите текущий пароль');
+        alert('Для смены пароля введите текущий пароль');
         return;
     }
     
@@ -422,17 +422,17 @@ function saveProfileChanges() {
             }
             
             // Показ уведомления
-            alert('✅ Данные профиля успешно обновлены!');
+            alert('Данные профиля успешно обновлены!');
             
             // Перезагрузка страницы
             location.reload();
         } else {
-            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
         }
     })
     .catch(error => {
         console.error('Ошибка:', error);
-        alert('❌ Ошибка при сохранении изменений');
+        alert('Ошибка при сохранении изменений');
     });
 }
 </script>

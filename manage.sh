@@ -5,6 +5,7 @@
 
 # Цвета
 RED='\033[0;31m'
+ORANGE='\033[0;33m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -27,7 +28,7 @@ DEFAULT_TERMINAL_PORT=5001
 show_header() {
     clear
     echo -e "${WHITE}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${WHITE}║${NC}        ${WHITE}TelegramBolt Management Panel    ${NC}                 ${CYAN}║${NC}"
+    echo -e "${WHITE}║${NC}        ${WHITE}TelegramBolt Management Panel    ${NC}                 ${WHITE}║${NC}"
     echo -e "${WHITE}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -246,16 +247,16 @@ start_web_terminal() {
     
     echo -e "${WHITE}Сервер запущен на порту: ${GREEN}$WEB_PORT${NC}"
     echo ""
-    echo -e "${YELLOW}Откройте в браузере один из адресов:${NC}"
-    echo -e "  ${GREEN}http://${SERVER_IP}:${WEB_PORT}${NC}"
+    echo -e "${WHITE}Откройте в браузере один из адресов:${NC}"
+    echo -e "  ${BLUE}}http://${SERVER_IP}:${WEB_PORT}${NC}"
     if [ ! -z "$HOSTNAME" ]; then
-        echo -e "  ${GREEN}http://${HOSTNAME}:${WEB_PORT}${NC}"
+        echo -e "  ${BLUE}http://${HOSTNAME}:${WEB_PORT}${NC}"
     fi
-    echo -e "  ${GREEN}http://localhost:${WEB_PORT}${NC} ${YELLOW}(если на этом же компьютере)${NC}"
+    echo -e "  ${BLUE}http://localhost:${WEB_PORT}${NC} ${GREEN}(если на этом же компьютере)${NC}"
     echo ""
-    echo -e "${CYAN}Веб-терминал:${NC}"
-    echo -e "  ${GREEN}http://${SERVER_IP}:${WEB_PORT}/terminal${NC}"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${WHITE}Веб-терминал:${NC}"
+    echo -e "  ${BLUE}http://${SERVER_IP}:${WEB_PORT}/terminal${NC}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Для остановки нажмите Ctrl+C${NC}"
     echo ""
     
@@ -310,7 +311,7 @@ check_status() {
     done
     
     if [ "$HAS_RUNNING" = false ]; then
-        echo -e "${YELLOW}⚠ Все стандартные порты (5000, 5001, 8080, 3000) свободны${NC}"
+        echo -e "${YELLOW} Все стандартные порты (5000, 5001, 8080, 3000) свободны${NC}"
     fi
     echo ""
     read -p "Нажмите Enter для продолжения..."
@@ -318,22 +319,22 @@ check_status() {
 
 update_project() {
     show_header
-    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}  Обновление проекта${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${WHITE}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${WHITE}  Обновление проекта${NC}"
+    echo -e "${WHITE}═══════════════════════════════════════════════════════════${NC}"
     echo ""
     
     # Проверка git
     if ! command -v git &> /dev/null; then
-        echo -e "${RED}✗ Git не установлен${NC}"
+        echo -e "${RED}Git не установлен${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
     
     # Проверка наличия git репозитория
     if [ ! -d "$PROJECT_DIR/.git" ]; then
-        echo -e "${YELLOW}⚠ Это не git репозиторий${NC}"
-        echo -e "${YELLOW}  Обновление через git недоступно${NC}"
+        echo -e "${RED} Это не git репозиторий${NC}"
+        echo -e "${ORANGE}  Обновление через git недоступно${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
@@ -342,13 +343,13 @@ update_project() {
     SCRIPT_PATH="$(readlink -f "$0")"
     OLD_HASH=$(md5sum "$SCRIPT_PATH" 2>/dev/null | awk '{print $1}')
     
-    echo -e "${YELLOW}Текущая ветка:${NC} $(git branch --show-current)"
-    echo -e "${YELLOW}Последний коммит:${NC} $(git log -1 --oneline)"
+    echo -e "${WHITE}Текущая ветка:${NC} $(git branch --show-current)"
+    echo -e "${BLUE}Последний коммит:${NC} $(git log -1 --oneline)"
     echo ""
     
     # Проверка изменений
     if [ -n "$(git status --porcelain)" ]; then
-        echo -e "${YELLOW}⚠ Обнаружены локальные изменения:${NC}"
+        echo -e "${ORANGE} Обнаружены локальные изменения:${NC}"
         git status --short
         echo ""
         read -p "Продолжить обновление? Локальные изменения могут быть потеряны (y/n): " confirm
@@ -381,13 +382,13 @@ update_project() {
         git pull origin $(git branch --show-current)
         
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN} Код обновлен${NC}"
+            echo -e "${GREEN} Обновление завершино${NC}"
             echo ""
             
             # Проверяем, обновился ли manage.sh и перезапускаем его
             NEW_HASH=$(md5sum "$SCRIPT_PATH" 2>/dev/null | awk '{print $1}')
             if [ "$OLD_HASH" != "$NEW_HASH" ]; then
-                echo -e "${YELLOW}⚠ manage.sh был обновлён, перезапуск скрипта...${NC}"
+                echo -e "${YELLOW} manage.sh был обновлён, перезапуск скрипта...${NC}"
                 sleep 2
                 exec "$SCRIPT_PATH" "$@"
             fi
@@ -411,7 +412,7 @@ update_project() {
             
             echo -e "${GREEN} Обновление завершено!${NC}"
         else
-            echo -e "${RED}✗ Ошибка при обновлении${NC}"
+            echo -e "${RED}Ошибка при обновлении${NC}"
             echo -e "${YELLOW}Попробуйте вручную: git pull${NC}"
         fi
     else
@@ -457,7 +458,7 @@ test_terminal() {
         if pip show ${pkg} &>/dev/null; then
             echo -e "  ${GREEN}${NC} ${pkg}"
         else
-            echo -e "  ${RED}✗${NC} ${pkg} - не установлен"
+            echo -e "  ${RED}${NC} ${pkg} - не установлен"
             all_ok=false
         fi
     done
@@ -476,7 +477,7 @@ test_terminal() {
         if [ -f "$PROJECT_DIR/$file" ]; then
             echo -e "  ${GREEN}${NC} $file"
         else
-            echo -e "  ${RED}✗${NC} $file - не найден"
+            echo -e "  ${RED}${NC} $file - не найден"
             all_ok=false
         fi
     done
@@ -577,16 +578,16 @@ except Exception as e:
 
     if [[ \$RESULT == SUCCESS:* ]]; then
         WEB_USER_ID=\$(echo \$RESULT | cut -d':' -f2)
-        echo -e \"\${GREEN}✓ Пароль успешно сброшен\${NC}\"
+        echo -e \"${GREEN} Пароль успешно сброшен\${NC}\"
         echo \"\"
-        echo -e \"\${WHITE}Новые данные для входа:\${NC}\"
-        echo -e \"  \${YELLOW}ID веб-пользователя:\${NC} \$WEB_USER_ID\"
-        echo -e \"  \${YELLOW}Новый пароль:\${NC} \$NEW_PASSWORD\"
+        echo -e \"${WHITE}Новые данные для входа:\${NC}\"
+        echo -e \"${YELLOW}ID веб-пользователя:\${NC} \$WEB_USER_ID\"
+        echo -e \"${YELLOW}Новый пароль:\${NC} \$NEW_PASSWORD\"
         echo \"\"
-        echo -e \"\${RED}ВАЖНО:\${NC} Сохраните этот пароль в надежном месте!\"
+        echo -e \"${RED}ВАЖНО:\${NC} Сохраните этот пароль в надежном месте!\"
     else
-        ERROR_MSG=\$(echo \$RESULT | cut -d':' -f2-)
-        echo -e \"\${RED}✗ Ошибка: \$ERROR_MSG\${NC}\"
+        ERROR_MSG=\$(echo $RESULT | cut -d':' -f2-)
+        echo -e \"${RED}Ошибка: $ERROR_MSG${NC}\"
     fi
     
     echo ""
@@ -601,21 +602,21 @@ setup_systemd() {
     if grep -q "from flask_socketio import SocketIO" $PROJECT_DIR/web/web_app.py; then
         echo -e "  ${GREEN}${NC} Flask-SocketIO импортирован"
     else
-        echo -e "  ${RED}✗${NC} Flask-SocketIO не импортирован"
+        echo -e "  ${RED}${NC} Flask-SocketIO не импортирован"
         all_ok=false
     fi
     
     if grep -q "socketio.run(app" $PROJECT_DIR/web/web_app.py; then
         echo -e "  ${GREEN}${NC} Приложение использует socketio.run()"
     else
-        echo -e "  ${YELLOW}⚠${NC} Приложение может использовать Gunicorn (это нормально)"
+        echo -e "  ${YELLOW}${NC} Приложение может использовать Gunicorn (это нормально)"
     fi
     
     # Проверка роутов
     if grep -q "@app.route('/terminal')" $PROJECT_DIR/web/web_app.py || grep -q "@app.route(\"/terminal\")" $PROJECT_DIR/web/web_app.py; then
         echo -e "  ${GREEN}${NC} Роут /terminal настроен"
     else
-        echo -e "  ${RED}✗${NC} Роут /terminal не найден"
+        echo -e "  ${RED}${NC} Роут /terminal не найден"
         all_ok=false
     fi
     
@@ -625,7 +626,7 @@ setup_systemd() {
         echo -e "${GREEN} Все проверки пройдены!${NC}"
         echo -e "${CYAN}Можете запустить веб с терминалом (опция 6)${NC}"
     else
-        echo -e "${RED}✗ Обнаружены проблемы${NC}"
+        echo -e "${RED}Обнаружены проблемы${NC}"
         echo -e "${YELLOW}Выполните: pip install -r requirements.txt${NC}"
     fi
     
@@ -735,13 +736,13 @@ check_install_libraries() {
     
     # Проверка виртуального окружения
     if [ ! -d "$VENV_DIR" ]; then
-        echo -e "${YELLOW}⚠ Виртуальное окружение не найдено${NC}"
+        echo -e "${YELLOW} Виртуальное окружение не найдено${NC}"
         echo -e "${GREEN}Создаём виртуальное окружение...${NC}"
         python3 -m venv $VENV_DIR
         if [ $? -eq 0 ]; then
             echo -e "${GREEN} Виртуальное окружение создано${NC}"
         else
-            echo -e "${RED}✗ Ошибка создания виртуального окружения${NC}"
+            echo -e "${RED}Ошибка создания виртуального окружения${NC}"
             read -p "Нажмите Enter для продолжения..."
             return
         fi
@@ -756,7 +757,7 @@ check_install_libraries() {
     
     # Проверка наличия requirements.txt
     if [ ! -f "$PROJECT_DIR/requirements.txt" ]; then
-        echo -e "${RED}✗ Файл requirements.txt не найден${NC}"
+        echo -e "${RED}Файл requirements.txt не найден${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
@@ -786,7 +787,7 @@ check_install_libraries() {
                 echo -e "${GREEN}${NC} $package_name"
             else
                 MISSING_PACKAGES+=("$line")
-                echo -e "${RED}✗${NC} $package_name (не установлен)"
+                echo -e "${RED}${NC} $package_name (не установлен)"
             fi
         fi
     done < "$PROJECT_DIR/requirements.txt"
@@ -818,7 +819,7 @@ check_install_libraries() {
                 echo -e "${GREEN} Все пакеты успешно установлены${NC}"
             else
                 echo ""
-                echo -e "${RED}✗ Произошли ошибки при установке${NC}"
+                echo -e "${RED}Произошли ошибки при установке${NC}"
             fi
         else
             echo -e "${YELLOW}Установка отменена${NC}"
