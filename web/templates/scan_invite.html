@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Сканировать QR - BOLT{% endblock %}
+{% block title %}bolt login{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -55,13 +55,11 @@
                 <div class="card-header text-center">
                     <h4><i class="bi bi-qr-code-scan"></i> 
                         {% if session.user_role == 'user' %}
-                            Добро пожаловать! Отсканируйте QR код
+                            Добро пожаловать! Отсканируйте код
                         {% else %}
-                            Сканировать QR код приглашения
+                            Сканироват код приглашения
                         {% endif %}
                     </h4>
-                    {% if session.user_role == 'user' %}
-                    <p class="text-muted mb-0">Для получения доступа к боту отсканируйте QR код приглашения</p>
                     {% endif %}
                 </div>
                 <div class="card-body">
@@ -70,7 +68,7 @@
                         <div class="camera-preview" id="cameraPreview">
                             <div class="text-center">
                                 <i class="bi bi-camera-video fs-1 text-muted"></i>
-                                <p class="text-muted mt-2">Нажмите "Включить камеру" для сканирования QR кода</p>
+                                <p class="text-muted mt-2">Нажмите "Включить камеру" для сканирования кода</p>
                             </div>
                         </div>
                         
@@ -78,9 +76,7 @@
                             <button class="btn btn-primary" id="startCameraBtn" onclick="startCamera()">
                                 <i class="bi bi-camera-video"></i> Включить камеру
                             </button>
-                            <button class="btn btn-secondary d-none" id="stopCameraBtn" onclick="stopCamera()">
-                                <i class="bi bi-camera-video-off"></i> Выключить камеру
-                            </button>
+
                         </div>
 
                         <!-- Ручной ввод кода -->
@@ -107,32 +103,17 @@
             <!-- Информация -->
             <div class="card mt-4">
                 <div class="card-body">
-                    <h5><i class="bi bi-info-circle"></i> 
-                        {% if session.user_role == 'user' %}
-                            Получение доступа
-                        {% else %}
-                            Как использовать
-                        {% endif %}
-                    </h5>
                     {% if session.user_role == 'user' %}
                     <div class="alert alert-info">
-                        <strong>Вы вошли с базовой ролью.</strong> Для получения полного доступа к системе:
+                        <strong>Вы вошли с базовой ролью.</strong> 
                     </div>
                     {% endif %}
-                    <ul>
-                        <li>Включите камеру и наведите на QR код приглашения</li>
-                        <li>Или введите код приглашения вручную в поле ниже</li>
-                        <li>После активации вам будет назначена роль согласно приглашению</li>
-                        <li>Каждое приглашение можно использовать только один раз</li>
-                        {% if session.user_role == 'user' %}
-                        <li><strong>После активации</strong> у вас появится доступ к ДСЕ, отчетам и другим функциям</li>
-                        {% endif %}
-                    </ul>
+
                     {% if session.user_role == 'user' %}
                     <div class="mt-3">
                         <small class="text-muted">
                             <i class="bi bi-info-circle"></i> 
-                            Обратитесь к администратору для получения QR кода приглашения
+                            Обратитесь к администратору для получения кода приглашения
                         </small>
                     </div>
                     {% endif %}
