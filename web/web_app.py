@@ -675,6 +675,9 @@ def telegram_auth():
         
         user_id = str(auth_data['id'])
         
+        # ВАЖНО: Очищаем старую сессию перед новым логином
+        session.clear()
+        
         # Проверка регистрации пользователя в боте
         users_data = get_users_data()
         if user_id not in users_data:
@@ -701,6 +704,7 @@ def telegram_auth():
         session['last_name'] = auth_data.get('last_name', '')
         session['username'] = auth_data.get('username', '')
         session['photo_url'] = auth_data.get('photo_url', '')
+        session['auth_type'] = 'telegram'
         
         logger.info(f"User {user_id} logged in via Telegram")
         
@@ -725,46 +729,64 @@ def admin_auth():
         username = auth_data.get('username', '').strip()
         password = auth_data.get('password', '').strip()
         
+        # ВАЖНО: Очищаем старую сессию перед новым логином
+        session.clear()
         
-
-        # Загружаем админ-креды из config
-        import config.config as config
-        admin_credentials = getattr(config, 'ADMIN_CREDENTIALS', {})
+        # Загружаем админ-креды СВЕЖИЕ из файла каждый раз
+        import json
+        credentials_file = 'web_credentials.json'
+        admin_credentials = {}
+        
+        if os.path.exists(credentials_file):
+            try:
+                with open(credentials_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for user, creds in data.items():
+                        admin_credentials[user] = creds.get('password_hash', '')
+                        admin_credentials[f'{user}_user_id'] = creds.get('telegram_user_id') or creds.get('user_id')
+                        # Добавляем роль
+                        admin_credentials[f'{user}_role'] = creds.get('role', 'initiator')
+            except Exception as e:
+                logger.error(f"Error loading web_credentials.json: {e}")
+        
+        logger.info(f"Admin auth attempt for '{username}'. Loaded credentials: {list(admin_credentials.keys())}")
 
         # Проверка логина/пароля (безопасно, через get чтобы избежать KeyError)
         hashed_input = hashlib.sha256(password.encode()).hexdigest()
         stored_hash = admin_credentials.get(username)
 
-        logger.info(f"1, {stored_hash and stored_hash == hashed_input,stored_hash,hashed_input}")
+        logger.info(f"Admin auth: username={username}, hash_match={stored_hash == hashed_input if stored_hash else False}")
+        
         if stored_hash and stored_hash == hashed_input:
-            # Получаем user_id админа из конфига или создаём специальный
+            # Получаем user_id админа из файла или создаём специальный
             admin_user_id = admin_credentials.get(f'{username}_user_id', f'admin_{username}')
             
-            # Проверяем, что пользователь зарегистрирован и является админом
+            logger.info(f"Admin auth: username={username}, user_id={admin_user_id}")
+            
+            # Проверяем, что пользователь зарегистрирован
             users_data = get_users_data()
             if admin_user_id not in users_data:
-                # Регистрируем админа если его нет
-                register_user(admin_user_id, username, 'Администратор', '')
-                # Устанавливаем роль admin
-                from bot.user_manager import set_user_role
-                set_user_role(admin_user_id, 'admin')
-            else:
-                # Пользователь существует - убедимся что у него роль admin
-                from bot.user_manager import set_user_role
-                set_user_role(admin_user_id, 'admin')
-            # Сохранение данных в сессию (не проверяем get_user_role, т.к. только что установили)
+                # Регистрируем пользователя если его нет
+                register_user(admin_user_id, username, 'Пользователь', '')
+            
+            # ПОЛУЧАЕМ ПРАВИЛЬНУЮ РОЛЬ ИЗ users_data.json (не из web_credentials.json!)
+            from bot.user_manager import get_user_role
+            user_role = get_user_role(admin_user_id)
+            
+            logger.info(f"Admin auth: Using role from users_data: {user_role}")
+            
+            # Сохранение данных в сессию
             session.permanent = True
             session['user_id'] = admin_user_id
-            session['user_role'] = 'admin'
-            session['first_name'] = 'Администратор'
+            session['user_role'] = user_role
+            session['first_name'] = 'Пользователь'
             session['last_name'] = ''
             session['username'] = username
             session['photo_url'] = ''
-            session['auth_type'] = 'admin'  # Помечаем тип авторизации
+            session['auth_type'] = 'password'  # Помечаем тип авторизации
             
-            logger.info(f"Admin {username} logged in via credentials")
+            logger.info(f"User {username} (ID: {admin_user_id}) logged in via credentials with role '{user_role}'")
             redirect_url = url_for('dashboard')
-            logger.info(f"Redirecting to: {redirect_url}")
             
             return jsonify({
                 'success': True,
@@ -772,10 +794,9 @@ def admin_auth():
             })
         else:
             if stored_hash is None:
-                logger.warning(f"Admin auth failed: username '{username}' not found")
+                logger.warning(f"Admin auth failed: username '{username}' not found in web_credentials.json")
                 return jsonify({'error': 'Такого пользователя не существует'}), 401
-            logger.info(f"Попытка авторизации. auth_data: {auth_data}")
-            logger.info(f"Admin auth failed for '{username}': stored_hash_present={stored_hash is not None}, hashed_match={stored_hash==hashed_input if stored_hash else False}")
+            logger.warning(f"Admin auth failed for '{username}': invalid password")
             return jsonify({'error': 'Неверный логин или пароль'}), 401
     
     except Exception as e:
@@ -795,6 +816,9 @@ def qr_auth():
         if not invite_code:
             logger.error("qr_auth: Код приглашения не указан")
             return jsonify({'error': 'Код приглашения не указан'}), 400
+        
+        # ВАЖНО: Очищаем старую сессию перед новым логином
+        session.clear()
         
         # Проверяем и используем приглашение
         from bot.invite_manager import use_invite, validate_invite
@@ -847,6 +871,7 @@ def qr_auth():
         session['last_name'] = ''
         session['username'] = ''
         session['photo_url'] = ''
+        session['auth_type'] = 'qr'
         session['auth_type'] = 'qr'
         session['telegram_linked'] = False  # Telegram не подключен
         

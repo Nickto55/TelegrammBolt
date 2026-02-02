@@ -530,60 +530,64 @@ print(hashlib.sha256('$NEW_PASSWORD'.encode()).hexdigest())
     # Вызываем Python скрипт для обновления пароля
     RESULT=$(python3 -c "
 import sys
-sys.path.append('$PROJECT_DIR')
-from bot.account_linking import find_web_user_by_email, admin_change_password
+sys.path.insert(0, '$PROJECT_DIR')
+from bot.account_linking import find_web_user_by_email, admin_change_password, load_linking_data
+import json
 import os
 
 try:
-    # Проверяем, является ли идентификатор числом (web_user_id) или email
-    if '$user_identifier'.startswith('web_'):
+    user_identifier = '$user_identifier'
+    hashed_password = '$HASHED_PASSWORD'
+    
+    web_user_id = None
+    user_data = None
+    
+    # Проверяем, является ли идентификатор web_user_id или email
+    if user_identifier.startswith('web_'):
         # Это web_user_id
-        web_user_id = '$user_identifier'
-        # Просто попробуем найти пользователя с этим ID
-        import json
         linking_file = os.path.join('$PROJECT_DIR', 'data', 'account_linking.json')
         if os.path.exists(linking_file):
-            with open(linking_file, 'r', encoding='utf-8') as f:
-                linking_data = json.load(f)
-            if web_user_id in linking_data.get('web_users', {}):
-                user_found = True
-            else:
-                user_found = False
-        else:
-            user_found = False
+            try:
+                with open(linking_file, 'r', encoding='utf-8') as f:
+                    linking_data = json.load(f)
+                if user_identifier in linking_data.get('web_users', {}):
+                    web_user_id = user_identifier
+                    user_data = linking_data['web_users'][user_identifier]
+            except Exception as e:
+                print(f'ERROR:Ошибка при чтении файла: {e}')
+                sys.exit(1)
     else:
         # Это email, ищем по email
-        web_user_id, user_data = find_web_user_by_email('$user_identifier')
-        if web_user_id:
-            user_found = True
-        else:
-            user_found = False
+        web_user_id, user_data = find_web_user_by_email(user_identifier)
     
-    if user_found:
-        # Выполняем сброс пароля
-        result = admin_change_password(web_user_id, '$HASHED_PASSWORD')
-        if result['success']:
-            print('SUCCESS:' + web_user_id)
-        else:
-            print('ERROR:' + result['error'])
-    else:
+    if not web_user_id:
         print('ERROR:Пользователь не найден')
+        sys.exit(1)
+    
+    # Выполняем сброс пароля
+    result = admin_change_password(web_user_id, hashed_password)
+    if result['success']:
+        print('SUCCESS:' + web_user_id)
+    else:
+        print('ERROR:' + result['error'])
 except Exception as e:
+    import traceback
     print('ERROR:' + str(e))
+    traceback.print_exc()
 ")
 
-    if [[ $RESULT == SUCCESS:* ]]; then
-        WEB_USER_ID=$(echo $RESULT | cut -d':' -f2)
-        echo -e "${GREEN}✓ Пароль успешно сброшен${NC}"
-        echo ""
-        echo -e "${WHITE}Новые данные для входа:${NC}"
-        echo -e "  ${YELLOW}ID веб-пользователя:${NC} $WEB_USER_ID"
-        echo -e "  ${YELLOW}Новый пароль:${NC} $NEW_PASSWORD"
-        echo ""
-        echo -e "${RED}ВАЖНО:${NC} Сохраните этот пароль в надежном месте!"
+    if [[ \$RESULT == SUCCESS:* ]]; then
+        WEB_USER_ID=\$(echo \$RESULT | cut -d':' -f2)
+        echo -e \"\${GREEN}✓ Пароль успешно сброшен\${NC}\"
+        echo \"\"
+        echo -e \"\${WHITE}Новые данные для входа:\${NC}\"
+        echo -e \"  \${YELLOW}ID веб-пользователя:\${NC} \$WEB_USER_ID\"
+        echo -e \"  \${YELLOW}Новый пароль:\${NC} \$NEW_PASSWORD\"
+        echo \"\"
+        echo -e \"\${RED}ВАЖНО:\${NC} Сохраните этот пароль в надежном месте!\"
     else
-        ERROR_MSG=$(echo $RESULT | cut -d':' -f2-)
-        echo -e "${RED}✗ Ошибка: $ERROR_MSG${NC}"
+        ERROR_MSG=\$(echo \$RESULT | cut -d':' -f2-)
+        echo -e \"\${RED}✗ Ошибка: \$ERROR_MSG\${NC}\"
     fi
     
     echo ""

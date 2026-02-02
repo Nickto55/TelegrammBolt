@@ -83,11 +83,6 @@
                                                 data-user-info="{{ user_data | tojson | forceescape }}">
                                             <i class="bi bi-pencil"></i> Изменить
                                         </button>
-                                        <button class="btn btn-sm btn-outline-secondary me-1 edit-credentials-btn" 
-                                                data-user-id="{{ user_id }}"
-                                                data-user-info="{{ user_data | tojson | forceescape }}">
-                                            <i class="bi bi-key"></i> Учетные данные
-                                        </button>
                                         <button class="btn btn-sm btn-outline-danger delete-user-btn" 
                                                 data-user-id="{{ user_id }}"
                                                 data-user-name="{{ user_data.get('first_name', '') }} {{ user_data.get('last_name', '') }}"
@@ -217,57 +212,11 @@
     </div>
 </div>
 
-<!-- Модальное окно редактирования учетных данных -->
-<div class="modal fade" id="editCredentialsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-secondary text-white">
-                <h5 class="modal-title"><i class="bi bi-key"></i> Редактирование учетных данных</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <h6>Пользователь:</h6>
-                    <p id="credentialsUserName" class="text-muted mb-0"></p>
-                    <small id="credentialsUserId" class="text-muted"></small>
-                </div>
-                
-                <div class="alert alert-info">
-                    <small><i class="bi bi-info-circle"></i> Оставьте поля пустыми, если не хотите изменять соответствующие данные</small>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editEmail" class="form-label fw-bold">Email:</label>
-                    <input type="email" class="form-control" id="editEmail" placeholder="user@example.com">
-                    <div id="emailHelp" class="form-text">Текущий email: <span id="currentEmail">-</span></div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editPassword" class="form-label fw-bold">Новый пароль:</label>
-                    <input type="password" class="form-control" id="editPassword" placeholder="Оставьте пустым, чтобы не менять">
-                    <div class="form-text">Оставьте пустым, чтобы не изменять пароль</div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="confirmPassword" class="form-label fw-bold">Подтвердите пароль:</label>
-                    <input type="password" class="form-control" id="confirmPassword" placeholder="Подтвердите новый пароль">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-success" onclick="saveUserCredentials()">
-                    <i class="bi bi-save"></i> Сохранить учетные данные
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
 let currentEditingUserId = null;
-let currentEditingCredentialsUserId = null;
 
 // Конфигурация ролей и их прав
 const ROLE_CONFIG = {
@@ -314,21 +263,6 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (e) {
                 console.error('Ошибка парсинга данных пользователя:', e);
                 alert('Ошибка открытия редактирования пользователя');
-            }
-        });
-    });
-    
-    // Добавляем обработчики для кнопок редактирования учетных данных
-    document.querySelectorAll('.edit-credentials-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const userId = this.getAttribute('data-user-id');
-            const userInfoJson = this.getAttribute('data-user-info');
-            try {
-                const userData = JSON.parse(userInfoJson);
-                editUserCredentials(userId, userData);
-            } catch (e) {
-                console.error('Ошибка парсинга данных пользователя:', e);
-                alert('Ошибка открытия редактирования учетных данных');
             }
         });
     });
@@ -417,42 +351,6 @@ function editUser(userId, userData) {
     modal.show();
 }
 
-function editUserCredentials(userId, userData) {
-    currentEditingCredentialsUserId = userId;
-
-    // Заполнение данных пользователя
-    document.getElementById('credentialsUserName').textContent =
-        (userData.first_name || 'Неизвестно') + ' ' + (userData.last_name || '');
-    document.getElementById('credentialsUserId').textContent = 'ID: ' + userId;
-
-    // Попробуем получить информацию о веб-аккаунте
-    fetch(`/api/users/${userId}/credentials/info`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Установка текущего email
-                document.getElementById('currentEmail').textContent = data.email || 'не задан';
-                document.getElementById('editEmail').value = data.email || '';
-            } else {
-                document.getElementById('currentEmail').textContent = 'нет веб-аккаунта';
-                document.getElementById('editEmail').value = '';
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка получения информации об учетных данных:', error);
-            document.getElementById('currentEmail').textContent = 'ошибка загрузки';
-            document.getElementById('editEmail').value = '';
-        });
-
-    // Сброс полей пароля
-    document.getElementById('editPassword').value = '';
-    document.getElementById('confirmPassword').value = '';
-
-    // Открытие модального окна
-    const modal = new bootstrap.Modal(document.getElementById('editCredentialsModal'));
-    modal.show();
-}
-
 function saveUserPermissions() {
     if (!currentEditingUserId) return;
 
@@ -497,68 +395,6 @@ function saveUserPermissions() {
     .catch(error => {
         console.error('Ошибка:', error);
         alert('❌ Ошибка при сохранении изменений');
-    });
-}
-
-function saveUserCredentials() {
-    if (!currentEditingCredentialsUserId) return;
-
-    const newEmail = document.getElementById('editEmail').value.trim();
-    const newPassword = document.getElementById('editPassword').value;
-    const confirmPassword = document.getElementById('confirmPassword').value;
-
-    // Проверка совпадения паролей
-    if (newPassword && newPassword !== confirmPassword) {
-        alert('❌ Новый пароль и подтверждение не совпадают');
-        return;
-    }
-
-    // Проверка длины нового пароля
-    if (newPassword && newPassword.length < 6) {
-        alert('❌ Новый пароль должен быть не менее 6 символов');
-        return;
-    }
-
-    // Подготовка данных для отправки
-    const updateData = {};
-    if (newEmail) updateData.email = newEmail;
-    if (newPassword) updateData.password = newPassword;
-
-    if (!newEmail && !newPassword) {
-        alert('❌ Не указаны данные для обновления');
-        return;
-    }
-
-    // Отправка на сервер
-    fetch(`/api/users/${currentEditingCredentialsUserId}/credentials`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updateData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Закрытие модального окна
-            const modalElement = document.getElementById('editCredentialsModal');
-            const modalInstance = bootstrap.Modal.getInstance(modalElement);
-            if (modalInstance) {
-                modalInstance.hide();
-            }
-
-            // Показ уведомления
-            alert('✅ Учетные данные пользователя успешно обновлены!');
-
-            // Перезагрузка страницы
-            location.reload();
-        } else {
-            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        alert('❌ Ошибка при сохранении учетных данных');
     });
 }
 
