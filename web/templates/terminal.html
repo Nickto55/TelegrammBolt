@@ -142,26 +142,15 @@
     <div class="row">
         <div class="col-12">
             <h1>
-                <i class="fas fa-terminal"></i> Веб-терминал
+                <i class="fas fa-terminal">
             </h1>
-
-            <div class="terminal-info">
-                <h3><i class="fas fa-info-circle"></i> Информация</h3>
-                <ul>
-                    <li>Полноценный терминал с доступом к командной оболочке сервера</li>
-                    <li>Поддержка интерактивных команд и приложений</li>
-                    <li>Для Windows используется PowerShell, для Linux/Unix - Bash</li>
-                    <li>Нажмите "Запустить терминал" для начала работы</li>
-                    <li><strong>Внимание:</strong> Будьте осторожны с выполняемыми командами</li>
-                </ul>
-            </div>
 
             <div class="terminal-container">
                 <div class="terminal-header">
                     <div>
                         <h2>
                             <i class="fas fa-code"></i>
-                            Shell Terminal
+
                             <span class="status-indicator disconnected" id="status-indicator"></span>
                             <span class="status-text" id="status-text">Не подключено</span>
                         </h2>
@@ -193,15 +182,15 @@
     // Инициализация терминала при загрузке страницы
     document.addEventListener('DOMContentLoaded', function () {
         console.log('%c╔════════════════════════════════════════════════════════╗', 'color: #667eea; font-weight: bold');
-        console.log('%c║          🖥️  Веб-терминал TelegramBolt              ║', 'color: #667eea; font-weight: bold');
+        console.log('%c║              Веб-терминал TelegramBolt                 ║', 'color: #667eea; font-weight: bold');
         console.log('%c╚════════════════════════════════════════════════════════╝', 'color: #667eea; font-weight: bold');
         console.log('%cИнициализация терминала...', 'color: #2472c8');
 
         initTerminal();
 
-        console.log('%c✅ Терминал инициализирован', 'color: #0dbc79; font-weight: bold');
-        console.log('%c💡 Нажмите "Запустить" для начала работы', 'color: #e5e510');
-        console.log('%c📊 Размер терминала:', 'color: #2472c8', term.cols + 'x' + term.rows);
+        console.log('%cТерминал инициализирован', 'color: #0dbc79; font-weight: bold');
+        console.log('%cНажмите "Запустить" для начала работы', 'color: #e5e510');
+        console.log('%cРазмер терминала:', 'color: #2472c8', term.cols + 'x' + term.rows);
     });
 
     function initTerminal() {
@@ -242,26 +231,19 @@
         console.log('Загрузка расширений терминала...');
         fitAddon = new FitAddon.FitAddon();
         term.loadAddon(fitAddon);
-        console.log('✓ FitAddon загружен');
+        console.log('FitAddon загружен');
 
         const webLinksAddon = new WebLinksAddon.WebLinksAddon();
         term.loadAddon(webLinksAddon);
-        console.log('✓ WebLinksAddon загружен');
+        console.log('WebLinksAddon загружен');
 
         // Открываем терминал в контейнере
         console.log('Открытие терминала в DOM...');
         term.open(document.getElementById('terminal'));
         fitAddon.fit();
-        console.log('✓ Терминал открыт и подогнан под размер окна');
+        console.log('Терминал открыт и подогнан под размер окна');
 
-        // Приветственное сообщение
-        term.writeln('\x1b[1;32m╔══════════════════════════════════════════════════════════╗\x1b[0m');
-        term.writeln('\x1b[1;32m║         Добро пожаловать в веб-терминал!                ║\x1b[0m');
-        term.writeln('\x1b[1;32m║    Нажмите "Запустить" для начала работы                ║\x1b[0m');
-        term.writeln('\x1b[1;32m╚══════════════════════════════════════════════════════════╝\x1b[0m');
-        term.writeln('');
-        term.writeln('\x1b[36mℹ Откройте консоль браузера (F12) для диагностики\x1b[0m');
-        term.writeln('');
+
 
         // Обработка изменения размера окна
         window.addEventListener('resize', () => {
@@ -273,7 +255,7 @@
                         cols: term.cols,
                         rows: term.rows
                     });
-                    console.log('✓ Новый размер отправлен на сервер');
+                    console.log('Новый размер отправлен на сервер');
                 }
             }
         });
@@ -285,7 +267,7 @@
             return;
         }
 
-        console.log('%c🚀 Запуск веб-терминала...', 'color: #0dbc79; font-size: 14px; font-weight: bold');
+        console.log('%cЗапуск веб-терминала...', 'color: #0dbc79; font-size: 14px; font-weight: bold');
         term.writeln('\x1b[1;36m[Подключение к серверу...]\x1b[0m');
 
         // Подключаемся к WebSocket
@@ -294,21 +276,21 @@
         });
 
         socket.on('connect', function () {
-            console.log('%c✅ WebSocket подключен', 'color: #0dbc79; font-weight: bold');
+            console.log('%cWebSocket подключен', 'color: #0dbc79; font-weight: bold');
             console.log('Transport:', socket.io.engine.transport.name);
             updateStatus(true);
-            term.writeln('\x1b[1;32m[✓ Подключено к серверу]\x1b[0m');
+            term.writeln('\x1b[1;32m[Подключено к серверу]\x1b[0m');
 
             // Обработка ввода пользователя - регистрируем сразу после подключения
             term.onData(function (data) {
-                console.log('📤 Отправка ввода:', data.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+                console.log('Отправка ввода:', data.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
                 if (socket && isConnected) {
                     socket.emit('input', { data: data });
                 }
             });
 
             // Запускаем терминальную сессию
-            console.log('📡 Отправка запроса на запуск терминала...');
+            console.log('Отправка запроса на запуск терминала...');
             socket.emit('start_terminal', {
                 cols: term.cols,
                 rows: term.rows
@@ -316,16 +298,14 @@
         });
 
         socket.on('connected', function (data) {
-            console.log('%c✅ Terminal ready:', 'color: #0dbc79; font-weight: bold', data);
+            console.log('%cTerminal ready:', 'color: #0dbc79; font-weight: bold', data);
         });
 
         socket.on('started', function (data) {
-            console.log('%c✅ Terminal started successfully!', 'color: #0dbc79; font-weight: bold', data);
+            console.log('%cTerminal started successfully!', 'color: #0dbc79; font-weight: bold', data);
             console.log('Session ID:', data.session_id || 'N/A');
             term.clear();
-            term.writeln('\x1b[1;32m╔══════════════════════════════════════════════════════════╗\x1b[0m');
-            term.writeln('\x1b[1;32m║   ✓ Веб-терминал успешно запущен и готов к работе!     ║\x1b[0m');
-            term.writeln('\x1b[1;32m╚══════════════════════════════════════════════════════════╝\x1b[0m');
+            term.writeln('\x1b[1;32m Подключение успешно.\x1b[0m');
             term.writeln('');
         });
 
@@ -335,19 +315,19 @@
         });
 
         socket.on('error', function (data) {
-            console.error('%c❌ Terminal error:', 'color: #cd3131; font-weight: bold', data);
-            term.writeln('\r\n\x1b[1;31m❌ Ошибка: ' + data.message + '\x1b[0m\r\n');
+            console.error('%cTerminal error:', 'color: #cd3131; font-weight: bold', data);
+            term.writeln('\r\n\x1b[1;31mОшибка: ' + data.message + '\x1b[0m\r\n');
         });
 
         socket.on('disconnect', function () {
-            console.log('%c🔌 Disconnected from terminal server', 'color: #e5e510; font-weight: bold');
+            console.log('%cDisconnected from terminal server', 'color: #e5e510; font-weight: bold');
             updateStatus(false);
             term.writeln('\r\n\x1b[1;33m[⚠ Соединение разорвано]\x1b[0m\r\n');
         });
 
         socket.on('connect_error', function (error) {
-            console.error('%c❌ Connection error:', 'color: #cd3131; font-weight: bold', error);
-            term.writeln('\r\n\x1b[1;31m❌ Ошибка подключения: ' + error.message + '\x1b[0m\r\n');
+            console.error('%cConnection error:', 'color: #cd3131; font-weight: bold', error);
+            term.writeln('\r\n\x1b[1;31mОшибка подключения: ' + error.message + '\x1b[0m\r\n');
             term.writeln('\x1b[1;33mПроверьте, что сервер запущен через Gunicorn с eventlet\x1b[0m\r\n');
         });
 
@@ -357,12 +337,12 @@
     }
 
     function stopTerminal() {
-        console.log('%c🛑 Остановка терминала...', 'color: #e5e510; font-size: 14px; font-weight: bold');
+        console.log('%cОстановка терминала...', 'color: #e5e510; font-size: 14px; font-weight: bold');
 
         if (socket) {
             socket.disconnect();
             socket = null;
-            console.log('✅ Socket отключен');
+            console.log('Socket отключен');
         }
 
         updateStatus(false);
@@ -371,15 +351,15 @@
         document.getElementById('start-btn').disabled = false;
         document.getElementById('stop-btn').disabled = true;
 
-        term.writeln('\r\n\x1b[1;33m[🛑 Терминал остановлен]\x1b[0m\r\n');
-        console.log('%c✓ Терминал остановлен', 'color: #0dbc79');
+        term.writeln('\r\n\x1b[1;33m[Терминал остановлен]\x1b[0m\r\n');
+        console.log('%cТерминал остановлен', 'color: #0dbc79');
     }
 
     function clearTerminal() {
-        console.log('🧹 Очистка терминала...');
+        console.log('Очистка терминала...');
         if (term) {
             term.clear();
-            console.log('✓ Терминал очищен');
+            console.log('Терминал очищен');
         }
     }
 
