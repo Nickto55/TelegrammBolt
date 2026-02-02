@@ -38,7 +38,7 @@
                         {% if session.username %}
                         <tr>
                             <th>Username:</th>
-                            <td>@{{ session.username }}</td>
+                            <td>{{ session.username }}</td>
                         </tr>
                         {% endif %}
                         <tr>
@@ -171,112 +171,6 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-// Показ/скрытие поля email
-document.getElementById('emailSubscriptionEnabled').addEventListener('change', function() {
-    const emailInput = document.getElementById('emailInput');
-    if (this.checked) {
-        emailInput.style.display = 'block';
-    } else {
-        emailInput.style.display = 'none';
-    }
-});
-
-function saveEmailSubscription() {
-    const enabled = document.getElementById('emailSubscriptionEnabled').checked;
-    const email = document.getElementById('emailAddress').value.trim();
-    
-    fetch('/api/profile/email-subscription', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            enabled: enabled,
-            email: email
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ Настройки сохранены успешно!');
-        } else {
-            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        alert('❌ Ошибка при сохранении настроек');
-    });
-}
-
-function testEmailNotification() {
-    const email = document.getElementById('emailAddress').value.trim();
-    
-    if (!email) {
-        alert('Укажите email адрес');
-        return;
-    }
-    
-    fetch('/api/profile/test-email', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            email: email
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ Тестовое письмо отправлено! Проверьте почту.');
-        } else {
-            alert('❌ Ошибка отправки: ' + (data.error || 'Неизвестная ошибка'));
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        alert('❌ Ошибка при отправке письма');
-    });
-}
-
-// Загрузка статистики
-document.addEventListener('DOMContentLoaded', function() {
-    loadUserStats();
-});
-
-function loadUserStats() {
-    fetch('/api/profile/stats')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('myDseCount').textContent = data.dse_count || 0;
-            document.getElementById('myReportsCount').textContent = data.reports_count || 0;
-            document.getElementById('myChatsCount').textContent = data.chats_count || 0;
-            document.getElementById('lastActivityDays').textContent = data.activity_days || 0;
-        })
-        .catch(error => {
-            console.error('Ошибка загрузки статистики:', error);
-        });
-}
-</script>
-
-<style>
-.stat-card {
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    background: #f8f9fa;
-    transition: all 0.3s ease;
-}
-
-.stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-</style>
 
 <!-- Модальное окно редактирования персональных данных -->
 <div class="modal fade" id="editProfileModal" tabindex="-1">
@@ -329,25 +223,107 @@ function loadUserStats() {
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-// Инициализация при загрузке страницы
+// Показ/скрытие поля email
+document.getElementById('emailSubscriptionEnabled').addEventListener('change', function() {
+    const emailInput = document.getElementById('emailInput');
+    if (this.checked) {
+        emailInput.style.display = 'block';
+    } else {
+        emailInput.style.display = 'none';
+    }
+});
+
+function saveEmailSubscription() {
+    const enabled = document.getElementById('emailSubscriptionEnabled').checked;
+    const email = document.getElementById('emailAddress').value.trim();
+    
+    fetch('/api/profile/email-subscription', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            enabled: enabled,
+            email: email
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Настройки сохранены успешно!');
+        } else {
+            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('Ошибка при сохранении настроек');
+    });
+}
+
+function testEmailNotification() {
+    const email = document.getElementById('emailAddress').value.trim();
+    
+    if (!email) {
+        alert('Укажите email адрес');
+        return;
+    }
+    
+    fetch('/api/profile/test-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            email: email
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Тестовое письмо отправлено! Проверьте почту.');
+        } else {
+            alert('Ошибка отправки: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('Ошибка при отправке письма');
+    });
+}
+
+// Загрузка статистики
 document.addEventListener('DOMContentLoaded', function() {
+    loadUserStats();
+
     // Загружаем текущие данные профиля при открытии модального окна
     document.getElementById('editProfileModal').addEventListener('show.bs.modal', function() {
         loadProfileData();
     });
 });
 
+function loadUserStats() {
+    fetch('/api/profile/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('myDseCount').textContent = data.dse_count || 0;
+            document.getElementById('myReportsCount').textContent = data.reports_count || 0;
+            document.getElementById('myChatsCount').textContent = data.chats_count || 0;
+            document.getElementById('lastActivityDays').textContent = data.activity_days || 0;
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки статистики:', error);
+        });
+}
+
 function loadProfileData() {
-    // Получаем данные из сессии (из шаблона)
     const firstNameEl = document.querySelector('table tr:nth-child(2) td');
     const fullName = firstNameEl ? firstNameEl.textContent.trim() : '{{ session.first_name }} {{ session.last_name }}';
     
-    // Простое разделение на имя и фамилию
     const nameParts = fullName.split(' ');
     const firstName = nameParts[0] || '{{ session.first_name }}';
     const lastName = nameParts.slice(1).join(' ') || '{{ session.last_name }}';
@@ -355,7 +331,6 @@ function loadProfileData() {
     document.getElementById('editFirstName').value = firstName;
     document.getElementById('editLastName').value = lastName;
     
-    // Очищаем поля пароля
     document.getElementById('editCurrentPassword').value = '';
     document.getElementById('editNewPassword').value = '';
     document.getElementById('editConfirmPassword').value = '';
@@ -368,31 +343,26 @@ function saveProfileChanges() {
     const newPassword = document.getElementById('editNewPassword').value;
     const confirmPassword = document.getElementById('editConfirmPassword').value;
     
-    // Валидация
     if (!firstName) {
-        alert('❌ Пожалуйста, введите имя');
+        alert('Пожалуйста, введите имя');
         return;
     }
     
-    // Проверка совпадения паролей
     if (newPassword && newPassword !== confirmPassword) {
-        alert('❌ Новый пароль и подтверждение не совпадают');
+        alert('Новый пароль и подтверждение не совпадают');
         return;
     }
     
-    // Проверка длины нового пароля
     if (newPassword && newPassword.length < 6) {
-        alert('❌ Новый пароль должен быть не менее 6 символов');
+        alert('Новый пароль должен быть не менее 6 символов');
         return;
     }
     
-    // Если меняем пароль, проверяем текущий пароль
     if (newPassword && !currentPassword) {
-        alert('❌ Для смены пароля введите текущий пароль');
+        alert('Для смены пароля введите текущий пароль');
         return;
     }
     
-    // Подготовка данных
     const updateData = {
         first_name: firstName,
         last_name: lastName
@@ -403,7 +373,6 @@ function saveProfileChanges() {
         updateData.new_password = newPassword;
     }
     
-    // Отправка на сервер
     fetch('/api/profile/update', {
         method: 'POST',
         headers: {
@@ -414,26 +383,35 @@ function saveProfileChanges() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Закрытие модального окна
             const modalElement = document.getElementById('editProfileModal');
             const modalInstance = bootstrap.Modal.getInstance(modalElement);
             if (modalInstance) {
                 modalInstance.hide();
             }
-            
-            // Показ уведомления
-            alert('✅ Данные профиля успешно обновлены!');
-            
-            // Перезагрузка страницы
+            alert('Данные профиля успешно обновлены!');
             location.reload();
         } else {
-            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
         }
     })
     .catch(error => {
         console.error('Ошибка:', error);
-        alert('❌ Ошибка при сохранении изменений');
+        alert('Ошибка при сохранении изменений');
     });
 }
 </script>
+
+<style>
+.stat-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
 {% endblock %}

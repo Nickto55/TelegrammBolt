@@ -1,5 +1,6 @@
 import sys
 import os
+from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from datetime import datetime as dt
@@ -18,6 +19,79 @@ from bot.dse_manager import get_unique_dse_values
 from bot.user_manager import has_permission, get_user_role, set_user_role, ROLES, get_all_users, check_nickname_exists, \
     set_user_nickname
 from config.config import PROBLEM_TYPES, RC_TYPES, save_data, load_data, DATA_FILE
+
+
+async def _send_reply(update: Update, text: str, reply_markup=None) -> None:
+    """Отправить ответ пользователю (поддержка callback query)."""
+    if update.callback_query:
+        await update.callback_query.message.reply_text(text, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup)
+
+
+async def _complete_registration(
+    update: Update,
+    user_id: str,
+    username: str,
+    first_name: str,
+    last_name: str,
+    invite_code: Optional[str] = None
+) -> None:
+    """Завершить регистрацию пользователя и показать меню."""
+    if invite_code:
+        from bot.invite_manager import use_invite
+        result = use_invite(
+            invite_code,
+            int(user_id),
+            username,
+            first_name,
+            last_name
+        )
+
+        if result.get("success"):
+            await _send_reply(
+                update,
+                f"🎉 {result.get('message', '')}\n\n"
+                f"✅ Регистрация завершена!\n"
+                f"Имя: {first_name} {last_name}\n\n"
+                f"Добро пожаловать в систему!"
+            )
+        else:
+            from bot.user_manager import register_user
+            register_user(user_id, username, first_name, last_name)
+            await _send_reply(
+                update,
+                f"⚠️ Ошибка при обработке приглашения: {result.get('error', 'Неизвестная ошибка')}\n\n"
+                f"✅ Вы зарегистрированы с базовыми правами.\n"
+                f"Имя: {first_name} {last_name}"
+            )
+    else:
+        from bot.user_manager import register_user
+        register_user(user_id, username, first_name, last_name)
+        await _send_reply(
+            update,
+            f"✅ Регистрация завершена!\n"
+            f"Имя: {first_name} {last_name}\n\n"
+            f"Добро пожаловать в систему!"
+        )
+
+    # Инициализируем состояние пользователя и показываем главное меню
+    user_states[user_id] = {
+        'application': '',
+        'dse': '',
+        'problem_type': '',
+        'description': '',
+        'rc': '',
+        'photo_file_id': None
+    }
+
+    from bot.user_manager import get_user_role
+    user_role = get_user_role(user_id)
+    if user_role == 'user':
+        from bot.commands import show_scan_menu
+        await show_scan_menu(update, user_id)
+    else:
+        await show_main_menu(update, user_id)
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -426,6 +500,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         from bot.commands import show_scan_menu
         await show_scan_menu(update, user_id)
 
+    # === ПОДТВЕРЖДЕНИЕ ФИО ПРИ РЕГИСТРАЦИИ ===
+    elif data == 'reg_confirm_name':
+        if user_id in registration_states:
+            reg_state = registration_states[user_id]
+            if reg_state.get('step') == 'confirm_name':
+                first_name = reg_state.get('first_name', '').strip()
+                last_name = reg_state.get('last_name', '').strip()
+                username = reg_state.get('username', '')
+                invite_code = reg_state.get('invite_code')
+                del registration_states[user_id]
+                await _complete_registration(update, user_id, username, first_name, last_name, invite_code)
+
+    elif data == 'reg_edit_name':
+        if user_id in registration_states:
+            registration_states[user_id]['step'] = 'ask_first_name'
+            registration_states[user_id].pop('first_name', None)
+            registration_states[user_id].pop('last_name', None)
+            await query.edit_message_text("Хорошо, давайте исправим. Введите ваше имя:")
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик текстовых сообщений и фото"""
@@ -449,70 +542,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 return
             
             elif reg_state['step'] == 'ask_last_name':
-                # Сохраняем фамилию и завершаем регистрацию
-                last_name = text
-                first_name = reg_state['first_name']
-                username = reg_state['username']
-                invite_code = reg_state.get('invite_code')
-                
-                # Удаляем состояние регистрации
-                del registration_states[user_id]
-                
-                # Если есть код приглашения, используем его (он сам зарегистрирует пользователя)
-                if invite_code:
-                    from bot.invite_manager import use_invite
-                    result = use_invite(
-                        invite_code, 
-                        int(user_id), 
-                        username, 
-                        first_name,
-                        last_name
-                    )
-                    
-                    if result["success"]:
-                        await update.message.reply_text(
-                            f"🎉 {result['message']}\n\n"
-                            f"✅ Регистрация завершена!\n"
-                            f"Имя: {first_name} {last_name}\n\n"
-                            f"Добро пожаловать в систему!"
-                        )
-                    else:
-                        # Если приглашение не сработало, регистрируем с ролью по умолчанию
-                        from bot.user_manager import register_user
-                        register_user(user_id, username, first_name, last_name)
-                        await update.message.reply_text(
-                            f"⚠️ Ошибка при обработке приглашения: {result['error']}\n\n"
-                            f"✅ Вы зарегистрированы с базовыми правами.\n"
-                            f"Имя: {first_name} {last_name}"
-                        )
-                else:
-                    # Нет приглашения - регистрируем с ролью по умолчанию
-                    from bot.user_manager import register_user
-                    register_user(user_id, username, first_name, last_name)
-                    await update.message.reply_text(
-                        f"✅ Регистрация завершена!\n"
-                        f"Имя: {first_name} {last_name}\n\n"
-                        f"Добро пожаловать в систему!"
-                    )
-                
-                # Инициализируем состояние пользователя и показываем главное меню
-                user_states[user_id] = {
-                    'application': '',
-                    'dse': '',
-                    'problem_type': '',
-                    'description': '',
-                    'rc': '',
-                    'photo_file_id': None
-                }
-                
-                # Проверяем роль и показываем соответствующее меню
-                from bot.user_manager import get_user_role
-                user_role = get_user_role(user_id)
-                if user_role == 'user':
-                    from bot.commands import show_scan_menu
-                    await show_scan_menu(update, user_id)
-                else:
-                    await show_main_menu(update, user_id)
+                # Сохраняем фамилию и просим подтверждение
+                registration_states[user_id]['last_name'] = text
+                registration_states[user_id]['step'] = 'confirm_name'
+
+                first_name = reg_state.get('first_name', '').strip()
+                last_name = text.strip()
+
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ Подтвердить", callback_data='reg_confirm_name')],
+                    [InlineKeyboardButton("✏️ Изменить", callback_data='reg_edit_name')]
+                ])
+
+                await update.message.reply_text(
+                    f"Вы указали: {first_name} {last_name}\n"
+                    f"Все верно?",
+                    reply_markup=keyboard
+                )
+                return
+
+            elif reg_state['step'] == 'confirm_name':
+                normalized = text.lower()
+                if normalized in {'да', 'да.', 'ок', 'ok', 'yes', 'верно', 'подтверждаю'}:
+                    first_name = reg_state.get('first_name', '').strip()
+                    last_name = reg_state.get('last_name', '').strip()
+                    username = reg_state.get('username', '')
+                    invite_code = reg_state.get('invite_code')
+                    del registration_states[user_id]
+                    await _complete_registration(update, user_id, username, first_name, last_name, invite_code)
+                    return
+                if normalized in {'нет', 'нет.', 'не', 'исправить', 'изменить'}:
+                    registration_states[user_id]['step'] = 'ask_first_name'
+                    registration_states[user_id].pop('first_name', None)
+                    registration_states[user_id].pop('last_name', None)
+                    await update.message.reply_text("Хорошо, введите ваше имя:")
+                    return
+
+                await update.message.reply_text(
+                    "Пожалуйста, подтвердите имя кнопкой ниже или напишите 'да' или 'нет'."
+                )
                 return
         else:
             await update.message.reply_text(

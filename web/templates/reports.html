@@ -148,25 +148,72 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStatistics();
 });
 
+function normalizeDseResponse(data) {
+    if (Array.isArray(data)) {
+        return data;
+    }
+    if (data && Array.isArray(data.dse_list)) {
+        return data.dse_list;
+    }
+    if (data && Array.isArray(data.data)) {
+        return data.data;
+    }
+    return [];
+}
+
+function parseDseDate(dse) {
+    const raw = dse.created_at || dse.datetime || dse.date || '';
+    if (!raw) return null;
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) {
+        return parsed;
+    }
+    // поддержка формата "YYYY-MM-DD HH:MM:SS"
+    const normalized = raw.replace(' ', 'T');
+    const parsedAlt = new Date(normalized);
+    return isNaN(parsedAlt.getTime()) ? null : parsedAlt;
+}
+
+function applyFilters(dseList, { dateFrom, dateTo, status }) {
+    let result = dseList.slice();
+
+    if (status) {
+        result = result.filter(dse => dse.status === status);
+    }
+
+    const fromDate = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
+    const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+
+    if (fromDate || toDate) {
+        result = result.filter(dse => {
+            const dseDate = parseDseDate(dse);
+            if (!dseDate) return false;
+            if (fromDate && dseDate < fromDate) return false;
+            if (toDate && dseDate > toDate) return false;
+            return true;
+        });
+    }
+
+    return result;
+}
+
 function loadStatistics() {
-    fetch('/api/dse/list')
+    fetch('/api/dse')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                const dseList = data.dse_list;
-                
-                // Подсчет статистики
-                document.getElementById('totalDSE').textContent = dseList.length;
-                
-                const inProgress = dseList.filter(dse => dse.status === 'В работе').length;
-                document.getElementById('inProgressDSE').textContent = inProgress;
-                
-                const completed = dseList.filter(dse => dse.status === 'Выполнена').length;
-                document.getElementById('completedDSE').textContent = completed;
-                
-                const rejected = dseList.filter(dse => dse.status === 'Отклонена').length;
-                document.getElementById('rejectedDSE').textContent = rejected;
-            }
+            const dseList = normalizeDseResponse(data);
+            
+            // Подсчет статистики
+            document.getElementById('totalDSE').textContent = dseList.length;
+            
+            const inProgress = dseList.filter(dse => dse.status === 'В работе').length;
+            document.getElementById('inProgressDSE').textContent = inProgress;
+            
+            const completed = dseList.filter(dse => dse.status === 'Выполнена').length;
+            document.getElementById('completedDSE').textContent = completed;
+            
+            const rejected = dseList.filter(dse => dse.status === 'Отклонена').length;
+            document.getElementById('rejectedDSE').textContent = rejected;
         })
         .catch(error => {
             console.error('Ошибка загрузки статистики:', error);
@@ -179,40 +226,33 @@ function generateReport() {
     const status = document.getElementById('status').value;
     const reportType = document.getElementById('reportType').value;
     
-    // Формируем параметры запроса
-    const params = new URLSearchParams();
-    if (dateFrom) params.append('dateFrom', dateFrom);
-    if (dateTo) params.append('dateTo', dateTo);
-    if (status) params.append('status', status);
-    
     // Загружаем данные
-    fetch('/api/dse/list?' + params.toString())
+    fetch('/api/dse')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                const resultsDiv = document.getElementById('reportResults');
-                const dseList = data.dse_list;
-                
-                if (dseList.length === 0) {
-                    resultsDiv.innerHTML = '<p class="text-muted text-center py-3">Нет данных для отображения</p>';
-                    return;
-                }
-                
-                // Генерируем отчет в зависимости от типа
-                let reportHTML = '';
-                
-                if (reportType === 'summary') {
-                    reportHTML = generateSummaryReport(dseList);
-                } else if (reportType === 'detailed') {
-                    reportHTML = generateDetailedReport(dseList);
-                } else if (reportType === 'byProblem') {
-                    reportHTML = generateByProblemReport(dseList);
-                } else if (reportType === 'byUser') {
-                    reportHTML = generateByUserReport(dseList);
-                }
-                
-                resultsDiv.innerHTML = reportHTML;
+            const resultsDiv = document.getElementById('reportResults');
+            const rawList = normalizeDseResponse(data);
+            const dseList = applyFilters(rawList, { dateFrom, dateTo, status });
+            
+            if (dseList.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-muted text-center py-3">Нет данных для отображения</p>';
+                return;
             }
+            
+            // Генерируем отчет в зависимости от типа
+            let reportHTML = '';
+            
+            if (reportType === 'summary') {
+                reportHTML = generateSummaryReport(dseList);
+            } else if (reportType === 'detailed') {
+                reportHTML = generateDetailedReport(dseList);
+            } else if (reportType === 'byProblem') {
+                reportHTML = generateByProblemReport(dseList);
+            } else if (reportType === 'byUser') {
+                reportHTML = generateByUserReport(dseList);
+            }
+            
+            resultsDiv.innerHTML = reportHTML;
         })
         .catch(error => {
             console.error('Ошибка генерации отчета:', error);
@@ -244,7 +284,8 @@ function generateDetailedReport(dseList) {
     html += '<thead><tr><th>ID</th><th>Дата</th><th>Адрес</th><th>Проблема</th><th>Статус</th></tr></thead><tbody>';
     
     dseList.forEach(dse => {
-        const date = dse.created_at ? new Date(dse.created_at).toLocaleDateString('ru-RU') : 'Н/Д';
+        const dseDate = parseDseDate(dse);
+        const date = dseDate ? dseDate.toLocaleDateString('ru-RU') : 'Н/Д';
         html += `<tr>
             <td>${dse.id || 'Н/Д'}</td>
             <td>${date}</td>
