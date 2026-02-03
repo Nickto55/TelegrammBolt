@@ -18,12 +18,12 @@
    ```
 2. Запустите скрипт установки
    ```
-   chmod +x setup.sh./setup.sh
+   chmod +x setup.sh
    ./setup.sh
    ```
 3. Используйте панель управления
    ```
-   chmod +x manage.sh- Обновит систему
+   chmod +x manage.sh
    ./manage.sh
    ```
 
