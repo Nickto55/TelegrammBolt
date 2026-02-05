@@ -92,7 +92,7 @@ show_menu() {
     echo -e "${WHITE}│${NC}  ${WHITE}8.${NC} Просмотр логов веб"
     echo -e "${WHITE}│${NC}  ${WHITE}9.${NC} Проверка статуса"
     echo -e "${WHITE}│${NC}"
-    echo -e "${WHITE}│${NC}  ${WHITE}10.${NC} Обновить проект (git pull)"
+    echo -e "${WHITE}│${NC}  ${WHITE}10.${NC} Обновить проект (с сохранением данных)"
     echo -e "${WHITE}│${NC}  ${WHITE}11.${NC} Обновить зависимости"
     echo -e "${WHITE}│${NC}  ${WHITE}12.${NC} Тест веб-терминала"
     echo -e "${WHITE}│${NC}  ${WHITE}13.${NC} Настройка systemd сервиса"
@@ -317,6 +317,131 @@ check_status() {
     read -p "Нажмите Enter для продолжения..."
 }
 
+# Резервное копирование данных, которые нельзя терять при обновлении
+backup_persistent_data() {
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    BACKUP_DIR="$PROJECT_DIR/.update-backups/$timestamp"
+    mkdir -p "$BACKUP_DIR"
+
+    echo -e "${CYAN}Создание резервной копии данных...${NC}"
+    echo -e "${WHITE}Папка бэкапа:${NC} $BACKUP_DIR"
+
+    local paths=(
+        "data"
+        "logs"
+        "photos"
+        "config/*.json"
+        "config/*.conf"
+    )
+
+    local use_rsync=true
+    if ! command -v rsync &>/dev/null; then
+        use_rsync=false
+    fi
+
+    shopt -s nullglob
+    for item in "${paths[@]}"; do
+        for path in $item; do
+            local src="$PROJECT_DIR/$path"
+            if [ -e "$src" ]; then
+                local dest_dir="$BACKUP_DIR/$(dirname "$path")"
+                mkdir -p "$dest_dir"
+                if $use_rsync; then
+                    rsync -a "$src" "$dest_dir/"
+                else
+                    cp -a "$src" "$dest_dir/"
+                fi
+                echo -e "  ${GREEN}✓${NC} $path"
+            fi
+        done
+    done
+    shopt -u nullglob
+
+    if [ -z "$(ls -A "$BACKUP_DIR" 2>/dev/null)" ]; then
+        echo -e "${YELLOW}Внимание: нечего было сохранять (бэкап пуст)${NC}"
+    else
+        echo -e "${GREEN} Резервная копия создана${NC}"
+    fi
+}
+
+# Восстановление данных после обновления
+restore_persistent_data() {
+    if [ -z "$BACKUP_DIR" ] || [ ! -d "$BACKUP_DIR" ]; then
+        return
+    fi
+
+    echo -e "${CYAN}Восстановление данных из бэкапа...${NC}"
+
+    if command -v rsync &>/dev/null; then
+        rsync -a "$BACKUP_DIR/" "$PROJECT_DIR/"
+    else
+        cp -a "$BACKUP_DIR/." "$PROJECT_DIR/"
+    fi
+
+    echo -e "${GREEN} Данные восстановлены${NC}"
+}
+
+# Автоматическое сбрасывание локальных изменений в bot/ и web/
+discard_changes_in_app_dirs() {
+    local changed_files
+    changed_files=$(git status --porcelain)
+
+    if [ -z "$changed_files" ]; then
+        return
+    fi
+
+    local app_files=()
+    local other_files=()
+
+    while IFS= read -r line; do
+        local path
+        path=$(echo "$line" | sed -E 's/^.. //')
+        if [[ "$path" == bot/* || "$path" == web/* ]]; then
+            app_files+=("$path")
+        else
+            other_files+=("$path")
+        fi
+    done <<< "$changed_files"
+
+    if [ ${#app_files[@]} -eq 0 ]; then
+        return
+    fi
+
+    echo -e "${YELLOW}Обнаружены локальные изменения в bot/ и web/:${NC}"
+    for f in "${app_files[@]}"; do
+        echo -e "  ${ORANGE}$f${NC}"
+    done
+
+    if [ ${#other_files[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Также есть изменения вне bot/ и web/:${NC}"
+        for f in "${other_files[@]}"; do
+            echo -e "  ${ORANGE}$f${NC}"
+        done
+    fi
+
+    read -p "Сбросить изменения в bot/ и web/ перед обновлением? (y/n): " reset_confirm
+    if [[ $reset_confirm =~ ^[Yy]$ ]]; then
+        git checkout -- bot/ web/ 2>/dev/null
+        git reset -- bot/ web/ 2>/dev/null
+
+        # Удаляем неотслеживаемые файлы в bot/ и web/
+        local untracked
+        untracked=$(git ls-files --others --exclude-standard bot/ web/)
+        if [ -n "$untracked" ]; then
+            echo -e "${YELLOW}Удалить неотслеживаемые файлы в bot/ и web/?${NC}"
+            read -p "Подтвердить удаление? (y/n): " clean_confirm
+            if [[ $clean_confirm =~ ^[Yy]$ ]]; then
+                git clean -f -- bot/ web/
+            fi
+        fi
+
+        echo -e "${GREEN}Изменения в bot/ и web/ сброшены${NC}"
+    else
+        echo -e "${YELLOW}Сброс изменений отменён${NC}"
+    fi
+}
+
 update_project() {
     show_header
     echo -e "${WHITE}═══════════════════════════════════════════════════════════${NC}"
@@ -343,7 +468,14 @@ update_project() {
     SCRIPT_PATH="$(readlink -f "$0")"
     OLD_HASH=$(md5sum "$SCRIPT_PATH" 2>/dev/null | awk '{print $1}')
     
-    echo -e "${WHITE}Текущая ветка:${NC} $(git branch --show-current)"
+    CURRENT_BRANCH=$(git branch --show-current)
+    if [ -z "$CURRENT_BRANCH" ]; then
+        echo -e "${RED}Не удалось определить текущую ветку${NC}"
+        read -p "Нажмите Enter для продолжения..."
+        return
+    fi
+
+    echo -e "${WHITE}Текущая ветка:${NC} $CURRENT_BRANCH"
     echo -e "${BLUE}Последний коммит:${NC} $(git log -1 --oneline)"
     echo ""
     
@@ -352,24 +484,26 @@ update_project() {
         echo -e "${ORANGE} Обнаружены локальные изменения:${NC}"
         git status --short
         echo ""
-        read -p "Продолжить обновление? Локальные изменения могут быть потеряны (y/n): " confirm
-        if [[ ! $confirm =~ ^[Yy]$ ]]; then
-            echo -e "${YELLOW}Отменено${NC}"
-            read -p "Нажмите Enter для продолжения..."
-            return
+
+        discard_changes_in_app_dirs
+
+        if [ -n "$(git status --porcelain)" ]; then
+            read -p "Продолжить обновление? Локальные изменения могут быть потеряны (y/n): " confirm
+            if [[ ! $confirm =~ ^[Yy]$ ]]; then
+                echo -e "${YELLOW}Отменено${NC}"
+                read -p "Нажмите Enter для продолжения..."
+                return
+            fi
         fi
     fi
-    
-    echo -e "${CYAN}Остановка сервисов...${NC}"
-    sudo systemctl stop $BOT_SERVICE $WEB_SERVICE 2>/dev/null
     
     echo -e "${CYAN}Обновление кода из репозитория...${NC}"
     git fetch origin
     
     # Показать что будет обновлено
-    if [ -n "$(git log HEAD..origin/$(git branch --show-current) --oneline)" ]; then
+    if [ -n "$(git log HEAD..origin/$CURRENT_BRANCH --oneline)" ]; then
         echo -e "${GREEN}Доступные обновления:${NC}"
-        git log HEAD..origin/$(git branch --show-current) --oneline --decorate --color
+        git log HEAD..origin/$CURRENT_BRANCH --oneline --decorate --color
         echo ""
     else
         echo -e "${GREEN} Проект уже актуален${NC}"
@@ -379,10 +513,49 @@ update_project() {
     
     read -p "Применить обновления? (y/n): " confirm
     if [[ $confirm =~ ^[Yy]$ ]]; then
-        git pull origin $(git branch --show-current)
-        
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN} Обновление завершино${NC}"
+        echo ""
+        echo -e "${WHITE}Выберите режим обновления:${NC}"
+        echo -e "  ${WHITE}1.${NC} Безопасный (git pull --rebase)"
+        echo -e "  ${WHITE}2.${NC} Принудительный (reset --hard)"
+        echo -n -e "${WHITE}Ваш выбор (1-2, Enter=1): ${NC}"
+        read update_mode
+
+        if [ -z "$update_mode" ]; then
+            update_mode=1
+        fi
+
+        backup_persistent_data
+
+        echo -e "${CYAN}Остановка сервисов...${NC}"
+        sudo systemctl stop $BOT_SERVICE $WEB_SERVICE 2>/dev/null
+
+        UPDATE_OK=false
+
+        if [ "$update_mode" = "2" ]; then
+            echo -e "${YELLOW}Принудительное обновление...${NC}"
+            git reset --hard origin/$CURRENT_BRANCH
+            if [ $? -eq 0 ]; then
+                UPDATE_OK=true
+            fi
+        else
+            echo -e "${CYAN}Безопасное обновление...${NC}"
+            git pull --rebase origin $CURRENT_BRANCH
+            if [ $? -eq 0 ]; then
+                UPDATE_OK=true
+            else
+                echo -e "${RED}Ошибка при безопасном обновлении${NC}"
+                read -p "Перейти к принудительному обновлению? (y/n): " force_confirm
+                if [[ $force_confirm =~ ^[Yy]$ ]]; then
+                    git reset --hard origin/$CURRENT_BRANCH
+                    if [ $? -eq 0 ]; then
+                        UPDATE_OK=true
+                    fi
+                fi
+            fi
+        fi
+
+        if $UPDATE_OK; then
+            echo -e "${GREEN} Обновление завершено${NC}"
             echo ""
             
             # Проверяем, обновился ли manage.sh и перезапускаем его
@@ -393,6 +566,9 @@ update_project() {
                 exec "$SCRIPT_PATH" "$@"
             fi
             
+            # Восстановление данных
+            restore_persistent_data
+
             # Обновление зависимостей
             echo -e "${CYAN}Обновление зависимостей...${NC}"
             if [ -d "$VENV_DIR" ]; then
@@ -413,7 +589,11 @@ update_project() {
             echo -e "${GREEN} Обновление завершено!${NC}"
         else
             echo -e "${RED}Ошибка при обновлении${NC}"
-            echo -e "${YELLOW}Попробуйте вручную: git pull${NC}"
+            echo -e "${YELLOW}Попробуйте вручную: git pull --rebase${NC}"
+            git rebase --abort 2>/dev/null
+            restore_persistent_data
+            echo -e "${CYAN}Запуск сервисов...${NC}"
+            sudo systemctl start $BOT_SERVICE $WEB_SERVICE 2>/dev/null
         fi
     else
         echo -e "${YELLOW}Отменено${NC}"
