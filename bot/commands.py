@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config.config import load_data, save_data, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR
-from bot.dse_manager import get_all_dse_records, search_dse_records, get_unique_dse_values
+from bot.dse_manager import get_all_dse_records, search_dse_records, get_unique_dse_values, add_pending_dse_request
 from bot.user_manager import (register_user, get_user_role, has_permission, set_user_role, ROLES, get_all_users,
                          set_user_nickname, remove_user_nickname, get_user_nickname, get_user_display_name,
                          check_nickname_exists, get_all_nicknames, get_user_data)
@@ -1711,7 +1711,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
                 print(f" Failed to download photo: {e}")
                 photo_path = None
         
-        # Сохраняем заявку в базу данных
+        # Сохраняем заявку как ожидающую проверку
         record = {
             'dse': dse_number,
             'problem_type': problem_type,
@@ -1724,12 +1724,7 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
             'sent_to_emails': ', '.join(valid_emails)  # Сохраняем все адреса
         }
         
-        # Загружаем данные как словарь {user_id: [records]}
-        data_dict = load_data(DATA_FILE)
-        if user_id not in data_dict:
-            data_dict[user_id] = []
-        data_dict[user_id].append(record)
-        save_data(data_dict, DATA_FILE)
+        request_id = add_pending_dse_request(record, user_id)
         
         # Сохраняем каждый email в историю с номером ДСЕ
         for recipient_email in valid_emails:
@@ -1746,11 +1741,12 @@ async def send_application_by_email(update: Update, context: ContextTypes.DEFAUL
         }
         
         await update.message.reply_text(
-            f"✅ Заявка успешно отправлена на {len(valid_emails)} адрес(ов)!\n\n"
+            f"✅ Заявка отправлена на {len(valid_emails)} адрес(ов) и поставлена на проверку.\n\n"
             f"📋 ДСЕ: {dse_number}\n"
             f"📝 Тип проблемы: {problem_type}\n"
             f"🏭 РЦ: {rc}\n"
-            f"📧 Все адреса сохранены в вашу историю для быстрого выбора."
+            f"📧 Все адреса сохранены в вашу историю для быстрого выбора.\n"
+            f"🆔 ID заявки: {request_id}"
         )
         
     except Exception as e:
@@ -2095,21 +2091,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'installer_fio': creator_fio
         }
         
-        # Загружаем данные как словарь {user_id: [records]}
-        data_dict = load_data(DATA_FILE)
-        if user_id not in data_dict:
-            data_dict[user_id] = []
-        data_dict[user_id].append(record)
-        save_data(data_dict, DATA_FILE)
-        
-        # Отправляем PDF подписчикам
-        print(f"📨 Вызов send_dse_to_subscribers для заявки ДСЕ: {record.get('dse')}")
-        try:
-            await send_dse_to_subscribers(context.application, record, user_id)
-        except Exception as e:
-            print(f" Ошибка при вызове send_dse_to_subscribers: {e}")
-            import traceback
-            traceback.print_exc()
+        request_id = add_pending_dse_request(record, user_id)
         
         # Очищаем данные пользователя
         user_states[user_id] = {
@@ -2125,7 +2107,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         }
         
         await query.edit_message_text(
-            "✅ Заявка успешно отправлена!\n\n"
+            "✅ Заявка отправлена на проверку. После утверждения она будет добавлена в базу.\n\n"
             f"ДСЕ: {record['dse']}\n"
             f"Тип проблемы: {record['problem_type']}\n"
             f"РЦ: {record['rc']}\n"
@@ -2133,7 +2115,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"ФИО наладчика: {record['installer_fio']}\n"
             f"ФИО программиста: {record['programmer_name']}\n"
             f"Описание: {record['description']}\n"
-            f"Дата: {record['datetime']}"
+            f"Дата: {record['datetime']}\n"
+            f"ID заявки: {request_id}"
         )
         await show_main_menu(update, user_id)
     

@@ -25,6 +25,41 @@
             </div>
         </div>
     </div>
+
+    {% if permissions.approve_dse_requests %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-hourglass-split"></i> Новые заявки на проверку</h5>
+                    <span class="badge bg-dark" id="pendingCount">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 6%;">ID</th>
+                                    <th style="width: 15%;">ДСЕ</th>
+                                    <th style="width: 20%;">Наименование</th>
+                                    <th style="width: 12%;">Тип проблемы</th>
+                                    <th style="width: 12%;">Пользователь</th>
+                                    <th style="width: 15%;">Дата</th>
+                                    <th style="width: 20%;">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingRequestsBody">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">Загрузка...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     
     <!-- Панель фильтров и поиска -->
     <div class="row mb-4">
@@ -169,6 +204,7 @@
 {% block extra_scripts %}
 <script>
 const canDeleteDse = {{ 'true' if permissions.delete_dse else 'false' }};
+const canApproveRequests = {{ 'true' if permissions.approve_dse_requests else 'false' }};
 let allDseData = [];
 let filteredData = [];
 let currentPage = 1;
@@ -178,6 +214,9 @@ let currentView = 'table'; // 'table' или 'card'
 // Загрузка данных при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     loadDseData();
+    if (canApproveRequests) {
+        loadPendingRequests();
+    }
     const showHiddenCheckbox = document.getElementById('showHidden');
     if (showHiddenCheckbox) {
         showHiddenCheckbox.addEventListener('change', () => {
@@ -185,6 +224,105 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+function loadPendingRequests() {
+    fetch('/api/dse/pending')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('pendingRequestsBody');
+            const countBadge = document.getElementById('pendingCount');
+            if (!tbody || !countBadge) return;
+
+            if (!data.success) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${data.error || 'Ошибка загрузки'}</td></tr>`;
+                countBadge.textContent = '0';
+                return;
+            }
+
+            const requests = data.requests || [];
+            countBadge.textContent = requests.length.toString();
+
+            if (requests.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Нет заявок на проверку</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = requests.map(req => {
+                const date = req.created_at ? new Date(req.created_at).toLocaleString('ru-RU') : '-';
+                return `
+                    <tr>
+                        <td>${req.id}</td>
+                        <td>${req.dse || '-'}</td>
+                        <td>${req.dse_name || '-'}</td>
+                        <td>${req.problem_type || '-'}</td>
+                        <td>${req.user_id || '-'}</td>
+                        <td>${date}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-success" onclick="approvePendingRequest(${req.id})">
+                                    <i class="bi bi-check-circle"></i> Утвердить
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="rejectPendingRequest(${req.id})">
+                                    <i class="bi bi-x-circle"></i> Отклонить
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки заявок на проверку:', error);
+            const tbody = document.getElementById('pendingRequestsBody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Ошибка загрузки</td></tr>';
+            }
+        });
+}
+
+function approvePendingRequest(requestId) {
+    if (!confirm('Утвердить эту заявку и добавить в базу?')) return;
+
+    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/approve`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert(data.error || 'Ошибка при утверждении');
+                return;
+            }
+
+            if (data.archived_matches && data.archived_matches.length > 0) {
+                const match = data.archived_matches[0];
+                const archivedAt = match.archived_at ? new Date(match.archived_at).toLocaleString('ru-RU') : '-';
+                alert(`Найдено совпадение с архивной заявкой (ID: ${match.id}, архив: ${archivedAt}).`);
+            }
+
+            loadPendingRequests();
+            loadDseData();
+        })
+        .catch(error => {
+            console.error('Ошибка утверждения заявки:', error);
+            alert('Ошибка при утверждении заявки');
+        });
+}
+
+function rejectPendingRequest(requestId) {
+    if (!confirm('Отклонить эту заявку? Она будет архивирована и скрыта.')) return;
+
+    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/reject`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert(data.error || 'Ошибка при отклонении');
+                return;
+            }
+            loadPendingRequests();
+        })
+        .catch(error => {
+            console.error('Ошибка отклонения заявки:', error);
+            alert('Ошибка при отклонении заявки');
+        });
+}
 
 function loadDseData() {
     const showHidden = getShowHidden();

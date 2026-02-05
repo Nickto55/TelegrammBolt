@@ -15,7 +15,7 @@ from bot.commands import show_main_menu, user_states, registration_states, show_
     show_nicknames_list, start_nickname_input, remove_nickname_confirm, show_watched_dse_menu, start_add_watched_dse, \
     start_remove_watched_dse, show_watched_dse_list, start_dse_chat_search_with_selection, dse_view_states, \
     show_search_results, handle_dse_search_input, show_role_selection_menu, send_file_by_email
-from bot.dse_manager import get_unique_dse_values
+from bot.dse_manager import get_unique_dse_values, add_pending_dse_request
 from bot.user_manager import has_permission, get_user_role, set_user_role, ROLES, get_all_users, check_nickname_exists, \
     set_user_nickname
 from config.config import PROBLEM_TYPES, RC_TYPES, save_data, load_data, DATA_FILE
@@ -204,6 +204,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         record = {
             'dse': user_data['dse'],
+            'dse_name': user_data.get('dse_name', ''),
             'problem_type': user_data['problem_type'],
             'rc': user_data['rc'],
             'programmer_name': user_data.get('programmer_name', ''),
@@ -216,11 +217,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             'photo_path': photo_path
         }
         
-        data_list = load_data(DATA_FILE)
-        if not isinstance(data_list, list):
-            data_list = []
-        data_list.append(record)
-        save_data(data_list, DATA_FILE)
+        request_id = add_pending_dse_request(record, user_id)
         
         # Очищаем данные пользователя
         user_states[user_id] = {
@@ -235,7 +232,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         }
         
         await query.edit_message_text(
-            "Заявка успешно отправлена!\n\n"
+            "✅ Заявка отправлена на проверку. После утверждения она будет добавлена в базу.\n\n"
             f"ДСЕ: {record['dse']}\n"
             f"Тип проблемы: {record['problem_type']}\n"
             f"РЦ: {record['rc']}\n"
@@ -243,7 +240,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"Номер станка: {record['machine_number']}\n"
             f"ФИО наладчика: {record['installer_fio']}\n"
             f"Описание: {record['description']}\n"
-            f"Дата: {record['datetime']}"
+            f"Дата: {record['datetime']}\n"
+            f"ID заявки: {request_id}"
         )
         await show_main_menu(update, user_id)
     

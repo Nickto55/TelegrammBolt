@@ -44,6 +44,11 @@ PERMISSIONS = {
         'description': 'Создание новых заявок ДСЕ',
         'roles': ['admin', 'initiator']
     },
+    'approve_dse_requests': {
+        'name': 'Утверждение заявок ДСЕ',
+        'description': 'Проверка и утверждение новых заявок ДСЕ перед попаданием в базу',
+        'roles': ['admin', 'responder']
+    },
     'edit_dse': {
         'name': 'Редактирование ДСЕ',
         'description': 'Изменение существующих ДСЕ',
@@ -164,7 +169,7 @@ PERMISSIONS = {
 # Группировка прав для удобства отображения
 PERMISSION_GROUPS = {
     'Административные': ['admin', 'manage_users', 'view_users', 'use_terminal', 'create_web_user'],
-    'Работа с ДСЕ': ['view_dse', 'add_dse', 'edit_dse', 'delete_dse', 'view_own_dse'],
+    'Работа с ДСЕ': ['view_dse', 'add_dse', 'approve_dse_requests', 'edit_dse', 'delete_dse', 'view_own_dse'],
     'Экспорт и отчеты': ['export_data', 'pdf_export'],
     'Чат': ['chat_dse', 'view_chat_history'],
     'Приглашения': ['manage_invites', 'use_invite'],
@@ -425,6 +430,7 @@ def check_web_access(user_id: str) -> Dict[str, bool]:
         'view_dashboard_stats': has_permission(user_id, 'view_dashboard_stats'),  # Статистика только для admin и responder с доп правом
         'view_dse': has_permission(user_id, 'view_dse'),
         'create_dse': has_permission(user_id, 'add_dse'),
+        'approve_dse_requests': has_permission(user_id, 'approve_dse_requests'),
         'edit_dse': has_permission(user_id, 'edit_dse'),
         'delete_dse': has_permission(user_id, 'delete_dse'),
         'export_excel': has_permission(user_id, 'export_data'),

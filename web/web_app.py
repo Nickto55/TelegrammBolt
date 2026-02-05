@@ -51,7 +51,16 @@ from bot.permissions_manager import (
     get_permissions_by_group,
     PERMISSIONS
 )
-from bot.dse_manager import get_all_dse_records, get_dse_records_by_user, search_dse_records
+from bot.dse_manager import (
+    get_all_dse_records,
+    get_dse_records_by_user,
+    search_dse_records,
+    add_pending_dse_request,
+    get_pending_dse_requests,
+    approve_pending_dse_request,
+    reject_pending_dse_request,
+    find_archived_dse_matches
+)
 # chat_manager не имеет нужных функций для веб, используем свои реализации
 from bot.pdf_generator import create_dse_pdf_report
 # Новые модули для QR кодов и привязки аккаунтов
@@ -1527,6 +1536,19 @@ def dse_list():
                          permissions=get_user_permissions(user_id))
 
 
+@app.route('/dse/pending')
+@login_required
+@user_role_required(['admin', 'responder'])
+def dse_pending_requests():
+    """Страница заявок ДСЕ на проверку"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'approve_dse_requests'):
+        return "Доступ запрещен", 403
+
+    return render_template('dse_pending.html', permissions=get_user_permissions(user_id))
+
+
 @app.route('/dse/<dse_id>')
 @login_required
 def dse_detail(dse_id):
@@ -1687,19 +1709,15 @@ def create_dse():
                     record['photo_path'] = photo_path
                     logger.info(f"Photo saved: {photo_path}")
             
-            # Загружаем данные
-            data_dict = load_data(DATA_FILE)
-            if user_id not in data_dict:
-                data_dict[user_id] = []
-            data_dict[user_id].append(record)
+            # Сохраняем как заявку на проверку
+            request_id = add_pending_dse_request(record, user_id)
             
-            # Сохраняем
-            save_data(data_dict, DATA_FILE)
-            
-            logger.info(f"Создана новая заявка ДСЕ {dse_number} пользователем {user_id} через веб-интерфейс")
+            logger.info(
+                f"Создана новая заявка ДСЕ {dse_number} пользователем {user_id} через веб-интерфейс (request_id={request_id})"
+            )
             
             # Перенаправляем на страницу просмотра
-            flash('Заявка успешно создана!', 'success')
+            flash('Заявка отправлена на проверку и будет добавлена в базу после утверждения.', 'info')
             return redirect(url_for('dse_list'))
             
         except Exception as e:
@@ -1915,6 +1933,36 @@ def chat():
 # API ENDPOINTS
 # ============================================================================
 
+def _notify_dse_request_rejected(record):
+    """Отправить уведомление об отклонении заявки ДСЕ пользователю (если возможно)."""
+    try:
+        user_id = str(record.get('user_id', '')).strip()
+        if not user_id:
+            return
+
+        tg_id = None
+        if user_id.isdigit():
+            tg_id = user_id
+        else:
+            try:
+                tg_id = get_telegram_id_by_web_user(user_id)
+            except Exception:
+                tg_id = None
+
+        if not tg_id:
+            return
+
+        dse = record.get('dse', '')
+        dse_name = record.get('dse_name', '')
+        text = (
+            "❌ Ваша заявка по ДСЕ не утверждена.\n\n"
+            f"ДСЕ: {dse}\n"
+            f"Наименование: {dse_name or '—'}"
+        )
+        _telegram_send_queue.put((str(tg_id), text))
+    except Exception as e:
+        logger.warning(f"Не удалось отправить уведомление об отклонении заявки: {e}")
+
 @app.route('/api/dse', methods=['GET'])
 @login_required
 def api_get_dse():
@@ -1959,9 +2007,85 @@ def api_create_dse():
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     data = request.json
-    result = add_dse(data)
-    
-    return jsonify(result), 201
+
+    request_id = add_pending_dse_request(data, user_id)
+    return jsonify({
+        'success': True,
+        'message': 'Заявка отправлена на проверку',
+        'request_id': request_id
+    }), 202
+
+
+@app.route('/api/dse/pending', methods=['GET'])
+@login_required
+def api_get_pending_dse_requests():
+    """API: Получить список заявок ДСЕ на проверку"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'approve_dse_requests'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    try:
+        requests_list = get_pending_dse_requests()
+        return jsonify({'success': True, 'requests': requests_list})
+    except Exception as e:
+        logger.error(f"Error loading pending DSE requests: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/dse/pending/<int:request_id>/approve', methods=['POST'])
+@login_required
+def api_approve_pending_dse(request_id):
+    """API: Утвердить заявку ДСЕ"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'approve_dse_requests'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    try:
+        pending_list = get_pending_dse_requests()
+        request_record = next((r for r in pending_list if str(r.get('id')) == str(request_id)), None)
+        if not request_record:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+
+        archived_matches = find_archived_dse_matches(
+            request_record.get('dse', ''),
+            request_record.get('dse_name', '')
+        )
+
+        approved_record = approve_pending_dse_request(request_id, user_id)
+        if not approved_record:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+
+        return jsonify({
+            'success': True,
+            'archived_matches': archived_matches
+        })
+    except Exception as e:
+        logger.error(f"Error approving DSE request: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/dse/pending/<int:request_id>/reject', methods=['POST'])
+@login_required
+def api_reject_pending_dse(request_id):
+    """API: Отклонить заявку ДСЕ"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'approve_dse_requests'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    try:
+        rejected_record = reject_pending_dse_request(request_id, user_id)
+        if not rejected_record:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+
+        _notify_dse_request_rejected(rejected_record)
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error rejecting DSE request: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/dse/<int:dse_id>', methods=['PUT'])

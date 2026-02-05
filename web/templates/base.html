@@ -78,6 +78,11 @@
                             <li><a class="dropdown-item" href="{{ url_for('dse_list') }}"><i class="bi bi-list-ul"></i>
                                     ДСЕ</a></li>
                             {% endif %}
+
+                                {% if permissions.approve_dse_requests %}
+                                <li><a class="dropdown-item" href="{{ url_for('dse_pending_requests') }}"><i class="bi bi-hourglass-split"></i>
+                                    Заявки на проверку</a></li>
+                                {% endif %}
                             
                             {% if permissions.export_data or permissions.export_pdf %}
                             <li><a class="dropdown-item" href="{{ url_for('reports') }}"><i
@@ -92,8 +97,8 @@
                             
                             {% if permissions.admin_panel %}
                             <li>
-                                <hr class="dropdown-divider">
-                            </li>
+                                    <hr class="dropdown-divider">
+                                </li>
                             {% if permissions.manage_users or permissions.view_users %}
                             <li><a class="dropdown-item" href="{{ url_for('users_management') }}"><i
                                         class="bi bi-people"></i> Управление пользователями</a></li>

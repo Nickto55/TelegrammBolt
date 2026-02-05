@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Заявки на проверку - BOLT{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="mb-3">
+                    <i class="bi bi-hourglass-split"></i> Заявки на проверку
+                </h1>
+                <button class="btn btn-outline-primary" onclick="loadPendingRequests()">
+                    <i class="bi bi-arrow-repeat"></i> Обновить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <span>Ожидают проверки: <strong id="pendingCount">0</strong></span>
+                <span class="text-muted">После отклонения заявки скрываются и удаляются через месяц</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-list-task"></i> Список заявок</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 6%;">ID</th>
+                                    <th style="width: 14%;">ДСЕ</th>
+                                    <th style="width: 20%;">Наименование</th>
+                                    <th style="width: 12%;">Тип проблемы</th>
+                                    <th style="width: 12%;">Пользователь</th>
+                                    <th style="width: 16%;">Дата</th>
+                                    <th style="width: 20%;">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingRequestsBody">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">Загрузка...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pendingRequestModal" tabindex="-1" aria-labelledby="pendingRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pendingRequestModalLabel">Заявка на проверку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="text-muted">ID</div>
+                        <div class="fw-semibold" id="pendingViewId">—</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted">ДСЕ</div>
+                        <div class="fw-semibold" id="pendingViewDse">—</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted">Наименование</div>
+                        <div class="fw-semibold" id="pendingViewDseName">—</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted">Тип проблемы</div>
+                        <div class="fw-semibold" id="pendingViewProblem">—</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted">РЦ</div>
+                        <div class="fw-semibold" id="pendingViewRc">—</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted">Дата</div>
+                        <div class="fw-semibold" id="pendingViewDate">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted">Номер станка</div>
+                        <div class="fw-semibold" id="pendingViewMachine">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted">ФИО наладчика</div>
+                        <div class="fw-semibold" id="pendingViewInstaller">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted">ФИО программиста</div>
+                        <div class="fw-semibold" id="pendingViewProgrammer">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted">Пользователь</div>
+                        <div class="fw-semibold" id="pendingViewUser">—</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="text-muted">Описание</div>
+                        <div class="fw-semibold" id="pendingViewDescription">—</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function loadPendingRequests() {
+    fetch('/api/dse/pending')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('pendingRequestsBody');
+            const countBadge = document.getElementById('pendingCount');
+            if (!tbody || !countBadge) return;
+
+            if (!data.success) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${data.error || 'Ошибка загрузки'}</td></tr>`;
+                countBadge.textContent = '0';
+                return;
+            }
+
+            const requests = data.requests || [];
+            countBadge.textContent = requests.length.toString();
+
+            if (requests.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Нет заявок на проверку</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = requests.map(req => {
+                const date = req.created_at ? new Date(req.created_at).toLocaleString('ru-RU') : '-';
+                const payload = btoa(unescape(encodeURIComponent(JSON.stringify(req))));
+                return `
+                    <tr data-payload="${payload}" onclick="viewPendingRequestFromRow(this)" style="cursor: pointer;">
+                        <td>${req.id}</td>
+                        <td>${req.dse || '-'}</td>
+                        <td>${req.dse_name || '-'}</td>
+                        <td>${req.problem_type || '-'}</td>
+                        <td>${req.user_id || '-'}</td>
+                        <td>${date}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-primary" onclick="event.stopPropagation(); viewPendingRequest('${payload}')">
+                                    <i class="bi bi-eye"></i> Просмотр
+                                </button>
+                                <button class="btn btn-success" onclick="event.stopPropagation(); approvePendingRequest(${req.id})">
+                                    <i class="bi bi-check-circle"></i> Утвердить
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="event.stopPropagation(); rejectPendingRequest(${req.id})">
+                                    <i class="bi bi-x-circle"></i> Отклонить
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки заявок на проверку:', error);
+            const tbody = document.getElementById('pendingRequestsBody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Ошибка загрузки</td></tr>';
+            }
+        });
+}
+
+function approvePendingRequest(requestId) {
+    if (!confirm('Утвердить эту заявку и добавить в базу?')) return;
+
+    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/approve`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert(data.error || 'Ошибка при утверждении');
+                return;
+            }
+
+            if (data.archived_matches && data.archived_matches.length > 0) {
+                const match = data.archived_matches[0];
+                const archivedAt = match.archived_at ? new Date(match.archived_at).toLocaleString('ru-RU') : '-';
+                alert(`Найдено совпадение с архивной заявкой (ID: ${match.id}, архив: ${archivedAt}).`);
+            }
+
+            loadPendingRequests();
+        })
+        .catch(error => {
+            console.error('Ошибка утверждения заявки:', error);
+            alert('Ошибка при утверждении заявки');
+        });
+}
+
+function rejectPendingRequest(requestId) {
+    if (!confirm('Отклонить эту заявку? Она будет архивирована и скрыта.')) return;
+
+    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/reject`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert(data.error || 'Ошибка при отклонении');
+                return;
+            }
+            loadPendingRequests();
+        })
+        .catch(error => {
+            console.error('Ошибка отклонения заявки:', error);
+            alert('Ошибка при отклонении заявки');
+        });
+}
+
+function viewPendingRequest(payload) {
+    if (!payload) return;
+    let req = null;
+    try {
+        req = JSON.parse(decodeURIComponent(escape(atob(payload))));
+    } catch (error) {
+        console.error('Ошибка разбора заявки:', error);
+        return;
+    }
+
+    const date = req.created_at ? new Date(req.created_at).toLocaleString('ru-RU') : '-';
+    document.getElementById('pendingViewId').textContent = req.id ?? '—';
+    document.getElementById('pendingViewDse').textContent = req.dse || '—';
+    document.getElementById('pendingViewDseName').textContent = req.dse_name || '—';
+    document.getElementById('pendingViewProblem').textContent = req.problem_type || '—';
+    document.getElementById('pendingViewRc').textContent = req.rc || '—';
+    document.getElementById('pendingViewDate').textContent = date;
+    document.getElementById('pendingViewMachine').textContent = req.machine_number || '—';
+    document.getElementById('pendingViewInstaller').textContent = req.installer_fio || '—';
+    document.getElementById('pendingViewProgrammer').textContent = req.programmer_name || '—';
+    document.getElementById('pendingViewUser').textContent = req.user_id || '—';
+    document.getElementById('pendingViewDescription').textContent = req.description || '—';
+
+    const modalElement = document.getElementById('pendingRequestModal');
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+}
+
+function viewPendingRequestFromRow(row) {
+    if (!row) return;
+    const payload = row.getAttribute('data-payload');
+    if (payload) {
+        viewPendingRequest(payload);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadPendingRequests();
+});
+</script>
+{% endblock %}
