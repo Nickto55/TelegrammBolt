@@ -2,18 +2,21 @@
 
 :root {
     /* Основные цвета BOLT */
-    --primary-color: #1E5EFF;
-    --secondary-color: #00D4FF;
+    --primary-color: #2E7BB5;
+    --secondary-color: #518AB5;
+    --primary-dark: #024070;
+    --primary-darker: #163953;
+    --primary-deep: #002948;
     --success-color: #10b981;
     --danger-color: #ef4444;
     --warning-color: #f59e0b;
-    --info-color: #00D4FF;
+    --info-color: #2E7BB5;
     --dark-color: #1f2937;
     --light-color: #f3f4f6;
     
     /* Градиенты */
-    --gradient-primary: linear-gradient(135deg, #1E5EFF, #00D4FF);
-    --gradient-secondary: linear-gradient(135deg, #00D4FF, #1E5EFF);
+    --gradient-primary: linear-gradient(135deg, #024070, #2E7BB5);
+    --gradient-secondary: linear-gradient(135deg, #2E7BB5, #518AB5);
 }
 
 [data-bs-theme="dark"] {
@@ -23,12 +26,12 @@
     --border-color: #2a3140;
     --text-color: #e6edf3;
     --muted-color: #9aa4b2;
-    --accent-color: #4c8dff;
-    --accent-color-2: #22d3ee;
+    --accent-color: #2E7BB5;
+    --accent-color-2: #518AB5;
     --success-color: #4ade80;
     --warning-color: #f5c451;
     --danger-color: #ff6b6b;
-    --info-color: #60a5fa;
+    --info-color: #2E7BB5;
 }
 
 body {
