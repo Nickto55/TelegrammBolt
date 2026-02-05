@@ -189,30 +189,7 @@
                 <div class="mb-3">
                     <label for="editLastName" class="form-label fw-bold">Фамилия:</label>
                     <input type="text" class="form-control" id="editLastName" placeholder="Введите вашу фамилию">
-                </div>
-                
-                <hr>
-                
-                <h6 class="mb-3">Смена пароля</h6>
-                
-                <div class="alert alert-info">
-                    <small><i class="bi bi-info-circle"></i> Оставьте поля пусты, если не хотите менять пароль</small>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editCurrentPassword" class="form-label fw-bold">Текущий пароль:</label>
-                    <input type="password" class="form-control" id="editCurrentPassword" placeholder="Введите текущий пароль">
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editNewPassword" class="form-label fw-bold">Новый пароль:</label>
-                    <input type="password" class="form-control" id="editNewPassword" placeholder="Введите новый пароль">
-                </div>
-                
-                <div class="mb-3">
-                    <label for="editConfirmPassword" class="form-label fw-bold">Подтвердите пароль:</label>
-                    <input type="password" class="form-control" id="editConfirmPassword" placeholder="Подтвердите новый пароль">
-                </div>
+                </div>                
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -331,17 +308,23 @@ function loadProfileData() {
     document.getElementById('editFirstName').value = firstName;
     document.getElementById('editLastName').value = lastName;
     
-    document.getElementById('editCurrentPassword').value = '';
-    document.getElementById('editNewPassword').value = '';
-    document.getElementById('editConfirmPassword').value = '';
+    const currentPasswordEl = document.getElementById('editCurrentPassword');
+    const newPasswordEl = document.getElementById('editNewPassword');
+    const confirmPasswordEl = document.getElementById('editConfirmPassword');
+    if (currentPasswordEl) currentPasswordEl.value = '';
+    if (newPasswordEl) newPasswordEl.value = '';
+    if (confirmPasswordEl) confirmPasswordEl.value = '';
 }
 
 function saveProfileChanges() {
     const firstName = document.getElementById('editFirstName').value.trim();
     const lastName = document.getElementById('editLastName').value.trim();
-    const currentPassword = document.getElementById('editCurrentPassword').value;
-    const newPassword = document.getElementById('editNewPassword').value;
-    const confirmPassword = document.getElementById('editConfirmPassword').value;
+    const currentPasswordEl = document.getElementById('editCurrentPassword');
+    const newPasswordEl = document.getElementById('editNewPassword');
+    const confirmPasswordEl = document.getElementById('editConfirmPassword');
+    const currentPassword = currentPasswordEl ? currentPasswordEl.value : '';
+    const newPassword = newPasswordEl ? newPasswordEl.value : '';
+    const confirmPassword = confirmPasswordEl ? confirmPasswordEl.value : '';
     
     if (!firstName) {
         alert('Пожалуйста, введите имя');
