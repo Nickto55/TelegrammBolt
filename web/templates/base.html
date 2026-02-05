@@ -8,6 +8,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1E5EFF">
+    <link rel="icon" href="/web/static/img/pngtree-ocean-wave-decoration-png-image_4667546.jpg" type="img/x-icon">
+
     <title>{% block title %}BOLT{% endblock %}</title>
 
     <!-- Bootstrap CSS -->
@@ -107,7 +109,7 @@
 
                             {% if permissions.terminal %}
                             <li><a class="dropdown-item" href="{{ url_for('terminal') }}"><i class="bi bi-terminal"></i>
-                                    Веб-терминал</a></li>
+                                    <del>Веб-терминал</del></a></li>
                             {% endif %}
                             {% if permissions.dashboard %}
                             <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i
