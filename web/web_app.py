@@ -37,6 +37,7 @@ from bot.user_manager import (
     get_user_role, 
     register_user,
     is_user_registered,
+    save_users_data,
     set_user_role,
     ROLES
 )
@@ -162,13 +163,21 @@ def inject_permissions():
 
 def get_all_dse(include_hidden: bool = False):
     """Обертка для получения всех ДСЕ"""
-    return get_all_dse_records(include_hidden=include_hidden)
+    try:
+        return get_all_dse_records(include_hidden=include_hidden)
+    except TypeError:
+        # Совместимость со старой сигнатурой без include_hidden
+        return get_all_dse_records()
 
 
 def get_dse_by_id(dse_id):
     """Получить конкретное ДСЕ по ID (фильтрация из всех записей)"""
     try:
-        records = get_all_dse_records(include_hidden=True)
+        try:
+            records = get_all_dse_records(include_hidden=True)
+        except TypeError:
+            # Совместимость со старой сигнатурой без include_hidden
+            records = get_all_dse_records()
         if not records:
             logger.warning("get_all_dse_records() returned empty list")
             return None
@@ -1017,6 +1026,37 @@ def profile():
     return render_template('profile.html', 
                          user=user_data,
                          subscription=user_subscription)
+
+
+@app.route('/api/profile/update', methods=['POST'])
+@login_required
+def api_update_profile():
+    """API: Обновление данных профиля"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'edit_profile'):
+        return jsonify({'success': False, 'error': 'Недостаточно прав'}), 403
+
+    data = request.json or {}
+    first_name = (data.get('first_name') or '').strip()
+    last_name = (data.get('last_name') or '').strip()
+
+    if not first_name:
+        return jsonify({'success': False, 'error': 'Имя не может быть пустым'}), 400
+
+    users_data = get_users_data()
+    user_key = str(user_id)
+    if user_key not in users_data:
+        return jsonify({'success': False, 'error': 'Пользователь не найден'}), 404
+
+    users_data[user_key]['first_name'] = first_name
+    users_data[user_key]['last_name'] = last_name
+    save_users_data(users_data)
+
+    session['first_name'] = first_name
+    session['last_name'] = last_name
+
+    return jsonify({'success': True})
 
 
 @app.route('/change-password')
