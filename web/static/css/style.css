@@ -635,6 +635,11 @@ main {
     background-color: #2d2d2d;
 }
 
+[data-bs-theme="dark"] .chat-messages {
+    background-color: #1E1E1E;
+    border-color: #333333;
+}
+
 [data-bs-theme="dark"] .dse-status.active {
     background-color: rgba(16, 185, 129, 0.2);
     color: #4ade80;

@@ -487,9 +487,17 @@ function getRoleName(role) {
     border-radius: 8px;
 }
 
+[data-bs-theme="dark"] .timeline-item {
+    background-color: #1E1E1E;
+}
+
 .timeline-item:hover {
     background-color: #e9ecef;
     transition: background-color 0.3s ease;
+}
+
+[data-bs-theme="dark"] .timeline-item:hover {
+    background-color: #2d2d2d;
 }
 </style>
 {% endblock %}
