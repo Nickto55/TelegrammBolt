@@ -382,6 +382,17 @@ restore_persistent_data() {
     echo -e "${GREEN} Данные восстановлены${NC}"
 }
 
+# Сделать все .sh файлы исполняемыми
+ensure_sh_executable() {
+    echo -e "${CYAN}Проверка исполняемости .sh файлов...${NC}"
+    if command -v find &>/dev/null; then
+        find "$PROJECT_DIR" -maxdepth 2 -type f -name "*.sh" -exec chmod +x {} \;
+    else
+        chmod +x "$PROJECT_DIR"/*.sh 2>/dev/null
+    fi
+    echo -e "${GREEN} Скрипты обновлены${NC}"
+}
+
 # Автоматическое сбрасывание локальных изменений в bot/ и web/
 discard_changes_in_app_dirs() {
     local changed_files
@@ -569,6 +580,9 @@ update_project() {
             # Восстановление данных
             restore_persistent_data
 
+            # Сделать .sh исполняемыми
+            ensure_sh_executable
+
             # Обновление зависимостей
             echo -e "${CYAN}Обновление зависимостей...${NC}"
             if [ -d "$VENV_DIR" ]; then
@@ -592,6 +606,7 @@ update_project() {
             echo -e "${YELLOW}Попробуйте вручную: git pull --rebase${NC}"
             git rebase --abort 2>/dev/null
             restore_persistent_data
+            ensure_sh_executable
             echo -e "${CYAN}Запуск сервисов...${NC}"
             sudo systemctl start $BOT_SERVICE $WEB_SERVICE 2>/dev/null
         fi
@@ -756,18 +771,18 @@ except Exception as e:
     traceback.print_exc()
 ")
 
-    if [[ \$RESULT == SUCCESS:* ]]; then
-        WEB_USER_ID=\$(echo \$RESULT | cut -d':' -f2)
-        echo -e \"${GREEN} Пароль успешно сброшен\${NC}\"
-        echo \"\"
-        echo -e \"${WHITE}Новые данные для входа:\${NC}\"
-        echo -e \"${YELLOW}ID веб-пользователя:\${NC} \$WEB_USER_ID\"
-        echo -e \"${YELLOW}Новый пароль:\${NC} \$NEW_PASSWORD\"
-        echo \"\"
-        echo -e \"${RED}ВАЖНО:\${NC} Сохраните этот пароль в надежном месте!\"
+    if [[ $RESULT == SUCCESS:* ]]; then
+        WEB_USER_ID=$(echo $RESULT | cut -d':' -f2)
+        echo -e "${GREEN} Пароль успешно сброшен${NC}"
+        echo ""
+        echo -e "${WHITE}Новые данные для входа:${NC}"
+        echo -e "${YELLOW}ID веб-пользователя:${NC} $WEB_USER_ID"
+        echo -e "${YELLOW}Новый пароль:${NC} $NEW_PASSWORD"
+        echo ""
+        echo -e "${RED}ВАЖНО:${NC} Сохраните этот пароль в надежном месте!"
     else
-        ERROR_MSG=\$(echo $RESULT | cut -d':' -f2-)
-        echo -e \"${RED}Ошибка: $ERROR_MSG${NC}\"
+        ERROR_MSG=$(echo $RESULT | cut -d':' -f2-)
+        echo -e "${RED}Ошибка: $ERROR_MSG${NC}"
     fi
     
     echo ""
