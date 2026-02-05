@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadPendingRequests() {
-    fetch('/api/dse/pending')
+    fetch(`/api/dse/pending?_ts=${Date.now()}`, { cache: 'no-store' })
         .then(response => response.json())
         .then(data => {
             const tbody = document.getElementById('pendingRequestsBody');
@@ -250,7 +250,7 @@ function loadPendingRequests() {
             tbody.innerHTML = requests.map(req => {
                 const date = req.created_at ? new Date(req.created_at).toLocaleString('ru-RU') : '-';
                 return `
-                    <tr>
+                    <tr data-request-id="${req.id}">
                         <td>${req.id}</td>
                         <td>${req.dse || '-'}</td>
                         <td>${req.dse_name || '-'}</td>
@@ -280,6 +280,24 @@ function loadPendingRequests() {
         });
 }
 
+function removePendingRow(requestId) {
+    const tbody = document.getElementById('pendingRequestsBody');
+    const countBadge = document.getElementById('pendingCount');
+    if (!tbody || !countBadge) return;
+
+    const row = tbody.querySelector(`tr[data-request-id="${requestId}"]`);
+    if (row) {
+        row.remove();
+    }
+
+    const remaining = tbody.querySelectorAll('tr[data-request-id]').length;
+    countBadge.textContent = remaining.toString();
+
+    if (remaining === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Нет заявок на проверку</td></tr>';
+    }
+}
+
 function approvePendingRequest(requestId) {
     if (!confirm('Утвердить эту заявку и добавить в базу?')) return;
 
@@ -297,7 +315,8 @@ function approvePendingRequest(requestId) {
                 alert(`Найдено совпадение с архивной заявкой (ID: ${match.id}, архив: ${archivedAt}).`);
             }
 
-            loadPendingRequests();
+            removePendingRow(requestId);
+            setTimeout(loadPendingRequests, 200);
             loadDseData();
         })
         .catch(error => {
@@ -316,7 +335,8 @@ function rejectPendingRequest(requestId) {
                 alert(data.error || 'Ошибка при отклонении');
                 return;
             }
-            loadPendingRequests();
+            removePendingRow(requestId);
+            setTimeout(loadPendingRequests, 200);
         })
         .catch(error => {
             console.error('Ошибка отклонения заявки:', error);
