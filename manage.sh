@@ -110,6 +110,7 @@ show_menu() {
 # Функции управления
 start_all() {
     echo -e "${GREEN}Запуск всех сервисов...${NC}"
+    check_and_prepare_critical_config "all"
     sudo systemctl start $BOT_SERVICE
     sudo systemctl start $WEB_SERVICE
     echo -e "${GREEN} Сервисы запущены${NC}"
@@ -126,6 +127,7 @@ stop_all() {
 
 restart_all() {
     echo -e "${YELLOW}Перезапуск всех сервисов...${NC}"
+    check_and_prepare_critical_config "all"
     sudo systemctl restart $BOT_SERVICE
     sudo systemctl restart $WEB_SERVICE
     echo -e "${GREEN} Сервисы перезапущены${NC}"
@@ -134,6 +136,7 @@ restart_all() {
 
 start_bot() {
     echo -e "${GREEN}Запуск Telegram бота...${NC}"
+    check_and_prepare_critical_config "bot"
     sudo systemctl start $BOT_SERVICE
     sudo systemctl status $BOT_SERVICE --no-pager -l
     read -p "Нажмите Enter для продолжения..."
@@ -141,6 +144,7 @@ start_bot() {
 
 start_web() {
     echo -e "${GREEN}Запуск веб-интерфейса...${NC}"
+    check_and_prepare_critical_config "web"
     sudo systemctl start $WEB_SERVICE
     sudo systemctl status $WEB_SERVICE --no-pager -l
     read -p "Нажмите Enter для продолжения..."
@@ -151,6 +155,7 @@ start_web_terminal() {
     echo -e "${CYAN}  Запуск веб-интерфейса с терминалом (Gunicorn)${NC} " 
     echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
     echo ""
+    check_and_prepare_critical_config "web"
     
     # Выбор порта
     echo -e "${YELLOW}Выберите порт для запуска:${NC}"
@@ -391,6 +396,262 @@ ensure_sh_executable() {
         chmod +x "$PROJECT_DIR"/*.sh 2>/dev/null
     fi
     echo -e "${GREEN} Скрипты обновлены${NC}"
+}
+
+# Восстановление критичных конфигов из последнего бэкапа
+restore_from_latest_backup() {
+    local rel_path=$1
+    local backups_root="$PROJECT_DIR/.update-backups"
+
+    if [ ! -d "$backups_root" ]; then
+        return 1
+    fi
+
+    local latest_dir=""
+    for dir in $(ls -1dt "$backups_root"/* 2>/dev/null); do
+        if [ -e "$dir/$rel_path" ]; then
+            latest_dir="$dir"
+            break
+        fi
+    done
+
+    if [ -z "$latest_dir" ]; then
+        return 1
+    fi
+
+    local src="$latest_dir/$rel_path"
+    local dest_dir="$PROJECT_DIR/$(dirname "$rel_path")"
+    mkdir -p "$dest_dir"
+
+    if command -v rsync &>/dev/null; then
+        rsync -a "$src" "$dest_dir/"
+    else
+        cp -a "$src" "$dest_dir/"
+    fi
+
+    echo -e "${GREEN}Восстановлено из бэкапа:${NC} $rel_path"
+    return 0
+}
+
+# Проверка и заполнение критичных настроек (токен, админ, домен, сертификат)
+check_and_prepare_critical_config() {
+    local mode=$1
+
+    local check_bot=false
+    local check_web=false
+
+    case "$mode" in
+        bot) check_bot=true ;;
+        web) check_web=true ;;
+        all) check_bot=true; check_web=true ;;
+        *) check_bot=true; check_web=true ;;
+    esac
+
+    local ven_bot_file="$PROJECT_DIR/config/ven_bot.json"
+    local domain_conf="$PROJECT_DIR/config/domain.conf"
+
+    if $check_bot; then
+        local TOKEN_OK=0
+        local ADMIN_OK=0
+        local USERNAME_OK=0
+
+        if [ -f "$ven_bot_file" ]; then
+            eval "$(VEN_BOT_FILE="$ven_bot_file" python3 - <<'PY'
+import json
+import os
+
+file_path = os.environ.get('VEN_BOT_FILE')
+data = {}
+try:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f) or {}
+except Exception:
+    data = {}
+
+token = str(data.get('BOT_TOKEN', '') or '')
+admins = data.get('ADMIN_IDS', [])
+username = str(data.get('BOT_USERNAME', '') or '')
+
+def token_ok(val):
+    return bool(val) and val not in ('YOUR_BOT_TOKEN_HERE',)
+
+def admin_ok(val):
+    if not isinstance(val, list):
+        return False
+    if len(val) == 0:
+        return False
+    if len(val) == 1 and str(val[0]) in ('YOUR_TELEGRAM_ID_HERE', '0', ''):
+        return False
+    return True
+
+print(f"TOKEN_OK={'1' if token_ok(token) else '0'}")
+print(f"ADMIN_OK={'1' if admin_ok(admins) else '0'}")
+print(f"USERNAME_OK={'1' if bool(username) else '0'}")
+PY
+)"
+        fi
+
+        if [ "$TOKEN_OK" != "1" ] || [ "$ADMIN_OK" != "1" ]; then
+            echo -e "${YELLOW}Обнаружены проблемы в config/ven_bot.json${NC}"
+            restore_from_latest_backup "config/ven_bot.json" 2>/dev/null
+
+            if [ -f "$ven_bot_file" ]; then
+                eval "$(VEN_BOT_FILE="$ven_bot_file" python3 - <<'PY'
+import json
+import os
+
+file_path = os.environ.get('VEN_BOT_FILE')
+data = {}
+try:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f) or {}
+except Exception:
+    data = {}
+
+token = str(data.get('BOT_TOKEN', '') or '')
+admins = data.get('ADMIN_IDS', [])
+
+def token_ok(val):
+    return bool(val) and val not in ('YOUR_BOT_TOKEN_HERE',)
+
+def admin_ok(val):
+    if not isinstance(val, list):
+        return False
+    if len(val) == 0:
+        return False
+    if len(val) == 1 and str(val[0]) in ('YOUR_TELEGRAM_ID_HERE', '0', ''):
+        return False
+    return True
+
+print(f"TOKEN_OK={'1' if token_ok(token) else '0'}")
+print(f"ADMIN_OK={'1' if admin_ok(admins) else '0'}")
+PY
+)"
+            fi
+        fi
+
+        if [ "$TOKEN_OK" != "1" ] || [ "$ADMIN_OK" != "1" ]; then
+            echo -e "${ORANGE}Введите критичные данные для бота:${NC}"
+            read -p "BOT_TOKEN: " BOT_TOKEN_INPUT
+            read -p "Telegram ID главного админа (можно несколько через запятую): " ADMIN_IDS_INPUT
+            read -p "BOT_USERNAME (без @, можно пусто): " BOT_USERNAME_INPUT
+
+            VEN_BOT_FILE="$ven_bot_file" \
+            BOT_TOKEN_INPUT="$BOT_TOKEN_INPUT" \
+            ADMIN_IDS_INPUT="$ADMIN_IDS_INPUT" \
+            BOT_USERNAME_INPUT="$BOT_USERNAME_INPUT" \
+            python3 - <<'PY'
+import json
+import os
+
+file_path = os.environ.get('VEN_BOT_FILE')
+token = os.environ.get('BOT_TOKEN_INPUT', '').strip()
+admins_raw = os.environ.get('ADMIN_IDS_INPUT', '').strip()
+username = os.environ.get('BOT_USERNAME_INPUT', '').strip()
+
+data = {}
+if os.path.exists(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f) or {}
+    except Exception:
+        data = {}
+
+admins_list = []
+if admins_raw:
+    for item in admins_raw.split(','):
+        item = item.strip()
+        if not item:
+            continue
+        if item.isdigit():
+            admins_list.append(int(item))
+        else:
+            admins_list.append(item)
+
+data['BOT_TOKEN'] = token
+data['ADMIN_IDS'] = admins_list
+data['BOT_USERNAME'] = username
+
+with open(file_path, 'w', encoding='utf-8') as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+PY
+            echo -e "${GREEN}Файл config/ven_bot.json обновлён${NC}"
+        fi
+    fi
+
+    if $check_web; then
+        local DOMAIN_VALUE=""
+        local SSL_ENABLED="false"
+
+        if [ -f "$domain_conf" ]; then
+            DOMAIN_VALUE=$(grep -E '^DOMAIN=' "$domain_conf" | head -n 1 | cut -d'=' -f2-)
+            SSL_ENABLED=$(grep -E '^SSL_ENABLED=' "$domain_conf" | head -n 1 | cut -d'=' -f2-)
+            SSL_ENABLED=${SSL_ENABLED:-false}
+        fi
+
+        if [ -z "$DOMAIN_VALUE" ]; then
+            echo -e "${YELLOW}Домен в config/domain.conf не настроен${NC}"
+            restore_from_latest_backup "config/domain.conf" 2>/dev/null
+
+            if [ -f "$domain_conf" ]; then
+                DOMAIN_VALUE=$(grep -E '^DOMAIN=' "$domain_conf" | head -n 1 | cut -d'=' -f2-)
+                SSL_ENABLED=$(grep -E '^SSL_ENABLED=' "$domain_conf" | head -n 1 | cut -d'=' -f2-)
+                SSL_ENABLED=${SSL_ENABLED:-false}
+            fi
+        fi
+
+        if [ -z "$DOMAIN_VALUE" ]; then
+            read -p "Введите домен или IP: " DOMAIN_INPUT
+            if [ -n "$DOMAIN_INPUT" ]; then
+                DOMAIN_VALUE="$DOMAIN_INPUT"
+                DOMAIN_CONF_FILE="$domain_conf" DOMAIN_VALUE="$DOMAIN_VALUE" python3 - <<'PY'
+import os
+
+file_path = os.environ.get('DOMAIN_CONF_FILE')
+domain_value = os.environ.get('DOMAIN_VALUE')
+
+lines = []
+if os.path.exists(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+def set_key(lines, key, value):
+    found = False
+    for i, line in enumerate(lines):
+        if line.strip().startswith(key + '='):
+            lines[i] = f"{key}={value}\n"
+            found = True
+            break
+    if not found:
+        lines.append(f"{key}={value}\n")
+    return lines
+
+lines = set_key(lines, 'DOMAIN', domain_value)
+
+with open(file_path, 'w', encoding='utf-8') as f:
+    f.writelines(lines)
+PY
+                echo -e "${GREEN}Файл config/domain.conf обновлён${NC}"
+            fi
+        fi
+
+        if [ "$SSL_ENABLED" = "true" ]; then
+            if [ ! -f "/etc/ssl/telegrambot/fullchain.pem" ] || [ ! -f "/etc/ssl/telegrambot/privkey.pem" ]; then
+                echo -e "${YELLOW}SSL включен, но сертификаты не найдены${NC}"
+                read -p "Путь к fullchain.pem: " CERT_FULLCHAIN
+                read -p "Путь к privkey.pem: " CERT_PRIVKEY
+
+                if [ -n "$CERT_FULLCHAIN" ] && [ -n "$CERT_PRIVKEY" ] && [ -f "$CERT_FULLCHAIN" ] && [ -f "$CERT_PRIVKEY" ]; then
+                    sudo mkdir -p /etc/ssl/telegrambot
+                    sudo cp "$CERT_FULLCHAIN" /etc/ssl/telegrambot/fullchain.pem
+                    sudo cp "$CERT_PRIVKEY" /etc/ssl/telegrambot/privkey.pem
+                    echo -e "${GREEN}Сертификаты установлены${NC}"
+                else
+                    echo -e "${RED}Сертификаты не установлены: неверные пути${NC}"
+                fi
+            fi
+        fi
+    fi
 }
 
 # Автоматическое сбрасывание локальных изменений в bot/ и web/
