@@ -228,12 +228,12 @@ let currentEditingUserId = null;
 const ROLE_CONFIG = {
     'admin': {
         description: 'Полный доступ ко всем функциям системы',
-        permissions: ['view_dse', 'export_data', 'add_dse', 'edit_dse', 'delete_dse', 'chat_dse'],
+        permissions: ['view_dse', 'export_data', 'add_dse', 'approve_dse_requests', 'edit_dse', 'delete_dse', 'chat_dse'],
         color: 'danger'
     },
     'responder': {
         description: 'Может просматривать заявки, общаться в чате и экспортировать данные',
-        permissions: ['view_dse', 'export_data', 'chat_dse'],
+        permissions: ['view_dse', 'export_data', 'approve_dse_requests', 'chat_dse'],
         color: 'success'
     },
     'initiator': {

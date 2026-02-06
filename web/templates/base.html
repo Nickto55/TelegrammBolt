@@ -30,6 +30,13 @@
             document.documentElement.setAttribute('data-bs-theme', theme);
         })();
     </script>
+
+    <script>
+        window.__toastQueue = [];
+        window.alert = (message) => window.__toastQueue.push({ message, type: 'info' });
+        window.showAlert = (message, type = 'info') => window.__toastQueue.push({ message, type });
+        window.showMessage = (message, type = 'info') => window.__toastQueue.push({ message, type });
+    </script>
 </head>
 
 <body>
@@ -147,17 +154,6 @@
 
     <!-- Main Content -->
     <main class="{% if session.user_id %}container-fluid mt-4{% endif %}">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
-
         {% block content %}{% endblock %}
     </main>
 
@@ -169,6 +165,42 @@
         </div>
     </footer>
     {% endif %}
+
+    <!-- Toasts -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        {% set toast_category = 'danger' if category in ['error', 'danger'] else category %}
+        <div class="toast align-items-center text-bg-{{ toast_category }} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="6000">
+            <div class="d-flex">
+                <div class="toast-body">
+                    {{ message }}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmModalTitle">Подтверждение</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="confirmModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancel">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="confirmModalOk">ОК</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -214,6 +246,85 @@
         document.addEventListener('DOMContentLoaded', function () {
             const currentTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-bs-theme', currentTheme);
+        });
+    </script>
+
+    <script>
+        const TOAST_TYPE_MAP = {
+            success: 'success',
+            info: 'info',
+            warning: 'warning',
+            error: 'danger',
+            danger: 'danger'
+        };
+
+        function showToast(message, type = 'info', options = {}) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toastType = TOAST_TYPE_MAP[type] || 'info';
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-bg-${toastType} border-0 mb-2`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            toast.dataset.bsDelay = options.delay ?? 6000;
+
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body"></div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+
+            toast.querySelector('.toast-body').textContent = message;
+            container.appendChild(toast);
+
+            const bsToast = new bootstrap.Toast(toast);
+            toast.addEventListener('hidden.bs.toast', () => toast.remove());
+            bsToast.show();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('#toastContainer .toast').forEach(toastEl => {
+                const bsToast = new bootstrap.Toast(toastEl);
+                toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+                bsToast.show();
+            });
+
+            window.alert = (message) => showToast(message, 'info');
+            window.showAlert = (message, type = 'info') => showToast(message, type);
+            window.showMessage = (message, type = 'info') => showToast(message, type);
+
+            window.showConfirm = (message, onConfirm, options = {}) => {
+                const modalEl = document.getElementById('confirmModal');
+                if (!modalEl) {
+                    if (typeof onConfirm === 'function') onConfirm();
+                    return;
+                }
+                const titleEl = document.getElementById('confirmModalTitle');
+                const bodyEl = document.getElementById('confirmModalBody');
+                const okBtn = document.getElementById('confirmModalOk');
+
+                titleEl.textContent = options.title || 'Подтверждение';
+                bodyEl.textContent = message || '';
+                okBtn.className = `btn btn-${options.okVariant || 'primary'}`;
+
+                const modal = new bootstrap.Modal(modalEl);
+
+                const handler = () => {
+                    modal.hide();
+                    if (typeof onConfirm === 'function') onConfirm();
+                };
+
+                okBtn.addEventListener('click', handler, { once: true });
+                modal.show();
+            };
+
+            if (Array.isArray(window.__toastQueue) && window.__toastQueue.length) {
+                window.__toastQueue.forEach(item => showToast(item.message, item.type));
+                window.__toastQueue = [];
+            }
         });
     </script>
 
@@ -522,6 +633,14 @@
     </style>
 
     {% block extra_scripts %}{% endblock %}
+    <script>
+        if (window.showAlert) {
+            window.showAlert = (message, type = 'info') => showToast(message, type);
+        }
+        if (window.showMessage) {
+            window.showMessage = (message, type = 'info') => showToast(message, type);
+        }
+    </script>
 </body>
 
 </html>

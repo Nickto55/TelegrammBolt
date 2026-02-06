@@ -143,6 +143,44 @@
                 </div>
             </div>
 
+            {% if dse.get('related_records') %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-diagram-3 me-2"></i>
+                        Связанные заявки
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for related in dse.get('related_records', []) %}
+                        <div class="col-md-6">
+                            {% set related_photos = related.get('photos') or [] %}
+                            {% set related_photo_id = related.get('photo_file_id') or related.get('photo_path') or (related_photos[0] if related_photos else None) %}
+                            <div class="border rounded p-3 h-100 bg-light related-card"
+                                 role="button"
+                                 tabindex="0"
+                                 data-related='{{ related | tojson | forceescape }}'
+                                 {% if related_photo_id %}data-photo-url="{{ url_for('get_photo', photo_id=related_photo_id) }}"{% endif %}>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="fw-semibold">{{ related.get('dse', 'N/A') }}</div>
+                                    <span class="badge bg-secondary">{{ related.get('record_id', '—') }}</span>
+                                </div>
+                                <div class="text-muted small mb-2">
+                                    {{ related.get('dse_name', 'Без названия') }}
+                                </div>
+                                <div class="small">
+                                    <div><span class="text-muted">Пользователь:</span> {{ related.get('user_id', '—') }}</div>
+                                    <div><span class="text-muted">Индекс:</span> {{ related.get('index', '—') }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Фотографии -->
             {% if dse.get('photo_file_id') or dse.get('photo_path') or dse.get('photos') %}
             <div class="card shadow-sm mb-4">
@@ -377,23 +415,143 @@
     </div>
 </div>
 
+<!-- Модальное окно для связанной заявки -->
+<div class="modal fade" id="relatedDseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="relatedDseTitle">Связанная заявка</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">Номер ДСЕ</label>
+                        <div class="fw-semibold" id="relatedDseNumber">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">Название ДСЕ</label>
+                        <div class="fw-semibold" id="relatedDseName">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">Дата создания</label>
+                        <div id="relatedDseDatetime">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">Тип проблемы</label>
+                        <div id="relatedDseProblem">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">РЦ</label>
+                        <div id="relatedDseRc">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">Номер станка</label>
+                        <div id="relatedDseMachine">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">ФИО Наладчика</label>
+                        <div id="relatedDseInstaller">—</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small mb-1">ФИО Программиста</label>
+                        <div id="relatedDseProgrammer">—</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="text-muted small mb-1">Описание</label>
+                        <div class="border rounded p-2 bg-light" id="relatedDseDescription">—</div>
+                    </div>
+                    <div class="col-12" id="relatedDsePhotoBlock" style="display: none;">
+                        <label class="text-muted small mb-2">Фото</label>
+                        <div class="text-center">
+                            <img id="relatedDsePhoto" src="" alt="Фото" class="img-fluid rounded shadow-sm" style="max-height: 420px; object-fit: contain;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
+    .related-card {
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .related-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    }
     @media print {
         .btn, .breadcrumb, nav, .modal {
             display: none !important;
         }
     }
 </style>
+
+<script>
+    function fillRelatedModal(data, photoUrl) {
+        document.getElementById('relatedDseTitle').textContent = `Связанная заявка ${data.dse || ''}`.trim();
+        document.getElementById('relatedDseNumber').textContent = data.dse || '—';
+        document.getElementById('relatedDseName').textContent = data.dse_name || '—';
+        document.getElementById('relatedDseDatetime').textContent = data.datetime || '—';
+        document.getElementById('relatedDseProblem').textContent = data.problem_type || '—';
+        document.getElementById('relatedDseRc').textContent = data.rc || '—';
+        document.getElementById('relatedDseMachine').textContent = data.machine_number || '—';
+        document.getElementById('relatedDseInstaller').textContent = data.installer_fio || '—';
+        document.getElementById('relatedDseProgrammer').textContent = data.programmer_name || '—';
+        document.getElementById('relatedDseDescription').textContent = data.description || '—';
+
+        const photoBlock = document.getElementById('relatedDsePhotoBlock');
+        const photoEl = document.getElementById('relatedDsePhoto');
+        if (photoUrl) {
+            photoEl.src = photoUrl;
+            photoBlock.style.display = 'block';
+        } else {
+            photoEl.removeAttribute('src');
+            photoBlock.style.display = 'none';
+        }
+    }
+
+    document.querySelectorAll('.related-card').forEach(card => {
+        const openModal = () => {
+            const raw = card.getAttribute('data-related');
+            if (!raw) return;
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (e) {
+                return;
+            }
+            const photoUrl = card.getAttribute('data-photo-url');
+            fillRelatedModal(data, photoUrl);
+            const modal = new bootstrap.Modal(document.getElementById('relatedDseModal'));
+            modal.show();
+        };
+
+        card.addEventListener('click', openModal);
+        card.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openModal();
+            }
+        });
+    });
+</script>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
 function hideDse(dseId) {
-    if (!confirm('Скрыть эту заявку из списка? Она останется в базе.')) return;
-    fetch(`/api/dse/${encodeURIComponent(dseId)}`, { method: 'DELETE' })
-        .then(response => response.json())
-        .then(() => window.location.reload())
-        .catch(error => console.error('Ошибка скрытия:', error));
+    showConfirm('Скрыть эту заявку из списка? Она останется в базе.', () => {
+        fetch(`/api/dse/${encodeURIComponent(dseId)}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(() => window.location.reload())
+            .catch(error => {
+                console.error('Ошибка скрытия:', error);
+                showToast('Ошибка скрытия заявки', 'danger');
+            });
+    }, { okVariant: 'danger' });
 }
 
 function restoreDse(dseId) {

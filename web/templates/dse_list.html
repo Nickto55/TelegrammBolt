@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Список ДСЕ - BOLT{% endblock %}
+{% block title %}BOLT{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -44,8 +44,8 @@
                                     <th style="width: 20%;">Наименование</th>
                                     <th style="width: 12%;">Тип проблемы</th>
                                     <th style="width: 12%;">Пользователь</th>
-                                    <th style="width: 15%;">Дата</th>
-                                    <th style="width: 20%;">Действия</th>
+                                    <th style="width: 6%;">Дата</th>
+                                    <th style="width: 29%;">Действия</th>
                                 </tr>
                             </thead>
                             <tbody id="pendingRequestsBody">
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadPendingRequests() {
-    fetch('/api/dse/pending')
+    fetch(`/api/dse/pending?_ts=${Date.now()}`, { cache: 'no-store' })
         .then(response => response.json())
         .then(data => {
             const tbody = document.getElementById('pendingRequestsBody');
@@ -250,7 +250,7 @@ function loadPendingRequests() {
             tbody.innerHTML = requests.map(req => {
                 const date = req.created_at ? new Date(req.created_at).toLocaleString('ru-RU') : '-';
                 return `
-                    <tr>
+                    <tr data-request-id="${req.id}">
                         <td>${req.id}</td>
                         <td>${req.dse || '-'}</td>
                         <td>${req.dse_name || '-'}</td>
@@ -258,14 +258,9 @@ function loadPendingRequests() {
                         <td>${req.user_id || '-'}</td>
                         <td>${date}</td>
                         <td>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button class="btn btn-success" onclick="approvePendingRequest(${req.id})">
-                                    <i class="bi bi-check-circle"></i> Утвердить
-                                </button>
-                                <button class="btn btn-outline-danger" onclick="rejectPendingRequest(${req.id})">
-                                    <i class="bi bi-x-circle"></i> Отклонить
-                                </button>
-                            </div>
+                            <button class="btn btn-outline-primary btn-sm" onclick="window.location.href='{{ url_for('dse_pending_requests') }}'">
+                                <i class="bi bi-eye"></i> Просмотр заявки
+                            </button>
                         </td>
                     </tr>
                 `;
@@ -280,48 +275,68 @@ function loadPendingRequests() {
         });
 }
 
+function removePendingRow(requestId) {
+    const tbody = document.getElementById('pendingRequestsBody');
+    const countBadge = document.getElementById('pendingCount');
+    if (!tbody || !countBadge) return;
+
+    const row = tbody.querySelector(`tr[data-request-id="${requestId}"]`);
+    if (row) {
+        row.remove();
+    }
+
+    const remaining = tbody.querySelectorAll('tr[data-request-id]').length;
+    countBadge.textContent = remaining.toString();
+
+    if (remaining === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Нет заявок на проверку</td></tr>';
+    }
+}
+
 function approvePendingRequest(requestId) {
-    if (!confirm('Утвердить эту заявку и добавить в базу?')) return;
+    showConfirm('Утвердить эту заявку и добавить в базу?', () => {
+        fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/approve`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    showToast(data.error || 'Ошибка при утверждении', 'danger');
+                    return;
+                }
 
-    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/approve`, { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                alert(data.error || 'Ошибка при утверждении');
-                return;
-            }
+                if (data.archived_matches && data.archived_matches.length > 0) {
+                    const match = data.archived_matches[0];
+                    const archivedAt = match.archived_at ? new Date(match.archived_at).toLocaleString('ru-RU') : '-';
+                    showToast(`Найдено совпадение с архивной заявкой (ID: ${match.id}, архив: ${archivedAt}).`, 'warning');
+                }
 
-            if (data.archived_matches && data.archived_matches.length > 0) {
-                const match = data.archived_matches[0];
-                const archivedAt = match.archived_at ? new Date(match.archived_at).toLocaleString('ru-RU') : '-';
-                alert(`Найдено совпадение с архивной заявкой (ID: ${match.id}, архив: ${archivedAt}).`);
-            }
-
-            loadPendingRequests();
-            loadDseData();
-        })
-        .catch(error => {
-            console.error('Ошибка утверждения заявки:', error);
-            alert('Ошибка при утверждении заявки');
-        });
+                removePendingRow(requestId);
+                setTimeout(loadPendingRequests, 200);
+                loadDseData();
+            })
+            .catch(error => {
+                console.error('Ошибка утверждения заявки:', error);
+                showToast('Ошибка при утверждении заявки', 'danger');
+            });
+    }, { okVariant: 'success' });
 }
 
 function rejectPendingRequest(requestId) {
-    if (!confirm('Отклонить эту заявку? Она будет архивирована и скрыта.')) return;
-
-    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/reject`, { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                alert(data.error || 'Ошибка при отклонении');
-                return;
-            }
-            loadPendingRequests();
-        })
-        .catch(error => {
-            console.error('Ошибка отклонения заявки:', error);
-            alert('Ошибка при отклонении заявки');
-        });
+    showConfirm('Отклонить эту заявку? Она будет архивирована и скрыта.', () => {
+        fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/reject`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    showToast(data.error || 'Ошибка при отклонении', 'danger');
+                    return;
+                }
+                removePendingRow(requestId);
+                setTimeout(loadPendingRequests, 200);
+            })
+            .catch(error => {
+                console.error('Ошибка отклонения заявки:', error);
+                showToast('Ошибка при отклонении заявки', 'danger');
+            });
+    }, { okVariant: 'danger' });
 }
 
 function loadDseData() {
@@ -611,14 +626,15 @@ function getShowHidden() {
 
 function hideDse(dseId) {
     if (!canDeleteDse) return;
-    if (!confirm('Скрыть эту заявку из списка? Она останется в базе.')) return;
-    fetch(`/api/dse/${encodeURIComponent(dseId)}`, { method: 'DELETE' })
-        .then(response => response.json())
-        .then(() => loadDseData())
-        .catch(error => {
-            console.error('Ошибка скрытия:', error);
-            showError('Ошибка скрытия заявки');
-        });
+    showConfirm('Скрыть эту заявку из списка? Она останется в базе.', () => {
+        fetch(`/api/dse/${encodeURIComponent(dseId)}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(() => loadDseData())
+            .catch(error => {
+                console.error('Ошибка скрытия:', error);
+                showToast('Ошибка скрытия заявки', 'danger');
+            });
+    }, { okVariant: 'danger' });
 }
 
 function restoreDse(dseId) {

@@ -45,8 +45,8 @@ PERMISSIONS = {
         'roles': ['admin', 'initiator']
     },
     'approve_dse_requests': {
-        'name': 'Утверждение заявок ДСЕ',
-        'description': 'Проверка и утверждение новых заявок ДСЕ перед попаданием в базу',
+        'name': 'Утвердить ДСЕ',
+        'description': 'Право утверждения или отклонения новопоступающих заявок ДСЕ',
         'roles': ['admin', 'responder']
     },
     'dse_receiver': {
@@ -206,9 +206,21 @@ def has_permission(user_id: str, permission: str) -> bool:
     
     # Получаем роль пользователя
     role = get_user_role(user_id)
-    
+
     # Администраторы имеют все права
     if role == 'admin':
+        return True
+
+    # Проверяем индивидуальные права (новая система)
+    custom_perms = get_custom_permissions(user_id)
+    if permission in custom_perms:
+        return custom_perms[permission]
+
+    # Поддержка старого формата: список дополнительных прав в users_data
+    from bot.user_manager import get_user_data
+    user_data = get_user_data(user_id) or {}
+    legacy_permissions = user_data.get('permissions', [])
+    if permission in legacy_permissions:
         return True
     
     # Проверяем индивидуальные права (новая система)
