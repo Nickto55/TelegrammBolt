@@ -49,6 +49,11 @@ PERMISSIONS = {
         'description': 'Проверка и утверждение новых заявок ДСЕ перед попаданием в базу',
         'roles': ['admin', 'responder']
     },
+    'dse_receiver': {
+        'name': 'Приемщик заявок',
+        'description': 'Дополнительная роль для утверждения или отклонения заявок ДСЕ',
+        'roles': ['admin']
+    },
     'edit_dse': {
         'name': 'Редактирование ДСЕ',
         'description': 'Изменение существующих ДСЕ',
@@ -169,7 +174,7 @@ PERMISSIONS = {
 # Группировка прав для удобства отображения
 PERMISSION_GROUPS = {
     'Административные': ['admin', 'manage_users', 'view_users', 'use_terminal', 'create_web_user'],
-    'Работа с ДСЕ': ['view_dse', 'add_dse', 'approve_dse_requests', 'edit_dse', 'delete_dse', 'view_own_dse'],
+    'Работа с ДСЕ': ['view_dse', 'add_dse', 'approve_dse_requests', 'dse_receiver', 'edit_dse', 'delete_dse', 'view_own_dse'],
     'Экспорт и отчеты': ['export_data', 'pdf_export'],
     'Чат': ['chat_dse', 'view_chat_history'],
     'Приглашения': ['manage_invites', 'use_invite'],
@@ -206,6 +211,25 @@ def has_permission(user_id: str, permission: str) -> bool:
     if role == 'admin':
         return True
     
+    # Проверяем индивидуальные права (новая система)
+    custom_perms = get_custom_permissions(user_id)
+    if permission in custom_perms:
+        return custom_perms[permission]
+
+    # Алиас: роль "Приемщик заявок" даёт право утверждения и просмотра
+    if permission in {'approve_dse_requests', 'view_dse'} and custom_perms.get('dse_receiver') is True:
+        return True
+
+    # Поддержка старого формата: список дополнительных прав в users_data
+    from bot.user_manager import get_user_data
+    user_data = get_user_data(user_id) or {}
+    legacy_permissions = user_data.get('permissions', [])
+    if permission in legacy_permissions:
+        return True
+
+    if permission in {'approve_dse_requests', 'view_dse'} and 'dse_receiver' in legacy_permissions:
+        return True
+
     # Проверяем, существует ли такое право
     if permission not in PERMISSIONS:
         return False

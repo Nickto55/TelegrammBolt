@@ -135,6 +135,9 @@ async def check_for_new_dse_and_notify(context):
     for data_user_id, user_records in all_bot_data.items():
         if isinstance(user_records, list):
             for record in user_records:
+                # Уведомляем только по утверждённым заявкам
+                if not record.get('approved_at'):
+                    continue
                 record_dse_original = record.get('dse', '')
                 if record_dse_original:
                     record_dse_normalized = record_dse_original.strip().lower()

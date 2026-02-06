@@ -11,6 +11,7 @@ import json
 import logging
 import traceback
 import sys
+import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import parse_qs
@@ -1215,6 +1216,10 @@ def update_user_permissions(user_id):
     
     if not new_role or new_role not in ROLES:
         return jsonify({'error': 'Некорректная роль'}), 400
+
+    # Запрещаем доп. роль "Приемщик заявок" для базовой роли user
+    if new_role == 'user' and 'dse_receiver' in new_permissions:
+        new_permissions = [perm for perm in new_permissions if perm != 'dse_receiver']
     
     # Проверяем, является ли пользователь веб-пользователем без Telegram
     users = get_users_data()
@@ -1963,6 +1968,32 @@ def _notify_dse_request_rejected(record):
     except Exception as e:
         logger.warning(f"Не удалось отправить уведомление об отклонении заявки: {e}")
 
+
+def _notify_dse_request_approved_subscribers(record, creator_user_id):
+    """Отправить рассылку подписчикам после утверждения заявки ДСЕ (Telegram + Email)."""
+    def _runner():
+        async def _send():
+            from bot.commands import send_dse_to_subscribers
+            from telegram.ext import Application
+
+            application = Application.builder().token(BOT_TOKEN).build()
+            await application.initialize()
+            await application.bot.initialize()
+            try:
+                await send_dse_to_subscribers(application, record, str(creator_user_id))
+            finally:
+                await application.bot.shutdown()
+                await application.shutdown()
+
+        try:
+            asyncio.run(_send())
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_send())
+
+    threading.Thread(target=_runner, daemon=True).start()
+
 @app.route('/api/dse', methods=['GET'])
 @login_required
 def api_get_dse():
@@ -2056,6 +2087,8 @@ def api_approve_pending_dse(request_id):
         approved_record = approve_pending_dse_request(request_id, user_id)
         if not approved_record:
             return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+
+        _notify_dse_request_approved_subscribers(approved_record, approved_record.get('user_id'))
 
         return jsonify({
             'success': True,

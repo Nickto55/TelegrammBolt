@@ -124,6 +124,16 @@
 
 {% block extra_scripts %}
 <script>
+let pendingRequestToOpen = null;
+
+function getPendingRequestFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const requestId = params.get('request_id');
+    if (requestId) {
+        pendingRequestToOpen = requestId;
+    }
+}
+
 function loadPendingRequests() {
     fetch('/api/dse/pending')
         .then(response => response.json())
@@ -173,6 +183,15 @@ function loadPendingRequests() {
                     </tr>
                 `;
             }).join('');
+
+            if (pendingRequestToOpen) {
+                const target = requests.find(req => String(req.id) === String(pendingRequestToOpen));
+                if (target) {
+                    const payload = btoa(unescape(encodeURIComponent(JSON.stringify(target))));
+                    viewPendingRequest(payload);
+                }
+                pendingRequestToOpen = null;
+            }
         })
         .catch(error => {
             console.error('Ошибка загрузки заявок на проверку:', error);
@@ -263,6 +282,7 @@ function viewPendingRequestFromRow(row) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    getPendingRequestFromQuery();
     loadPendingRequests();
 });
 </script>

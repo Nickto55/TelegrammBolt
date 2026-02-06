@@ -1,5 +1,7 @@
 import sys
 import os
+import asyncio
+import threading
 
 # Добавляем корневую директорию проекта в sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -20,6 +22,104 @@ def _normalize_text(value: str) -> str:
 
 def _ensure_dict(value):
     return value if isinstance(value, dict) else {}
+
+
+def _get_dse_receivers() -> list:
+    from bot.user_manager import get_users_data
+    from bot.permissions_manager import has_permission
+
+    users_data = get_users_data()
+    receivers = []
+    for user_id in users_data.keys():
+        try:
+            if has_permission(user_id, 'dse_receiver'):
+                receivers.append(str(user_id))
+        except Exception:
+            continue
+    return receivers
+
+
+def _get_web_base_url() -> str:
+    domain = None
+    port = int(os.getenv('WEB_PORT', '5000'))
+    ssl_enabled = False
+
+    config_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'domain.conf')
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if key == 'DOMAIN':
+                        domain = value if value and value != 'localhost' else None
+                    elif key == 'WEB_PORT':
+                        port = int(value)
+                    elif key == 'SSL_ENABLED':
+                        ssl_enabled = value.lower() in {'true', '1', 'yes'}
+        except Exception:
+            pass
+
+    scheme = 'https' if ssl_enabled else 'http'
+    if not domain:
+        return f"{scheme}://localhost:{port}"
+
+    if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
+        return f"{scheme}://{domain}"
+    return f"{scheme}://{domain}:{port}"
+
+
+def _notify_dse_receivers_new_request(record: dict, request_id: int) -> None:
+    receivers = [uid for uid in _get_dse_receivers() if str(uid).isdigit()]
+    if not receivers:
+        return
+
+    base_url = _get_web_base_url()
+    link = f"{base_url}/dse/pending?request_id={request_id}"
+
+    text = (
+        "🆕 Новая заявка на проверку\n\n"
+        f"ДСЕ: {record.get('dse', 'N/A')}\n"
+        f"Наименование: {record.get('dse_name', 'N/A')}\n"
+        f"Тип: {record.get('problem_type', 'N/A')}\n"
+        f"РЦ: {record.get('rc', 'N/A')}\n"
+        f"Станок: {record.get('machine_number', 'N/A')}\n"
+        f"Наладчик: {record.get('installer_fio', 'N/A')}\n"
+        f"Программист: {record.get('programmer_name', 'N/A')}\n"
+        f"Дата: {record.get('datetime', 'N/A')}\n\n"
+        f"Ссылка: {link}"
+    )
+
+    def _runner():
+        async def _send():
+            from telegram.ext import Application
+            from config.config import BOT_TOKEN
+
+            application = Application.builder().token(BOT_TOKEN).build()
+            await application.initialize()
+            await application.bot.initialize()
+            try:
+                for user_id in receivers:
+                    try:
+                        await application.bot.send_message(chat_id=int(user_id), text=text)
+                    except Exception:
+                        continue
+            finally:
+                await application.bot.shutdown()
+                await application.shutdown()
+
+        try:
+            asyncio.run(_send())
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_send())
+
+    threading.Thread(target=_runner, daemon=True).start()
 
 
 def _parse_datetime(value: str):
@@ -74,6 +174,8 @@ def add_pending_dse_request(record: dict, user_id: str) -> int:
     pending[str(next_id)] = record_copy
     data[PENDING_DSE_REQUESTS_KEY] = pending
     save_data(data, DATA_FILE)
+
+    _notify_dse_receivers_new_request(record_copy, next_id)
 
     return next_id
 
