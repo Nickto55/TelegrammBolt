@@ -158,9 +158,17 @@ function loadPendingRequests() {
                         <td>${req.user_id || '-'}</td>
                         <td>${date}</td>
                         <td>
-                            <button class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation(); viewPendingRequest('${payload}')">
-                                <i class="bi bi-eye"></i> Просмотр заявки
-                            </button>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-primary" onclick="event.stopPropagation(); viewPendingRequest('${payload}')">
+                                    <i class="bi bi-eye"></i> Просмотр
+                                </button>
+                                <button class="btn btn-success" onclick="event.stopPropagation(); approvePendingRequest(${req.id})">
+                                    <i class="bi bi-check-circle"></i> Утвердить
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="event.stopPropagation(); rejectPendingRequest(${req.id})">
+                                    <i class="bi bi-x-circle"></i> Отклонить
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
