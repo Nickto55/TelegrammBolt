@@ -22,6 +22,45 @@ def _ensure_dict(value):
     return value if isinstance(value, dict) else {}
 
 
+def _ensure_list(value):
+    return value if isinstance(value, list) else []
+
+
+def _make_record_id(user_id: str, index: int) -> str:
+    return f"{user_id}_{index}"
+
+
+def _make_record_ref(record: dict, user_id: str, index: int) -> dict:
+    record_id = record.get('record_id') or _make_record_id(user_id, index)
+    return {
+        'record_id': record_id,
+        'user_id': str(user_id),
+        'index': index,
+        'dse': record.get('dse', ''),
+        'dse_name': record.get('dse_name', ''),
+        'datetime': record.get('datetime', ''),
+        'problem_type': record.get('problem_type', ''),
+        'rc': record.get('rc', ''),
+        'machine_number': record.get('machine_number', ''),
+        'installer_fio': record.get('installer_fio', ''),
+        'programmer_name': record.get('programmer_name', ''),
+        'description': record.get('description', ''),
+        'photo_file_id': record.get('photo_file_id'),
+        'photo_path': record.get('photo_path'),
+        'photos': record.get('photos')
+    }
+
+
+def _add_related_link(record: dict, ref: dict) -> bool:
+    related = _ensure_list(record.get('related_records'))
+    ref_id = ref.get('record_id')
+    if ref_id and any(r.get('record_id') == ref_id for r in related):
+        return False
+    related.append(ref)
+    record['related_records'] = related
+    return True
+
+
 def _parse_datetime(value: str):
     if not value:
         return None
@@ -126,6 +165,38 @@ def approve_pending_dse_request(request_id: int, approver_id: str = None):
 
     if not record_copy.get('datetime'):
         record_copy['datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Формируем идентификатор новой записи (по будущему индексу)
+    new_index = len(data[user_id])
+    new_record_id = _make_record_id(user_id, new_index)
+    record_copy['record_id'] = new_record_id
+
+    # Создаем взаимные ссылки с существующими записями с тем же ДСЕ и именем ДСЕ
+    target_dse = _normalize_text(record_copy.get('dse'))
+    target_name = _normalize_text(record_copy.get('dse_name'))
+    if target_dse or target_name:
+        new_ref = _make_record_ref(record_copy, user_id, new_index)
+        for existing_user_id, user_records in data.items():
+            if not isinstance(user_records, list):
+                continue
+            for idx, existing_record in enumerate(user_records):
+                if _normalize_text(existing_record.get('dse')) != target_dse:
+                    continue
+                if _normalize_text(existing_record.get('dse_name')) != target_name:
+                    continue
+
+                # Обновляем record_id у существующей записи для стабильной ссылки
+                if not existing_record.get('record_id'):
+                    existing_record['record_id'] = _make_record_id(existing_user_id, idx)
+
+                existing_ref = _make_record_ref(existing_record, existing_user_id, idx)
+
+                # Добавляем ссылку в новую запись и во все совпавшие существующие
+                _add_related_link(record_copy, existing_ref)
+                _add_related_link(existing_record, new_ref)
+
+                # Записываем обратно измененную запись
+                user_records[idx] = existing_record
 
     data[user_id].append(record_copy)
     data[PENDING_DSE_REQUESTS_KEY] = pending

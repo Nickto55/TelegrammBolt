@@ -214,6 +214,28 @@ def get_dse_by_id(dse_id):
         return None
 
 
+def get_dse_by_record_id(record_id: str):
+    """Получить конкретное ДСЕ по record_id/id"""
+    try:
+        if not record_id:
+            return None
+        try:
+            records = get_all_dse_records(include_hidden=True)
+        except TypeError:
+            records = get_all_dse_records()
+
+        search_id = str(record_id)
+        for record in records:
+            rec_record_id = str(record.get('record_id', ''))
+            rec_id = str(record.get('id', ''))
+            if rec_record_id == search_id or rec_id == search_id:
+                return record
+        return None
+    except Exception as e:
+        logger.error(f"Error in get_dse_by_record_id({record_id}): {e}")
+        return None
+
+
 def add_dse(data):
     """Добавление нового ДСЕ"""
     try:
@@ -1580,6 +1602,24 @@ def dse_detail(dse_id):
                 logger.warning(f"Не удалось получить информацию о пользователе {dse.get('user_id')}: {e}")
                 user_info = None
         
+        # Обогащаем связанные записи полной информацией
+        related_records = dse.get('related_records', []) if isinstance(dse, dict) else []
+        if related_records:
+            enriched_related = []
+            for related in related_records:
+                full_record = get_dse_by_record_id(related.get('record_id'))
+                if full_record:
+                    merged = full_record.copy()
+                    merged['record_id'] = related.get('record_id') or full_record.get('record_id') or full_record.get('id')
+                    if 'index' in related:
+                        merged['index'] = related.get('index')
+                    if 'user_id' in related:
+                        merged['user_id'] = related.get('user_id')
+                    enriched_related.append(merged)
+                else:
+                    enriched_related.append(related)
+            dse['related_records'] = enriched_related
+
         logger.info(f"Rendering dse_detail.html for DSE: {dse_id}")
         return render_template('dse_detail.html', 
                              dse=dse, 
