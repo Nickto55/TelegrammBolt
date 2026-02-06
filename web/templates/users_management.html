@@ -183,6 +183,12 @@
                         </label>
                     </div>
                     <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="perm_approve_dse_requests" value="approve_dse_requests">
+                        <label class="form-check-label" for="perm_approve_dse_requests">
+                            <i class="bi bi-check2-circle"></i> Утвердить ДСЕ
+                        </label>
+                    </div>
+                    <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="perm_edit_dse" value="edit_dse">
                         <label class="form-check-label" for="perm_edit_dse">
                             <i class="bi bi-pencil-square"></i> Редактирование ДСЕ
@@ -222,12 +228,12 @@ let currentEditingUserId = null;
 const ROLE_CONFIG = {
     'admin': {
         description: 'Полный доступ ко всем функциям системы',
-        permissions: ['view_dse', 'export_data', 'add_dse', 'edit_dse', 'delete_dse', 'chat_dse'],
+        permissions: ['view_dse', 'export_data', 'add_dse', 'approve_dse_requests', 'edit_dse', 'delete_dse', 'chat_dse'],
         color: 'danger'
     },
     'responder': {
         description: 'Может просматривать заявки, общаться в чате и экспортировать данные',
-        permissions: ['view_dse', 'export_data', 'chat_dse'],
+        permissions: ['view_dse', 'export_data', 'approve_dse_requests', 'chat_dse'],
         color: 'success'
     },
     'initiator': {
@@ -297,6 +303,7 @@ function updateRoleDescription() {
             'view_dse': 'Просмотр ДСЕ',
             'export_data': 'Экспорт данных',
             'add_dse': 'Добавление ДСЕ',
+            'approve_dse_requests': 'Утвердить ДСЕ',
             'edit_dse': 'Редактирование ДСЕ',
             'delete_dse': 'Удаление ДСЕ',
             'chat_dse': 'Чат по ДСЕ'
