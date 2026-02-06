@@ -364,7 +364,7 @@ function downloadQR() {
 }
 
 function deleteInvite(inviteCode) {
-    if (confirm('Вы уверены, что хотите удалить это приглашение?')) {
+    showConfirm('Вы уверены, что хотите удалить это приглашение?', () => {
         fetch(`/api/invites/${inviteCode}`, {
             method: 'DELETE'
         })
@@ -373,35 +373,35 @@ function deleteInvite(inviteCode) {
             if (data.success) {
                 location.reload();
             } else {
-                alert('Ошибка: ' + data.error);
+                showToast('Ошибка: ' + data.error, 'danger');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Ошибка удаления приглашения');
+            showToast('Ошибка удаления приглашения', 'danger');
         });
-    }
+    }, { okVariant: 'danger' });
 }
 
 function cleanupExpired() {
-    if (confirm('Очистить все истекшие приглашения?')) {
+    showConfirm('Очистить все истекшие приглашения?', () => {
         fetch('/api/invites/cleanup', {
             method: 'POST'
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(data.message);
+                showToast(data.message, 'success');
                 location.reload();
             } else {
-                alert('Ошибка: ' + data.error);
+                showToast('Ошибка: ' + data.error, 'danger');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Ошибка очистки приглашений');
+            showToast('Ошибка очистки приглашений', 'danger');
         });
-    }
+    }, { okVariant: 'warning' });
 }
 </script>
 {% endblock %}

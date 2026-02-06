@@ -543,11 +543,15 @@
 {% block extra_scripts %}
 <script>
 function hideDse(dseId) {
-    if (!confirm('Скрыть эту заявку из списка? Она останется в базе.')) return;
-    fetch(`/api/dse/${encodeURIComponent(dseId)}`, { method: 'DELETE' })
-        .then(response => response.json())
-        .then(() => window.location.reload())
-        .catch(error => console.error('Ошибка скрытия:', error));
+    showConfirm('Скрыть эту заявку из списка? Она останется в базе.', () => {
+        fetch(`/api/dse/${encodeURIComponent(dseId)}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(() => window.location.reload())
+            .catch(error => {
+                console.error('Ошибка скрытия:', error);
+                showToast('Ошибка скрытия заявки', 'danger');
+            });
+    }, { okVariant: 'danger' });
 }
 
 function restoreDse(dseId) {

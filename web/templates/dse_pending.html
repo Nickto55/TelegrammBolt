@@ -202,48 +202,48 @@ function removePendingRow(requestId) {
 }
 
 function approvePendingRequest(requestId) {
-    if (!confirm('Утвердить эту заявку и добавить в базу?')) return;
+    showConfirm('Утвердить эту заявку и добавить в базу?', () => {
+        fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/approve`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    showToast(data.error || 'Ошибка при утверждении', 'danger');
+                    return;
+                }
 
-    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/approve`, { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                alert(data.error || 'Ошибка при утверждении');
-                return;
-            }
+                if (data.archived_matches && data.archived_matches.length > 0) {
+                    const match = data.archived_matches[0];
+                    const archivedAt = match.archived_at ? new Date(match.archived_at).toLocaleString('ru-RU') : '-';
+                    showToast(`Найдено совпадение с архивной заявкой (ID: ${match.id}, архив: ${archivedAt}).`, 'warning');
+                }
 
-            if (data.archived_matches && data.archived_matches.length > 0) {
-                const match = data.archived_matches[0];
-                const archivedAt = match.archived_at ? new Date(match.archived_at).toLocaleString('ru-RU') : '-';
-                alert(`Найдено совпадение с архивной заявкой (ID: ${match.id}, архив: ${archivedAt}).`);
-            }
-
-            removePendingRow(requestId);
-            setTimeout(loadPendingRequests, 200);
-        })
-        .catch(error => {
-            console.error('Ошибка утверждения заявки:', error);
-            alert('Ошибка при утверждении заявки');
-        });
+                removePendingRow(requestId);
+                setTimeout(loadPendingRequests, 200);
+            })
+            .catch(error => {
+                console.error('Ошибка утверждения заявки:', error);
+                showToast('Ошибка при утверждении заявки', 'danger');
+            });
+    }, { okVariant: 'success' });
 }
 
 function rejectPendingRequest(requestId) {
-    if (!confirm('Отклонить эту заявку? Она будет архивирована и скрыта.')) return;
-
-    fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/reject`, { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                alert(data.error || 'Ошибка при отклонении');
-                return;
-            }
-            removePendingRow(requestId);
-            setTimeout(loadPendingRequests, 200);
-        })
-        .catch(error => {
-            console.error('Ошибка отклонения заявки:', error);
-            alert('Ошибка при отклонении заявки');
-        });
+    showConfirm('Отклонить эту заявку? Она будет архивирована и скрыта.', () => {
+        fetch(`/api/dse/pending/${encodeURIComponent(requestId)}/reject`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    showToast(data.error || 'Ошибка при отклонении', 'danger');
+                    return;
+                }
+                removePendingRow(requestId);
+                setTimeout(loadPendingRequests, 200);
+            })
+            .catch(error => {
+                console.error('Ошибка отклонения заявки:', error);
+                showToast('Ошибка при отклонении заявки', 'danger');
+            });
+    }, { okVariant: 'danger' });
 }
 
 function viewPendingRequest(payload) {
