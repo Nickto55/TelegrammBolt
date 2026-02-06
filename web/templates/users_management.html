@@ -406,29 +406,27 @@ function saveUserPermissions() {
 }
 
 function deleteUser(userId, userName) {
-    if (!confirm(`Вы уверены, что хотите удалить пользователя ${userName}?\n\nЭто действие нельзя отменить!`)) {
-        return;
-    }
-
-    fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ Пользователь успешно удален!');
-            location.reload();
-        } else {
-            alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        alert('❌ Ошибка при удалении пользователя');
-    });
+    showConfirm(`Вы уверены, что хотите удалить пользователя ${userName}?\n\nЭто действие нельзя отменить!`, () => {
+        fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('✅ Пользователь успешно удален!', 'success');
+                location.reload();
+            } else {
+                showToast('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            showToast('❌ Ошибка при удалении пользователя', 'danger');
+        });
+    }, { okVariant: 'danger' });
 }
 
 function loadPermissionsLog() {
