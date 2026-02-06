@@ -2,18 +2,36 @@
 
 :root {
     /* Основные цвета BOLT */
-    --primary-color: #1E5EFF;
-    --secondary-color: #00D4FF;
+    --primary-color: #2E7BB5;
+    --secondary-color: #518AB5;
+    --primary-dark: #024070;
+    --primary-darker: #163953;
+    --primary-deep: #002948;
     --success-color: #10b981;
     --danger-color: #ef4444;
     --warning-color: #f59e0b;
-    --info-color: #00D4FF;
+    --info-color: #2E7BB5;
     --dark-color: #1f2937;
     --light-color: #f3f4f6;
     
     /* Градиенты */
-    --gradient-primary: linear-gradient(135deg, #1E5EFF, #00D4FF);
-    --gradient-secondary: linear-gradient(135deg, #00D4FF, #1E5EFF);
+    --gradient-primary: linear-gradient(135deg, #024070, #2E7BB5);
+    --gradient-secondary: linear-gradient(135deg, #2E7BB5, #518AB5);
+}
+
+[data-bs-theme="dark"] {
+    --bg-color: #0f1115;
+    --surface-color: #171a21;
+    --surface-alt: #1f2430;
+    --border-color: #2a3140;
+    --text-color: #e6edf3;
+    --muted-color: #9aa4b2;
+    --accent-color: #2E7BB5;
+    --accent-color-2: #518AB5;
+    --success-color: #4ade80;
+    --warning-color: #f5c451;
+    --danger-color: #ff6b6b;
+    --info-color: #2E7BB5;
 }
 
 body {
@@ -632,48 +650,53 @@ main {
 
 /* Темная тема - дополнительные стили */
 [data-bs-theme="dark"] .chat-message.received {
-    background-color: #2d2d2d;
+    background-color: var(--surface-alt);
+}
+
+[data-bs-theme="dark"] .chat-messages {
+    background-color: var(--surface-color);
+    border-color: var(--border-color);
 }
 
 [data-bs-theme="dark"] .dse-status.active {
-    background-color: rgba(16, 185, 129, 0.2);
-    color: #4ade80;
+    background-color: rgba(74, 222, 128, 0.18);
+    color: var(--success-color);
 }
 
 [data-bs-theme="dark"] .dse-status.pending {
-    background-color: rgba(245, 158, 11, 0.2);
-    color: #facc15;
+    background-color: rgba(245, 196, 81, 0.18);
+    color: var(--warning-color);
 }
 
 [data-bs-theme="dark"] .dse-status.completed {
-    background-color: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
+    background-color: rgba(96, 165, 250, 0.18);
+    color: var(--info-color);
 }
 
 [data-bs-theme="dark"] .photo-with-error {
-    background-color: #2d2d2d;
+    background-color: var(--surface-alt);
 }
 
 [data-bs-theme="dark"] .file-upload-label {
-    background-color: #2d2d2d;
-    border-color: #444;
-    color: #e0e0e0;
+    background-color: var(--surface-alt);
+    border-color: var(--border-color);
+    color: var(--text-color);
 }
 
 [data-bs-theme="dark"] .file-upload-label:hover {
-    background-color: #3d3d3d;
-    border-color: #1E5EFF;
+    background-color: #283143;
+    border-color: var(--accent-color);
 }
 
 [data-bs-theme="dark"] .image-loading {
-    background: #2d2d2d;
+    background: var(--surface-alt);
 }
 
 [data-bs-theme="dark"] .image-loading::after {
-    color: #888888;
+    color: var(--muted-color);
 }
 
 [data-bs-theme="dark"] .skeleton {
-    background: linear-gradient(to right, #2d2d2d 4%, #3d3d3d 25%, #2d2d2d 36%);
+    background: linear-gradient(to right, #1f2430 4%, #283143 25%, #1f2430 36%);
     background-size: 1000px 100%;
 }

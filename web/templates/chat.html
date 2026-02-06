@@ -121,6 +121,91 @@
         min-height: 100px;
     }
 
+    /* Dark theme overrides */
+    [data-bs-theme="dark"] .telegram-chat-layout {
+        background-color: var(--bg-color);
+    }
+
+    [data-bs-theme="dark"] .modal-dialog {
+        background: var(--surface-color);
+        color: var(--text-color);
+        box-shadow: 0 5px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-bs-theme="dark"] .modal-header,
+    [data-bs-theme="dark"] .modal-footer {
+        border-color: var(--border-color);
+    }
+
+    [data-bs-theme="dark"] .modal-close {
+        color: var(--muted-color);
+    }
+
+    [data-bs-theme="dark"] .form-group label {
+        color: var(--text-color);
+    }
+
+    [data-bs-theme="dark"] .form-group input,
+    [data-bs-theme="dark"] .form-group textarea {
+        background-color: var(--surface-alt);
+        border-color: var(--border-color);
+        color: var(--text-color);
+    }
+
+    [data-bs-theme="dark"] .form-group input:focus,
+    [data-bs-theme="dark"] .form-group textarea:focus {
+        border-color: var(--accent-color);
+    }
+
+    [data-bs-theme="dark"] .chat-sidebar,
+    [data-bs-theme="dark"] .chat-sidebar-header,
+    [data-bs-theme="dark"] .chat-sidebar-tabs,
+    [data-bs-theme="dark"] .chat-sidebar-list,
+    [data-bs-theme="dark"] .chat-main,
+    [data-bs-theme="dark"] .chat-header,
+    [data-bs-theme="dark"] .chat-input-area {
+        background: var(--surface-color);
+        color: var(--text-color);
+        border-color: var(--border-color);
+    }
+
+    [data-bs-theme="dark"] .chat-sidebar {
+        border-right-color: var(--border-color);
+    }
+
+    [data-bs-theme="dark"] .chat-item {
+        border-bottom-color: var(--border-color);
+    }
+
+    [data-bs-theme="dark"] .chat-item:hover {
+        background: var(--surface-alt);
+    }
+
+    [data-bs-theme="dark"] .chat-item.active {
+        background: #1a3a8a;
+    }
+
+    [data-bs-theme="dark"] .chat-item-name,
+    [data-bs-theme="dark"] .chat-header-title h2,
+    [data-bs-theme="dark"] .chat-header-subtitle {
+        color: var(--text-color);
+    }
+
+    [data-bs-theme="dark"] .chat-item-message,
+    [data-bs-theme="dark"] .chat-item-time {
+        color: var(--muted-color);
+    }
+
+    [data-bs-theme="dark"] .chat-sidebar-search input {
+        background: var(--surface-alt);
+        border-color: var(--border-color);
+        color: var(--text-color);
+    }
+
+    [data-bs-theme="dark"] .chat-sidebar-search input::placeholder {
+        color: var(--muted-color);
+    }
+
     .btn {
         padding: 10px 20px;
         border: none;

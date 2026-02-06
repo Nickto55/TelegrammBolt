@@ -392,6 +392,11 @@ function saveProfileChanges() {
     transition: all 0.3s ease;
 }
 
+[data-bs-theme="dark"] .stat-card {
+    border-color: var(--border-color);
+    background: var(--surface-color);
+}
+
 .stat-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
