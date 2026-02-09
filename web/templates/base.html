@@ -79,7 +79,15 @@
                             {{ session.first_name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            
+
+                            {% if permissions.dashboard %}
+                            <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i
+                                        class="bi bi-speedometer2"></i> Главная</a></li>
+                            {% endif %}
+
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             
                             {% if permissions.view_dse %}
                             <li><a class="dropdown-item" href="{{ url_for('dse_list') }}"><i class="bi bi-list-ul"></i>
@@ -91,10 +99,6 @@
                                     Заявки на проверку</a></li>
                                 {% endif %}
                             
-                            {% if permissions.export_data or permissions.export_pdf %}
-                            <li><a class="dropdown-item" href="{{ url_for('reports') }}"><i
-                                        class="bi bi-file-earmark-text"></i> Отчеты</a></li>
-                            {% endif %}
                             
                             {% if permissions.chat %}
                             <li><a class="dropdown-item" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i>
@@ -110,6 +114,7 @@
                             <li><a class="dropdown-item" href="{{ url_for('users_management') }}"><i
                                         class="bi bi-people"></i> Управление пользователями</a></li>
                             {% endif %}
+                            
                             {% if permissions.manage_invites %}
                             <li><a class="dropdown-item" href="{{ url_for('invites_page') }}"><i
                                         class="bi bi-qr-code"></i> QR Приглашения</a></li>
@@ -123,15 +128,19 @@
                             <li><a class="dropdown-item" href="{{ url_for('terminal') }}"><i class="bi bi-terminal"></i>
                                     <del>Веб-терминал</del></a></li>
                             {% endif %}
-                            {% if permissions.dashboard %}
-                            <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i
-                                        class="bi bi-speedometer2"></i> Панель управления</a></li>
+
+
+                            {% if permissions.export_data or permissions.export_pdf %}
+                            <li><a class="dropdown-item" href="{{ url_for('reports') }}"><i
+                                        class="bi bi-file-earmark-text"></i> Отчеты</a></li>
                             {% endif %}
-                            {% endif %}
+
+                            
                             
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
+                            {% endif %}
                             
                             <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="bi bi-person"></i>
                                     Профиль</a></li>

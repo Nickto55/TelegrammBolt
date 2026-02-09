@@ -7,9 +7,6 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
-                <h1 class="mb-3">
-                    <i class="bi bi-list-ul"></i> Список ДСЕ
-                </h1>
                 {% if permissions.export_data %}
                 <div>
                     <a href="{{ url_for('pdf_export_page') }}" class="btn btn-danger me-2">
@@ -254,7 +251,6 @@ function loadPendingRequests() {
                         <td>${req.dse || '-'}</td>
                         <td>${req.dse_name || '-'}</td>
                         <td>${req.problem_type || '-'}</td>
-                        <td>${req.user_id || '-'}</td>
                         <td>${date}</td>
                         <td>
                             <button class="btn btn-outline-primary btn-sm" onclick="window.location.href='{{ url_for('dse_pending_requests') }}'">
@@ -465,7 +461,6 @@ function displayTableView() {
             <td><small>${item.installer_fio || '-'}</small></td>
             <td><small>${item.programmer_name || '-'}</small></td>
             <td>${truncateText(item.description || 'Без описания', 60)}</td>
-            <td><small>ID: ${item.user_id || '-'}</small></td>
             <td><small>${item.datetime || '-'}</small></td>
             <td>
                 <button class="btn btn-sm btn-outline-primary" onclick="viewDetails('${item.id}')" title="Просмотр">
@@ -503,7 +498,6 @@ function displayCardView() {
                         <div><i class="bi bi-gear"></i> Станок: ${item.machine_number || '-'}</div>
                         <div><i class="bi bi-person-badge"></i> Наладчик: ${item.installer_fio || '-'}</div>
                         <div><i class="bi bi-code-slash"></i> Программист: ${item.programmer_name || '-'}</div>
-                        <div><i class="bi bi-person"></i> ID: ${item.user_id || '-'}</div>
                         <div><i class="bi bi-calendar"></i> ${item.datetime || '-'}</div>
                     </div>
                 </div>
