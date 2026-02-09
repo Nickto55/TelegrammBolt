@@ -342,13 +342,17 @@ function loadRecentDse() {
             recent.forEach(dse => {
                 const description = dse.description || 'Без описания';
                 const shortDesc = description.length > 50 ? description.substring(0, 50) + '...' : description;
+                const dateParam = dse.datetime || dse.created_at || dse.date || '';
+                const dseLink = dateParam
+                    ? `/dse/${encodeURIComponent(dse.dse)}?date=${encodeURIComponent(dateParam)}`
+                    : `/dse/${encodeURIComponent(dse.dse)}`;
                 html += `
                     <tr>
                         <td><strong>${dse.dse || '-'}</strong></td>
                         <td><span class="badge bg-info">${dse.problem_type || 'Не указано'}</span></td>
                         <td>${shortDesc}</td>
                         <td><small>${dse.datetime || '-'}</small></td>
-                        <td><a href="/dse/${dse.dse}" class="btn btn-sm btn-outline-primary">Просмотр</a></td>
+                        <td><a href="${dseLink}" class="btn btn-sm btn-outline-primary">Просмотр</a></td>
                     </tr>
                 `;
             });

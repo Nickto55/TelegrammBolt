@@ -215,6 +215,65 @@ def get_dse_by_id(dse_id):
         return None
 
 
+def _normalize_dse_datetime(value):
+    """Нормализовать дату/время ДСЕ для сравнения"""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.replace(microsecond=0)
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    # Пробуем ISO и распространенные форматы
+    try:
+        return datetime.fromisoformat(raw.replace(' ', 'T')).replace(microsecond=0)
+    except ValueError:
+        pass
+
+    for fmt in (
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%Y-%m-%d',
+        '%d.%m.%Y %H:%M:%S',
+        '%d.%m.%Y %H:%M',
+        '%d.%m.%Y'
+    ):
+        try:
+            return datetime.strptime(raw, fmt).replace(microsecond=0)
+        except ValueError:
+            continue
+
+    return raw
+
+
+def get_dse_by_dse_and_date(dse_number, date_value):
+    """Получить конкретное ДСЕ по номеру ДСЕ и дате"""
+    try:
+        if not dse_number or not date_value:
+            return None
+        try:
+            records = get_all_dse_records(include_hidden=True)
+        except TypeError:
+            records = get_all_dse_records()
+
+        target_dse = str(dse_number)
+        target_date = _normalize_dse_datetime(date_value)
+
+        for record in records:
+            if str(record.get('dse', '')) != target_dse:
+                continue
+            record_date = _normalize_dse_datetime(
+                record.get('datetime') or record.get('created_at') or record.get('date')
+            )
+            if target_date and record_date and target_date == record_date:
+                return record
+        return None
+    except Exception as e:
+        logger.error(f"Error in get_dse_by_dse_and_date({dse_number}, {date_value}): {e}")
+        return None
+
+
 def get_dse_by_record_id(record_id: str):
     """Получить конкретное ДСЕ по record_id/id"""
     try:
@@ -1588,7 +1647,16 @@ def dse_detail(dse_id):
             logger.warning(f"User {user_id} has no permission to view DSE")
             return "Доступ запрещен", 403
         
-        dse = get_dse_by_id(dse_id)
+        date_param = request.args.get('date')
+        if date_param:
+            dse = get_dse_by_dse_and_date(dse_id, date_param)
+            if not dse:
+                logger.warning(f"DSE not found for dse={dse_id} with date={date_param}")
+                return render_template('error.html',
+                                     error="Заявка не найдена",
+                                     message=f"Заявка с ДСЕ '{dse_id}' и датой '{date_param}' не найдена."), 404
+        else:
+            dse = get_dse_by_id(dse_id)
         if not dse:
             logger.warning(f"DSE not found: {dse_id}")
             return render_template('error.html', 
