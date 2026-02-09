@@ -162,8 +162,12 @@
         
         <div class="col-lg-6">
             <div class="card">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Статистика по типам</h5>
+                    <div class="status-slider compact">
+                        <div class="status-bubble" id="statusBubble" aria-hidden="true"></div>
+                        <input type="range" class="form-range" min="0" max="2" step="1" value="1" id="statusFilterRange" aria-label="Фильтр по статусу">
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -175,15 +179,7 @@
                                     <th class="text-end">%</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {% for problem_type, count in stats.problem_types.items() | sort(attribute=1, reverse=True) %}
-                                <tr>
-                                    <td>{{ problem_type }}</td>
-                                    <td class="text-end"><strong>{{ count }}</strong></td>
-                                    <td class="text-end">{{ "%.1f"|format((count / stats.total_dse * 100)) }}%</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
+                            <tbody id="problemTypesTableBody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -242,69 +238,242 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+<style>
+    .status-slider {
+        position: relative;
+        padding-top: 24px;
+    }
+
+    .status-slider.compact {
+        width: 12.5%;
+        min-width: 110px;
+    }
+
+    .status-slider .form-range {
+        width: 100%;
+        height: 28px;
+    }
+
+    .status-slider .form-range::-webkit-slider-runnable-track {
+        height: 30px;
+        background: linear-gradient(80deg, #00454a 0%, #00454a 90%);
+        border-radius: 999px;
+    }
+
+    .status-slider .form-range::-moz-range-track {
+        height: 29px;
+        background: #56a8e7;
+        border-radius: 999px;
+    }
+
+    .status-slider .form-range::-webkit-slider-thumb {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #ef5b05;
+        border: 2px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+        margin-top: 0;
+    }
+
+    .status-slider .form-range::-moz-range-thumb {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #2873ac;
+        border: 2px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+    }
+
+    .status-bubble {
+        position: absolute;
+        top: 0;
+        transform: translateX(-90%);
+        background: #093658;
+        color: #ffffff;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        line-height: 1.2;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .status-bubble.show {
+        opacity: 1;
+    }
+</style>
+
 <script>
-// Данные для диаграммы
-const problemTypesData = {
-    labels: [
-        {% for problem_type, count in stats.problem_types.items() | sort(attribute='1', reverse=true) %}
-        "{{ problem_type }}",
-        {% endfor %}
-    ],
-    datasets: [{
-        data: [
-            {% for problem_type, count in stats.problem_types.items() %}
-            {{ count }},
-            {% endfor %}
-        ],
-        backgroundColor: [
-            'rgba(30, 94, 255, 0.8)',   // #1E5EFF
-            'rgba(0, 212, 255, 0.8)',    // #00D4FF
-            'rgba(75, 192, 192, 0.8)',
-            'rgba(255, 159, 64, 0.8)',
-            'rgba(153, 102, 255, 0.8)',
-            'rgba(255, 99, 132, 0.8)',
-            'rgba(54, 162, 235, 0.8)',
-            'rgba(201, 203, 207, 0.8)'
-        ],
-        borderWidth: 2,
-        borderColor: '#fff'
-    }]
+const dseDataForStats = {{ dse_data|tojson }};
+
+const STATUS_FILTERS = {
+    0: 'all',
+    1: 'in_progress',
+    2: 'completed'
 };
 
-// Создание диаграммы
-const ctx = document.getElementById('problemTypesChart');
-if (ctx) {
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: problemTypesData,
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        padding: 15,
-                        font: {
-                            size: 12
+function normalizeStatus(record) {
+    const raw = (record.status || '').toString().trim().toLowerCase();
+    if (raw === 'выполнена' || raw === 'решено') {
+        return 'completed';
+    }
+    return 'in_progress';
+}
+
+function filterByStatus(records, mode) {
+    if (mode === 'all') return records;
+    return records.filter(record => normalizeStatus(record) === mode);
+}
+
+function buildProblemStats(records) {
+    const counts = {};
+    records.forEach(record => {
+        const type = record.problem_type || 'Неизвестно';
+        counts[type] = (counts[type] || 0) + 1;
+    });
+    return counts;
+}
+
+function renderProblemTypesTable(counts) {
+    const tbody = document.getElementById('problemTypesTableBody');
+    if (!tbody) return;
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((sum, item) => sum + item[1], 0);
+
+    if (!entries.length) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Нет данных</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = entries.map(([type, count]) => {
+        const percent = total ? ((count / total) * 100).toFixed(1) : '0.0';
+        return `
+            <tr>
+                <td>${type}</td>
+                <td class="text-end"><strong>${count}</strong></td>
+                <td class="text-end">${percent}%</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+let problemTypesChart = null;
+
+function renderProblemTypesChart(counts) {
+    const ctx = document.getElementById('problemTypesChart');
+    if (!ctx) return;
+
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const labels = entries.map(([label]) => label);
+    const data = entries.map(([, value]) => value);
+
+    if (!problemTypesChart) {
+        problemTypesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: [
+                        'rgba(30, 94, 255, 0.8)',
+                        'rgba(0, 212, 255, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(255, 159, 64, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(201, 203, 207, 0.8)'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
                         }
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.parsed || 0;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = ((value / total) * 100).toFixed(1);
-                            return `${label}: ${value} (${percentage}%)`;
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total ? ((value / total) * 100).toFixed(1) : '0.0';
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
                         }
                     }
                 }
             }
-        }
+        });
+    } else {
+        problemTypesChart.data.labels = labels;
+        problemTypesChart.data.datasets[0].data = data;
+        problemTypesChart.update();
+    }
+}
+
+function updateProblemStats(mode) {
+    const filtered = filterByStatus(dseDataForStats, mode);
+    const counts = buildProblemStats(filtered);
+    renderProblemTypesTable(counts);
+    renderProblemTypesChart(counts);
+}
+
+// Данные для диаграммы
+const statusRange = document.getElementById('statusFilterRange');
+const statusBubble = document.getElementById('statusBubble');
+const STATUS_LABELS = {
+    all: 'Все',
+    in_progress: 'В работе',
+    completed: 'Завершённые'
+};
+
+let bubbleTimer = null;
+
+function updateStatusBubble(mode) {
+    if (!statusRange || !statusBubble) return;
+    const min = Number(statusRange.min || 0);
+    const max = Number(statusRange.max || 2);
+    const val = Number(statusRange.value || 1);
+    const percent = max === min ? 0 : ((val - min) / (max - min));
+    const sliderWidth = statusRange.offsetWidth;
+    const left = percent * sliderWidth;
+
+    statusBubble.textContent = STATUS_LABELS[mode] || '';
+    statusBubble.style.left = `${left}px`;
+    statusBubble.classList.add('show');
+
+    if (bubbleTimer) {
+        clearTimeout(bubbleTimer);
+    }
+    bubbleTimer = setTimeout(() => {
+        statusBubble.classList.remove('show');
+    }, 1400);
+}
+if (statusRange) {
+    statusRange.addEventListener('input', () => {
+        const mode = STATUS_FILTERS[Number(statusRange.value)] || 'in_progress';
+        updateProblemStats(mode);
+        updateStatusBubble(mode);
     });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    const mode = statusRange ? STATUS_FILTERS[Number(statusRange.value)] : 'in_progress';
+    updateProblemStats(mode || 'in_progress');
+    updateStatusBubble(mode || 'in_progress');
+});
 
 // Загрузка последних ДСЕ
 document.addEventListener('DOMContentLoaded', function() {

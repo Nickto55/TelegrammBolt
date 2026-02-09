@@ -296,6 +296,117 @@ def get_dse_by_record_id(record_id: str):
         return None
 
 
+def _parse_log_datetime(value):
+    """Нормализовать дату/время для логов"""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace(' ', 'T'))
+    except Exception:
+        pass
+    for fmt in (
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M:%S.%f',
+        '%Y-%m-%d',
+        '%d.%m.%Y %H:%M:%S',
+        '%d.%m.%Y %H:%M'
+    ):
+        try:
+            return datetime.strptime(raw, fmt)
+        except Exception:
+            continue
+    return None
+
+
+def build_dse_logs():
+    """Собрать лог событий по заявкам ДСЕ"""
+    try:
+        from config.config import load_data, DATA_FILE
+        from bot.dse_manager import ARCHIVED_DSE_REQUESTS_KEY
+    except Exception:
+        from config.config import load_data, DATA_FILE
+        ARCHIVED_DSE_REQUESTS_KEY = 'archived_dse_requests'
+
+    data = load_data(DATA_FILE)
+    logs = []
+
+    for user_id, records in data.items():
+        if not isinstance(records, list):
+            continue
+        for idx, record in enumerate(records):
+            dse = record.get('dse', '')
+            dse_name = record.get('dse_name', '')
+            record_id = record.get('id') or record.get('record_id') or f"{user_id}_{idx}"
+            creator_id = record.get('user_id') or user_id
+            created_at = record.get('datetime') or record.get('created_at') or record.get('date')
+
+            if created_at:
+                logs.append({
+                    'dse': dse,
+                    'dse_name': dse_name,
+                    'record_id': record_id,
+                    'action': 'Создана',
+                    'actor_id': str(creator_id),
+                    'timestamp': created_at
+                })
+
+            approved_by = record.get('approved_by')
+            approved_at = record.get('approved_at')
+            if approved_by or approved_at:
+                logs.append({
+                    'dse': dse,
+                    'dse_name': dse_name,
+                    'record_id': record_id,
+                    'action': 'Подтверждена',
+                    'actor_id': str(approved_by) if approved_by is not None else '- ',
+                    'timestamp': approved_at or ''
+                })
+
+            closed_by = record.get('closed_by')
+            closed_at = record.get('closed_at')
+            if not closed_by and record.get('status') == 'Выполнена':
+                closed_by = record.get('status_changed_by')
+                closed_at = record.get('status_changed_at')
+
+            if closed_by or closed_at:
+                logs.append({
+                    'dse': dse,
+                    'dse_name': dse_name,
+                    'record_id': record_id,
+                    'action': 'Закрыта',
+                    'actor_id': str(closed_by) if closed_by is not None else '- ',
+                    'timestamp': closed_at or ''
+                })
+
+    archived = data.get(ARCHIVED_DSE_REQUESTS_KEY, {})
+    if isinstance(archived, dict):
+        for req_id, record in archived.items():
+            dse = record.get('dse', '')
+            dse_name = record.get('dse_name', '')
+            rejected_by = record.get('rejected_by')
+            archived_at = record.get('archived_at') or record.get('created_at')
+            logs.append({
+                'dse': dse,
+                'dse_name': dse_name,
+                'record_id': req_id,
+                'action': 'Отклонена',
+                'actor_id': str(rejected_by) if rejected_by is not None else '- ',
+                'timestamp': archived_at or ''
+            })
+
+    def _sort_key(item):
+        parsed = _parse_log_datetime(item.get('timestamp'))
+        return parsed or datetime.min
+
+    logs.sort(key=_sort_key, reverse=True)
+    return logs
+
+
 def add_dse(data):
     """Добавление нового ДСЕ"""
     try:
@@ -1184,10 +1295,11 @@ def dashboard():
             })
         
         return render_template('dashboard.html', 
-                             user=user_data,
-                             stats=stats,
-                             permissions=get_user_permissions(user_id),
-                             bot_username=get_bot_username())
+                     user=user_data,
+                     stats=stats,
+                     dse_data=dse_data if can_view_stats else [],
+                     permissions=get_user_permissions(user_id),
+                     bot_username=get_bot_username())
     
     except Exception as e:
         logger.error(f"Dashboard error: {e}", exc_info=True)
@@ -1798,6 +1910,48 @@ def dse_detail(dse_id):
         return render_template('error.html',
                              error="Ошибка загрузки заявки",
                              message=f"Не удалось загрузить заявку. Попробуйте обновить страницу."), 500
+
+
+@app.route('/logs')
+@login_required
+@user_role_required(['admin', 'responder'])
+def dse_logs():
+    """Страница логов ДСЕ"""
+    selected_dse = request.args.get('dse')
+    logs = build_dse_logs()
+
+    if selected_dse:
+        filtered_logs = [log for log in logs if str(log.get('dse')) == str(selected_dse)]
+        return render_template('logs.html', logs=filtered_logs, selected_dse=selected_dse, dse_list=[])
+
+    index = {}
+    for log in logs:
+        dse_value = log.get('dse')
+        if not dse_value:
+            continue
+        entry = index.get(dse_value)
+        ts = _parse_log_datetime(log.get('timestamp'))
+        if not entry:
+            index[dse_value] = {
+                'dse': dse_value,
+                'dse_name': log.get('dse_name') or '',
+                'last_action': log.get('action') or '',
+                'last_timestamp': log.get('timestamp') or '',
+                '_last_ts': ts,
+                'count': 1
+            }
+        else:
+            entry['count'] += 1
+            if ts and (entry['_last_ts'] is None or ts > entry['_last_ts']):
+                entry['last_action'] = log.get('action') or ''
+                entry['last_timestamp'] = log.get('timestamp') or ''
+                entry['_last_ts'] = ts
+
+    dse_list = sorted(index.values(), key=lambda x: x.get('_last_ts') or datetime.min, reverse=True)
+    for item in dse_list:
+        item.pop('_last_ts', None)
+
+    return render_template('logs.html', logs=[], selected_dse=None, dse_list=dse_list)
 
 
 @app.route('/dse/create', methods=['GET', 'POST'])

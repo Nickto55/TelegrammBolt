@@ -7,8 +7,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#1E5EFF">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20,30 Q35,20 50,30 T80,30' fill='none' stroke='%2300D4FF' stroke-width='8' opacity='0.6'/%3E%3Cpath d='M10,50 Q30,35 50,50 T90,50' fill='none' stroke='%231E5EFF' stroke-width='10' opacity='0.8'/%3E%3Cpath d='M15,70 Q35,55 55,70 T85,70' fill='none' stroke='%235B9FFF' stroke-width='8' opacity='0.5'/%3E%3Ctext x='50' y='68' font-family='Arial, sans-serif' font-size='46' font-weight='bold' fill='white' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E">
+    <meta name="theme-color" content="#1E5EFF"> <!-- Цвет темы браузера: бренд‑синий -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20,30 Q35,20 50,30 T80,30' fill='none' stroke='%2300D4FF' stroke-width='8' opacity='0.6'/%3E%3Cpath d='M10,50 Q30,35 50,50 T90,50' fill='none' stroke='%231E5EFF' stroke-width='10' opacity='0.8'/%3E%3Cpath d='M15,70 Q35,55 55,70 T85,70' fill='none' stroke='%235B9FFF' stroke-width='8' opacity='0.5'/%3E%3Ctext x='50' y='68' font-family='Arial, sans-serif' font-size='46' font-weight='bold' fill='white' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E"> <!-- Иконка: #00D4FF верхняя волна, #1E5EFF средняя волна, #5B9FFF нижняя волна, white буква B -->
 
     <title>{% block title %}BOLT{% endblock %}</title>
 
@@ -47,11 +47,11 @@
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
                 <svg width="32" height="32" viewBox="0 0 100 100" class="me-2">
                     <!-- Волны -->
-                    <path d="M20,30 Q35,20 50,30 T80,30" fill="none" stroke="#00D4FF" stroke-width="8" opacity="0.6" />
-                    <path d="M10,50 Q30,35 50,50 T90,50" fill="none" stroke="#1E5EFF" stroke-width="10" opacity="0.8" />
-                    <path d="M15,70 Q35,55 55,70 T85,70" fill="none" stroke="#5B9FFF" stroke-width="8" opacity="0.5" />
+                    <path d="M20,30 Q35,20 50,30 T80,30" fill="none" stroke="#00D4FF" stroke-width="8" opacity="0.6" /> <!-- Верхняя волна логотипа (акцентный голубой) -->
+                    <path d="M10,50 Q30,35 50,50 T90,50" fill="none" stroke="#1E5EFF" stroke-width="10" opacity="0.8" /> <!-- Средняя волна логотипа (бренд‑синий) -->
+                    <path d="M15,70 Q35,55 55,70 T85,70" fill="none" stroke="#5B9FFF" stroke-width="8" opacity="0.5" /> <!-- Нижняя волна логотипа (светло‑синий) -->
                     <!-- Буква B -->
-                    <text x="50" y="65" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="white"
+                    <text x="50" y="65" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="white" <!-- Белая буква логотипа -->
                         text-anchor="middle">B</text>
                 </svg>
                 <span class="fw-bold fs-4">BOLT</span>
@@ -127,6 +127,11 @@
                             {% if permissions.terminal %}
                             <li><a class="dropdown-item" href="{{ url_for('terminal') }}"><i class="bi bi-terminal"></i>
                                     <del>Веб-терминал</del></a></li>
+                            {% endif %}
+
+                            {% if user_role in ['admin', 'responder'] %}
+                                <li><a class="dropdown-item" href="{{ url_for('dse_logs') }}"><i class="bi bi-clock-history"></i>
+                                    Логи</a></li>
                             {% endif %}
 
 
@@ -358,11 +363,11 @@
         }
 
         [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link {
-            color: rgba(230, 237, 243, 0.85) !important;
+            color: rgba(230, 237, 243, 0.85) !important; /* Текст ссылок навбара (светлый) */
         }
 
         [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link:hover {
-            color: #ffffff !important;
+            color: #ffffff !important; /* Текст ссылок навбара при наведении */
         }
 
         [data-bs-theme="dark"] .navbar-dark .navbar-nav .dropdown-menu {
@@ -376,7 +381,7 @@
 
         [data-bs-theme="dark"] .navbar-dark .navbar-nav .dropdown-menu .dropdown-item:hover {
             background-color: var(--surface-alt);
-            color: #ffffff;
+            color: #ffffff; /* Текст пункта меню при наведении */
         }
 
         [data-bs-theme="dark"] .footer {
@@ -405,8 +410,8 @@
         }
 
         [data-bs-theme="dark"] .table thead th {
-            background-color: #1a3a8a;
-            border-color: #1a3a8a;
+            background-color: #1a3a8a; /* Фон заголовка таблицы */
+            border-color: #1a3a8a; /* Граница заголовка таблицы */
         }
 
         [data-bs-theme="dark"] .table tbody tr {
@@ -424,27 +429,27 @@
         }
 
         [data-bs-theme="dark"] .alert-info {
-            background-color: #16263d;
-            border-color: #203653;
-            color: #b8d7ff;
+            background-color: #16263d; /* Фон info‑алерта */
+            border-color: #203653; /* Граница info‑алерта */
+            color: #b8d7ff; /* Текст info‑алерта */
         }
 
         [data-bs-theme="dark"] .alert-danger {
-            background-color: #3a1719;
-            border-color: #5a2528;
-            color: #ffb4b4;
+            background-color: #3a1719; /* Фон danger‑алерта */
+            border-color: #5a2528; /* Граница danger‑алерта */
+            color: #ffb4b4; /* Текст danger‑алерта */
         }
 
         [data-bs-theme="dark"] .alert-warning {
-            background-color: #3a2f14;
-            border-color: #5a4720;
-            color: #ffe0a6;
+            background-color: #3a2f14; /* Фон warning‑алерта */
+            border-color: #5a4720; /* Граница warning‑алерта */
+            color: #ffe0a6; /* Текст warning‑алерта */
         }
 
         [data-bs-theme="dark"] .alert-success {
-            background-color: #163321;
-            border-color: #214d31;
-            color: #b6f7c8;
+            background-color: #163321; /* Фон success‑алерта */
+            border-color: #214d31; /* Граница success‑алерта */
+            color: #b6f7c8; /* Текст success‑алерта */
         }
 
         [data-bs-theme="dark"] .form-control,
@@ -459,7 +464,7 @@
             background-color: var(--surface-alt);
             border-color: var(--accent-color);
             color: var(--text-color);
-            box-shadow: 0 0 0 0.2rem rgba(76, 141, 255, 0.25);
+            box-shadow: 0 0 0 0.2rem rgba(40, 115, 172, 0.628); /* Подсветка фокуса */
         }
 
         [data-bs-theme="dark"] .form-control::placeholder {
@@ -511,13 +516,13 @@
         }
 
         [data-bs-theme="dark"] .badge {
-            background-color: #1a3a8a !important;
-            color: #b8d7ff;
+            background-color: #1a3a8a !important; /* Фон бейджа */
+            color: #b8d7ff; /* Текст бейджа */
         }
 
         [data-bs-theme="dark"] .badge.bg-light {
-            background-color: #2d2d2d !important;
-            color: #e0e0e0 !important;
+            background-color: #2d2d2d !important; /* Фон светлого бейджа в тёмной теме */
+            color: #e0e0e0 !important; /* Текст светлого бейджа в тёмной теме */
         }
 
         [data-bs-theme="dark"] .bg-light,
@@ -538,9 +543,9 @@
         }
 
         [data-bs-theme="dark"] .btn-light:hover {
-            background-color: #283143 !important;
-            border-color: #3b4660 !important;
-            color: #ffffff !important;
+            background-color: #283143 !important; /* Ховер фон светлой кнопки */
+            border-color: #3b4660 !important; /* Ховер граница светлой кнопки */
+            color: #ffffff !important; /* Ховер текст светлой кнопки */
         }
 
         [data-bs-theme="dark"] .text-muted {
@@ -565,7 +570,7 @@
         [data-bs-theme="dark"] .list-group-item-action:hover,
         [data-bs-theme="dark"] .list-group-item-action:focus {
             background-color: var(--surface-alt);
-            color: #ffffff;
+            color: #ffffff; /* Текст элемента списка при наведении */
         }
 
         [data-bs-theme="dark"] .input-group-text {
@@ -583,7 +588,7 @@
         }
 
         [data-bs-theme="dark"] .nav-pills .nav-link.active {
-            background-color: #1a3a8a;
+            background-color: #1a3a8a; /* Активная вкладка навигации */
         }
 
         [data-bs-theme="dark"] .pagination {
@@ -597,14 +602,14 @@
         }
 
         [data-bs-theme="dark"] .pagination .page-link:hover {
-            background-color: #283143;
-            border-color: #3b4660;
-            color: #ffffff;
+            background-color: #283143; /* Ховер фон пагинации */
+            border-color: #3b4660; /* Ховер граница пагинации */
+            color: #ffffff; /* Ховер текст пагинации */
         }
 
         [data-bs-theme="dark"] .pagination .page-link.active {
-            background-color: #1a3a8a;
-            border-color: #1a3a8a;
+            background-color: #1a3a8a; /* Активная страница пагинации */
+            border-color: #1a3a8a; /* Граница активной страницы */
         }
 
         /* Светлая тема */
@@ -613,13 +618,13 @@
         }
 
         [data-bs-theme="light"] body {
-            background-color: #f8f9fa;
-            color: #212529;
+            background-color: #f8f9fa; /* Фон светлой темы */
+            color: #212529; /* Текст светлой темы */
         }
 
         [data-bs-theme="light"] .footer {
-            background-color: #f8f9fa;
-            border-top: 1px solid #dee2e6;
+            background-color: #f8f9fa; /* Фон футера светлой темы */
+            border-top: 1px solid #dee2e6; /* Граница футера светлой темы */
         }
 
         /* Скроллбар для тёмной темы */
@@ -632,12 +637,12 @@
         }
 
         [data-bs-theme="dark"] ::-webkit-scrollbar-thumb {
-            background: #3b4660;
+            background: #3b4660; /* Ползунок скролла */
             border-radius: 4px;
         }
 
         [data-bs-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-            background: #4a5875;
+            background: #4a5875; /* Ползунок скролла при наведении */
         }
     </style>
 
