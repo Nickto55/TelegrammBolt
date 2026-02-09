@@ -463,6 +463,7 @@
         flex-direction: column;
         gap: 2px;
         margin-bottom: 8px;
+        width: 100%;
     }
 
     .messages-group.sent {
@@ -473,14 +474,30 @@
         align-items: flex-start;
     }
 
+    .message-item {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .messages-group.sent .message-item {
+        align-items: flex-end;
+    }
+
     .message-bubble {
-        padding: 8px 12px;
+        padding: 6px 10px;
         border-radius: 18px;
-        max-width: 55%;
+        max-width: 60%;
+        min-width: 24px;
+        width: auto;
         word-wrap: break-word;
+        word-break: break-word;
+        white-space: pre-wrap;
         font-size: 15px;
-        line-height: 1.4;
+        line-height: 1.3;
         position: relative;
+        display: inline-block;
     }
 
     .message-bubble.sent {
@@ -499,6 +516,13 @@
         font-size: 12px;
         color: #8a8a8e;
         margin-top: 4px;
+        padding: 0 12px;
+    }
+
+    .message-sender {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 2px;
         padding: 0 12px;
     }
 
@@ -708,6 +732,116 @@
         color: #8a8a8e;
     }
 
+    /* Группы заявок */
+    .request-group {
+        margin: 8px;
+        border: 1px solid #e5e5ea;
+        border-radius: 10px;
+        background-color: #fff;
+        overflow: hidden;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .request-group:hover {
+        border-color: #0084ff;
+        box-shadow: 0 4px 12px rgba(0, 132, 255, 0.12);
+    }
+
+    .request-group-header {
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        cursor: pointer;
+        background-color: #f9f9f9;
+    }
+
+    .request-group-title {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .request-group-dse {
+        font-weight: 600;
+        color: #000;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .request-group-name {
+        font-size: 12px;
+        color: #8a8a8e;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .request-group-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .request-group-count {
+        font-size: 12px;
+        padding: 4px 8px;
+        background: #e5e5ea;
+        border-radius: 12px;
+        color: #000;
+    }
+
+    .request-group-toggle {
+        font-size: 14px;
+        color: #8a8a8e;
+        transition: transform 0.2s;
+    }
+
+    .request-group.open .request-group-toggle {
+        transform: rotate(180deg);
+    }
+
+    .request-group-list {
+        display: none;
+        padding: 6px 10px 10px;
+        background-color: #fff;
+    }
+
+    .request-group.open .request-group-list {
+        display: block;
+    }
+
+    .request-group:hover .request-group-list {
+        display: block;
+    }
+
+    .request-group:hover .request-group-toggle {
+        transform: rotate(180deg);
+    }
+
+    [data-bs-theme="dark"] .request-group {
+        background-color: var(--surface-color);
+        border-color: var(--border-color);
+    }
+
+    [data-bs-theme="dark"] .request-group-header {
+        background-color: var(--surface-alt);
+    }
+
+    [data-bs-theme="dark"] .request-group-dse,
+    [data-bs-theme="dark"] .request-group-name {
+        color: var(--text-color);
+    }
+
+    [data-bs-theme="dark"] .request-group-count {
+        background: var(--surface-color);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+    }
+
     .btn-create-request {
         padding: 12px 20px;
         margin: 12px;
@@ -751,11 +885,8 @@
 
         <!-- Содержимое заявок -->
         <div class="chat-sidebar-list" id="requestsListContainer" style="display: none;">
-            <button class="btn-create-request" onclick="openCreateRequestModal()">
-                <i class="bi bi-plus"></i> Новая заявка
-            </button>
-            <div id="requestsList" style="padding: 20px;">
-                <div style="text-align: center; color: #8a8a8e;">
+            <div id="requestsList" style="padding: 10px 8px;">
+                <div style="text-align: center; color: #8a8a8e; padding: 20px;">
                     <p>Загрузка заявок...</p>
                 </div>
             </div>
@@ -790,6 +921,11 @@
                     </div>
                     <div class="chat-header-subtitle" id="requestSubtitle"></div>
                 </div>
+            </div>
+            <div class="chat-header-actions">
+                <button class="btn btn-primary" id="requestChatBtn" style="display: none;">
+                    Начать чат
+                </button>
             </div>
         </div>
 
@@ -856,10 +992,12 @@
 <script>
 let currentChatId = null;
 let currentRequestId = null;
-let currentUserId = {{ session.user_id|default(0) }};
-let currentTab = 'chats';
+let currentUserId = {{ (session.user_id|default('')|string)|tojson }};
+var currentTab = 'chats';
 let messagePollingInterval = null;
 let listPollingInterval = null;
+var dseRequestsCache = new Map();
+var pendingChatOpenId = null;
 
 // Auto-expand textarea
 function autoExpandTextarea() {
@@ -882,12 +1020,12 @@ function switchTab(tab, el) {
     
     // Показываем/скрываем контейнеры
     if (tab === 'chats') {
-        document.getElementById('chatListContainer').style.display = 'flex';
+        document.getElementById('chatListContainer').style.display = 'block';
         document.getElementById('requestsListContainer').style.display = 'none';
         loadChatList();
     } else {
         document.getElementById('chatListContainer').style.display = 'none';
-        document.getElementById('requestsListContainer').style.display = 'flex';
+        document.getElementById('requestsListContainer').style.display = 'block';
         loadRequestsList();
     }
     
@@ -934,7 +1072,7 @@ function loadChatList() {
                     const dseName = chat.dse_name || chat.name || '';
                     
                     html += `
-                        <div class="chat-item ${isActive}" onclick="selectChat(${chat.id}, '${String(dse).replace(/'/g, "\\'")}', '${String(dseName).replace(/'/g, "\\'")}', ${chat.is_online ? 'true' : 'false'}, this)">
+                        <div class="chat-item ${isActive}" data-chat-id="${chat.id}" onclick="selectChat(${chat.id}, '${String(dse).replace(/'/g, "\\'")}', '${String(dseName).replace(/'/g, "\\'")}', ${chat.is_online ? 'true' : 'false'}, this)">
                             <div class="chat-item-avatar ${isOnline}">
                                 ${initials}
                             </div>
@@ -949,20 +1087,29 @@ function loadChatList() {
                 });
                 
                 chatList.innerHTML = html;
+
+                if (pendingChatOpenId !== null) {
+                    const target = data.chats.find(c => String(c.id) === String(pendingChatOpenId));
+                    const targetEl = chatList.querySelector(`[data-chat-id="${pendingChatOpenId}"]`);
+                    if (target) {
+                        selectChat(target.id, target.dse || '', target.dse_name || target.name || '', target.is_online ? true : false, targetEl);
+                    }
+                    pendingChatOpenId = null;
+                }
             }
         })
         .catch(error => console.error('Error loading chat list:', error));
 }
 
 // Load requests list
-/*function loadRequestsList() {
-    fetch('/api/chat/requests')
+function loadRequestsList() {
+    fetch('/api/dse?include_hidden=1')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
+            if (Array.isArray(data)) {
                 const requestsList = document.getElementById('requestsList');
                 
-                if (!data.requests || data.requests.length === 0) {
+                if (data.length === 0) {
                     requestsList.innerHTML = `
                         <div class="requests-empty">
                             <i class="bi bi-inbox" style="font-size: 32px; opacity: 0.5; display: block; margin-bottom: 12px;"></i>
@@ -972,31 +1119,103 @@ function loadChatList() {
                     return;
                 }
 
+                const sortedRequests = [...data].sort((a, b) => {
+                    const aTime = new Date(a.datetime || a.created_at || a.timestamp || 0).getTime();
+                    const bTime = new Date(b.datetime || b.created_at || b.timestamp || 0).getTime();
+                    return bTime - aTime;
+                });
+
+                dseRequestsCache = new Map();
+                sortedRequests.forEach(item => {
+                    if (item && item.id !== undefined && item.id !== null) {
+                        dseRequestsCache.set(String(item.id), item);
+                    }
+                });
+
+                const groupsMap = new Map();
+                sortedRequests.forEach(req => {
+                    const dse = (req.dse || '').toString().trim();
+                    const dseName = (req.dse_name || req.dse_title || req.name || '').toString().trim();
+                    const key = `${dse}||${dseName}`.toLowerCase();
+                    if (!groupsMap.has(key)) {
+                        groupsMap.set(key, { dse, dseName, requests: [] });
+                    }
+                    groupsMap.get(key).requests.push(req);
+                });
+
+                const groups = Array.from(groupsMap.values()).sort((a, b) => {
+                    const aTime = new Date((a.requests[0] || {}).datetime || (a.requests[0] || {}).created_at || (a.requests[0] || {}).timestamp || 0).getTime();
+                    const bTime = new Date((b.requests[0] || {}).datetime || (b.requests[0] || {}).created_at || (b.requests[0] || {}).timestamp || 0).getTime();
+                    return bTime - aTime;
+                });
+
                 let html = '';
-                data.requests.forEach(req => {
-                    const isActive = req.id === currentRequestId ? 'active' : '';
-                    const status = req.status === 'pending' ? 'Ожидание' : 'Принято';
-                    const statusClass = req.status === 'pending' ? 'pending' : 'accepted';
-                    const date = new Date(req.created_at).toLocaleDateString('ru-RU');
-                    
+                groups.forEach((group, idx) => {
+                    const groupId = `req-group-${idx}`;
+                    const groupTitle = group.dse || 'Заявки';
+                    const groupName = group.dseName || 'Без наименования';
+
                     html += `
-                        <div class="request-item ${statusClass} ${isActive}" onclick="selectRequest(${req.id}, '${req.subject.replace(/'/g, "\\'")}', this)">
-                            <div class="request-header">
-                                <p class="request-name">${req.subject}</p>
-                                <span class="request-status ${statusClass}">${status}</span>
+                        <div class="request-group" id="${groupId}">
+                            <div class="request-group-header" onclick="toggleRequestGroup('${groupId}')">
+                                <div class="request-group-title">
+                                    <div class="request-group-dse">${groupTitle}</div>
+                                    <div class="request-group-name">${groupName}</div>
+                                </div>
+                                <div class="request-group-meta">
+                                    <span class="request-group-count">${group.requests.length}</span>
+                                    <i class="bi bi-chevron-down request-group-toggle"></i>
+                                </div>
                             </div>
-                            <p class="request-subject">${req.message.substring(0, 50)}...</p>
-                            <p class="request-date">${date}</p>
+                            <div class="request-group-list">
+                    `;
+
+                    group.requests.forEach(req => {
+                        const isActive = req.id === currentRequestId ? 'active' : '';
+                        const statusRaw = (req.status || '').toString().trim();
+                        const status = statusRaw || 'В работе';
+                        const statusClass = status === 'Выполнена' ? 'accepted' : (status === 'Отклонена' ? 'pending' : 'pending');
+                        const date = new Date(req.datetime || req.created_at || req.timestamp || Date.now()).toLocaleDateString('ru-RU');
+                        const subject = (req.problem_type || req.subject || 'Заявка').toString();
+                        const message = (req.description || req.message || '').toString();
+                        const preview = message.length > 50 ? `${message.substring(0, 50)}...` : message;
+
+                        html += `
+                            <div class="request-item ${statusClass} ${isActive}" onclick="selectRequest('${String(req.id).replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}', this)">
+                                <div class="request-header">
+                                    <p class="request-name">${subject}</p>
+                                    <span class="request-status ${statusClass}">${status}</span>
+                                </div>
+                                <p class="request-subject">${preview}</p>
+                                <p class="request-date">${date}</p>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                            </div>
                         </div>
                     `;
                 });
                 
                 requestsList.innerHTML = html;
+            } else {
+                document.getElementById('requestsList').innerHTML = `
+                    <div class="requests-empty">
+                        <p>Не удалось загрузить заявки</p>
+                    </div>
+                `;
             }
         })
-        .catch(error => console.error('Error loading requests:', error));
+        .catch(error => {
+            console.error('Error loading requests:', error);
+            document.getElementById('requestsList').innerHTML = `
+                <div class="requests-empty">
+                    <p>Не удалось загрузить заявки</p>
+                </div>
+            `;
+        });
 }
-*/
 
 
 // Select chat
@@ -1026,29 +1245,119 @@ function selectChat(chatId, dse, dseName, isOnline, el) {
 }
 
 // Select request
-function selectRequest(requestId, subject) {
+function selectRequest(requestId, subject, el) {
     currentRequestId = requestId;
     currentChatId = null;
+    const requestInfo = dseRequestsCache.get(String(requestId));
     
     // Update UI
-    document.getElementById('requestTitle').textContent = subject;
-    document.getElementById('requestSubtitle').textContent = '📋 Заявка';
+    document.getElementById('requestTitle').textContent = requestInfo?.dse || subject;
+    document.getElementById('requestSubtitle').textContent = requestInfo?.dse_name || '📋 Заявка';
     document.getElementById('chatHeader').style.display = 'none';
     document.getElementById('requestHeader').style.display = 'flex';
-    document.getElementById('inputArea').style.display = 'flex';
+    document.getElementById('inputArea').style.display = 'none';
     
     // Highlight active request
     document.querySelectorAll('.request-item').forEach(item => {
         item.classList.remove('active');
     });
-    event.currentTarget.classList.add('active');
+    if (el) {
+        el.classList.add('active');
+    }
     
-    // Load messages
-    loadMessages();
-    
-    // Stop old polling and start new
+    // Показываем детали заявки
+    const container = document.getElementById('messagesContainer');
+    if (container) {
+        const status = (requestInfo?.status || 'В работе').toString();
+        const date = requestInfo?.datetime || requestInfo?.created_at || requestInfo?.timestamp || '-';
+        const description = requestInfo?.description || requestInfo?.message || 'Без описания';
+        container.innerHTML = `
+            <div class="messages-empty">
+                <div class="messages-empty-icon"><i class="bi bi-file-earmark-text"></i></div>
+                <p style="margin: 0 0 6px 0;"><strong>Статус:</strong> ${status}</p>
+                <p style="margin: 0 0 6px 0;"><strong>Дата:</strong> ${date}</p>
+                <p style="margin: 0; text-align:center; max-width: 520px;">${description}</p>
+            </div>
+        `;
+    }
+
+    // Останавливаем polling сообщений
     if (messagePollingInterval) clearInterval(messagePollingInterval);
-    messagePollingInterval = setInterval(loadMessages, 3000);
+
+    // Обновляем кнопку чата
+    updateRequestChatButton(requestInfo);
+}
+
+// Toggle request group
+function toggleRequestGroup(groupId) {
+    const groupEl = document.getElementById(groupId);
+    if (groupEl) {
+        groupEl.classList.toggle('open');
+    }
+}
+
+function updateRequestChatButton(requestInfo) {
+    const btn = document.getElementById('requestChatBtn');
+    if (!btn || !requestInfo) return;
+
+    const dse = (requestInfo.dse || '').toString().trim();
+    const dseName = (requestInfo.dse_name || requestInfo.dse_title || requestInfo.name || '').toString().trim();
+    const targetUserId = requestInfo.user_id ? String(requestInfo.user_id) : '';
+
+    if (!dse) {
+        btn.style.display = 'none';
+        return;
+    }
+
+    btn.style.display = 'inline-flex';
+    btn.textContent = 'Загрузка...';
+    btn.disabled = true;
+
+    fetch('/api/chat/list')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                btn.style.display = 'none';
+                return;
+            }
+
+            const existingChat = (data.chats || []).find(c => (c.dse || '').toString().toLowerCase() === dse.toLowerCase());
+            if (existingChat) {
+                btn.textContent = 'Присоединиться к чату';
+                btn.disabled = false;
+                btn.onclick = () => openChatById(existingChat.id);
+            } else {
+                btn.textContent = 'Начать чат';
+                btn.disabled = false;
+                btn.onclick = () => startChatByDse(dse, dseName, targetUserId);
+            }
+        })
+        .catch(() => {
+            btn.style.display = 'none';
+        });
+}
+
+function openChatById(chatId) {
+    const chatTabBtn = document.querySelector('.chat-tab');
+    pendingChatOpenId = chatId;
+    switchTab('chats', chatTabBtn);
+}
+
+function startChatByDse(dse, dseName, targetUserId) {
+    fetch('/api/chat/start-by-dse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dse, dse_name: dseName, target_user_id: targetUserId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            openChatById(data.chat_id);
+        } else {
+            alert(data.error || 'Не удалось начать чат');
+        }
+    })
+    .catch(() => alert('Не удалось начать чат'));
 }
 
 // Load messages
@@ -1082,6 +1391,14 @@ function loadMessages() {
                 let currentGroup = null;
                 let currentUserId_ = null;
 
+                const escapeHtml = (value) => (value || '')
+                    .toString()
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+
                 data.messages.forEach((msg, index) => {
                     const isSent = msg.user_id === currentUserId;
                     const groupClass = isSent ? 'sent' : 'received';
@@ -1101,12 +1418,13 @@ function loadMessages() {
                         hour: '2-digit', 
                         minute: '2-digit' 
                     });
-                    
+
+                    const safeText = escapeHtml(msg.text).replace(/^\s+/, '');
+                    const senderName = escapeHtml(msg.sender_name || '');
                     html += `
-                        <div>
-                            <div class="message-bubble ${isSent ? 'sent' : 'received'}">
-                                ${msg.text}
-                            </div>
+                        <div class="message-item">
+                            <div class="message-sender">${senderName}</div>
+                            <div class="message-bubble ${isSent ? 'sent' : 'received'}">${safeText}</div>
                             <div class="message-time">${timeStr}</div>
                         </div>
                     `;

@@ -668,10 +668,64 @@ def is_admin(user_id):
 
 
 def get_chat_history(user_id):
-    """Заглушка для получения истории чата - требует реализации"""
-    # TODO: реализовать получение истории из chat_manager или отдельного файла
-    logger.warning("get_chat_history() not fully implemented")
-    return []
+    """Получить историю сообщений для пользователя (для совместимости)."""
+    try:
+        data = load_data(DATA_FILE)
+        chats = data.get('chats', {})
+        history = []
+
+        for chat_id, chat_info in chats.items():
+            participants = [str(p) for p in (chat_info.get('participants') or [])]
+            owner_id = str(chat_info.get('user_id', ''))
+            if str(user_id) not in participants and owner_id != str(user_id) and not is_admin(user_id):
+                continue
+
+            for msg in chat_info.get('messages', []):
+                history.append({
+                    'chat_id': int(chat_id) if str(chat_id).isdigit() else chat_id,
+                    'dse': chat_info.get('dse', ''),
+                    'dse_name': chat_info.get('dse_name', ''),
+                    'user_id': msg.get('user_id'),
+                    'text': msg.get('text'),
+                    'timestamp': msg.get('timestamp')
+                })
+
+        history.sort(key=lambda m: m.get('timestamp') or '')
+        return history
+    except Exception as e:
+        logger.error(f"Error loading chat history: {e}")
+        return []
+
+
+def _has_chat_access(user_id) -> bool:
+    """Проверить доступ к чату по ДСЕ (роль или право)."""
+    try:
+        role = get_user_role(user_id)
+    except Exception:
+        role = None
+    return has_permission(user_id, 'chat_dse') or role in {'admin', 'responder', 'initiator'}
+
+
+def _get_sender_name(sender_id, session_user_id=None) -> str:
+    """Получить имя/фамилию отправителя по user_id."""
+    if not sender_id:
+        return "Неизвестный"
+
+    sender_id_str = str(sender_id)
+    if session_user_id is not None and sender_id_str == str(session_user_id):
+        first = session.get('first_name', '') if isinstance(session, dict) else ''
+        last = session.get('last_name', '') if isinstance(session, dict) else ''
+        full = f"{first} {last}".strip()
+        if full:
+            return full
+
+    user_data = get_user_data(sender_id_str) or {}
+    first_name = (user_data.get('first_name') or '').strip()
+    last_name = (user_data.get('last_name') or '').strip()
+    full_name = f"{first_name} {last_name}".strip()
+    if full_name:
+        return full_name
+    return f"Пользователь {sender_id_str}"
 
 
 def send_chat_message(user_id, target_user_id, message):
@@ -2279,7 +2333,7 @@ def chat():
     """Страница чата"""
     user_id = session['user_id']
     
-    if not has_permission(user_id, 'chat_dse'):
+    if not _has_chat_access(user_id):
         return "Доступ запрещен", 403
     
     # Получить историю чата
@@ -2813,7 +2867,7 @@ def api_get_messages():
     """API: Получить сообщения чата"""
     user_id = session['user_id']
     
-    if not has_permission(user_id, 'chat_dse'):
+    if not _has_chat_access(user_id):
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     chat_id = request.args.get('chat_id')
@@ -2825,7 +2879,12 @@ def api_get_messages():
         data = load_data(DATA_FILE)
         chats = data.get('chats', {})
         messages = chats.get(str(chat_id), {}).get('messages', [])
-        return jsonify({'success': True, 'messages': messages})
+        enriched = []
+        for msg in messages:
+            enriched_msg = msg.copy()
+            enriched_msg['sender_name'] = _get_sender_name(msg.get('user_id'), session.get('user_id'))
+            enriched.append(enriched_msg)
+        return jsonify({'success': True, 'messages': enriched})
     except Exception as e:
         logger.error(f"Error loading messages: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -2837,7 +2896,7 @@ def api_chat_list():
     """API: Получить список чатов"""
     user_id = session['user_id']
     
-    if not has_permission(user_id, 'chat_dse'):
+    if not _has_chat_access(user_id):
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     try:
@@ -2872,7 +2931,7 @@ def api_send_message():
     """API: Отправить сообщение в чат"""
     user_id = session['user_id']
     
-    if not has_permission(user_id, 'chat_dse'):
+    if not _has_chat_access(user_id):
         return jsonify({'error': 'Доступ запрещен'}), 403
     
     data = request.json
@@ -2963,6 +3022,62 @@ def api_send_message():
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"Error sending message: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/start-by-dse', methods=['POST'])
+@login_required
+def api_start_chat_by_dse():
+    """API: создать или получить чат по ДСЕ"""
+    user_id = session['user_id']
+
+    if not _has_chat_access(user_id):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    data = request.json or {}
+    dse = (data.get('dse') or '').strip()
+    dse_name = (data.get('dse_name') or '').strip()
+    target_user_id = (data.get('target_user_id') or '').strip()
+
+    if not dse:
+        return jsonify({'success': False, 'error': 'Данные ДСЕ обязательны'}), 400
+
+    try:
+        all_data = load_data(DATA_FILE)
+        chats = all_data.get('chats', {})
+
+        # Переиспользуем существующий чат
+        existing_chat_id = None
+        for cid, chat_info in chats.items():
+            if chat_info.get('dse') == dse and chat_info.get('status') == 'accepted':
+                existing_chat_id = cid
+                break
+
+        if existing_chat_id:
+            return jsonify({'success': True, 'chat_id': int(existing_chat_id), 'existed': True})
+
+        chat_id = max([int(k) for k in chats.keys()] if chats else [0]) + 1
+
+        participants = [str(user_id)]
+        if target_user_id:
+            participants.append(str(target_user_id))
+
+        chats[str(chat_id)] = {
+            'participants': participants,
+            'dse': dse,
+            'dse_name': dse_name,
+            'activated_on': 'web',
+            'status': 'accepted',
+            'created_at': datetime.now().isoformat(),
+            'messages': []
+        }
+
+        all_data['chats'] = chats
+        save_data(all_data, DATA_FILE)
+
+        return jsonify({'success': True, 'chat_id': chat_id, 'existed': False})
+    except Exception as e:
+        logger.error(f"Error creating chat by dse: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -3068,7 +3183,12 @@ def api_get_request_messages():
             return jsonify({'success': False, 'error': 'Доступ запрещен'}), 403
         
         messages = req_info.get('messages', [])
-        return jsonify({'success': True, 'messages': messages})
+        enriched = []
+        for msg in messages:
+            enriched_msg = msg.copy()
+            enriched_msg['sender_name'] = _get_sender_name(msg.get('user_id'), session.get('user_id'))
+            enriched.append(enriched_msg)
+        return jsonify({'success': True, 'messages': enriched})
     except Exception as e:
         logger.error(f"Error loading request messages: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
