@@ -420,6 +420,98 @@ def delete_dse(dse_id):
         return {"success": False, "error": str(e)}
 
 
+def close_dse(dse_id):
+    """Закрытие ДСЕ (выполнена)"""
+    try:
+        from config.config import load_data, save_data, DATA_FILE
+        from datetime import datetime
+
+        data_dict = load_data(DATA_FILE)
+
+        found = False
+        for user_id, records in data_dict.items():
+            if not isinstance(records, list):
+                continue
+            for i, record in enumerate(records):
+                record_id = str(record.get('id', ''))
+                record_record_id = str(record.get('record_id', ''))
+                if (
+                    str(record.get('dse', '')) == str(dse_id)
+                    or str(i) == str(dse_id)
+                    or record_id == str(dse_id)
+                    or record_record_id == str(dse_id)
+                ):
+                    if record.get('status') == 'Выполнена':
+                        return {"success": True, "message": "Заявка уже закрыта"}
+                    record['status'] = 'Выполнена'
+                    record['closed_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    record['closed_by'] = str(session.get('user_id', ''))
+                    data_dict[user_id][i] = record
+                    found = True
+                    break
+            if found:
+                break
+
+        if not found:
+            return {"success": False, "error": "ДСЕ не найден"}
+
+        save_data(data_dict, DATA_FILE)
+        logger.info(f"DSE closed: {dse_id}")
+        return {"success": True, "message": "Заявка закрыта"}
+    except Exception as e:
+        logger.error(f"Error in close_dse: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+def update_dse_status(dse_id, status: str):
+    """Обновить статус ДСЕ"""
+    try:
+        from config.config import load_data, save_data, DATA_FILE
+        from datetime import datetime
+
+        allowed_statuses = {'В работе', 'Выполнена', 'Отклонена'}
+        if status not in allowed_statuses:
+            return {"success": False, "error": "Неверный статус"}
+
+        data_dict = load_data(DATA_FILE)
+
+        found = False
+        for user_id, records in data_dict.items():
+            if not isinstance(records, list):
+                continue
+            for i, record in enumerate(records):
+                record_id = str(record.get('id', ''))
+                record_record_id = str(record.get('record_id', ''))
+                if (
+                    str(record.get('dse', '')) == str(dse_id)
+                    or str(i) == str(dse_id)
+                    or record_id == str(dse_id)
+                    or record_record_id == str(dse_id)
+                ):
+                    record['status'] = status
+                    record['status_changed_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    record['status_changed_by'] = str(session.get('user_id', ''))
+                    data_dict[user_id][i] = record
+                    found = True
+                    break
+            if found:
+                break
+
+        if not found:
+            return {"success": False, "error": "ДСЕ не найден"}
+
+        save_data(data_dict, DATA_FILE)
+        logger.info(f"DSE status updated: {dse_id} -> {status}")
+        return {"success": True, "message": "Статус обновлен"}
+    except Exception as e:
+        logger.error(f"Error in update_dse_status: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
 def restore_dse(dse_id):
     """Восстановление скрытого ДСЕ"""
     try:
@@ -2257,6 +2349,34 @@ def api_delete_dse(dse_id):
     return jsonify(result)
 
 
+@app.route('/api/dse/<dse_id>/close', methods=['POST'])
+@login_required
+def api_close_dse(dse_id):
+    """API: Закрыть ДСЕ"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'close_dse'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    result = close_dse(dse_id)
+    return jsonify(result)
+
+
+@app.route('/api/dse/<dse_id>/status', methods=['POST'])
+@login_required
+def api_update_dse_status(dse_id):
+    """API: Обновить статус ДСЕ"""
+    user_id = session['user_id']
+
+    if not has_permission(user_id, 'close_dse'):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    data = request.json or {}
+    status = data.get('status', '').strip()
+    result = update_dse_status(dse_id, status)
+    return jsonify(result)
+
+
 @app.route('/api/dse/<int:dse_id>/restore', methods=['POST'])
 @login_required
 def api_restore_dse(dse_id):
@@ -2302,14 +2422,14 @@ def api_export_excel():
             
             row = {
                 'ДСЕ': record.get('dse', ''),
+                'Наименование': record.get('dse_name', ''),
                 'Тип проблемы': record.get('problem_type', ''),
-                'RC': record.get('rc', ''),
+                'Рц': record.get('rc', ''),
                 'Номер станка': record.get('machine_number', ''),
                 'ФИО Наладчика': record.get('installer_fio', ''),
                 'ФИО Программиста': record.get('programmer_name', ''),
                 'Описание': record.get('description', ''),
                 'Дата создания': record.get('datetime', ''),
-                'Пользователь': user_info.get('name', '') if user_info else f"ID: {record.get('user_id', '')}",
                 'ID пользователя': record.get('user_id', ''),
                 'Есть фото': 'Да' if record.get('photo_file_id') or record.get('photos') else 'Нет',
                 'Отправлено на email': 'Да' if record.get('sent_to_emails') else 'Нет'

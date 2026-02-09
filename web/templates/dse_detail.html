@@ -23,6 +23,19 @@
             {% endif %}
         </h1>
         <div class="d-flex gap-2">
+            {% if permissions.close_dse %}
+                {% set dse_status = dse.get('status') or 'В работе' %}
+                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#statusModal">
+                    <i class="bi bi-arrow-repeat me-1"></i>
+                    Изменить статус
+                </button>
+                {% if dse_status != 'Выполнена' %}
+                <button class="btn btn-outline-success" onclick="closeDse('{{ dse.get('id') }}')">
+                    <i class="bi bi-check2-circle me-1"></i>
+                    Закрыть
+                </button>
+                {% endif %}
+            {% endif %}
             {% if permissions.delete_dse %}
                 {% if dse.get('hidden') %}
                 <button class="btn btn-outline-success" onclick="restoreDse('{{ dse.get('id') }}')">
@@ -55,6 +68,7 @@
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">
+                        {% set dse_status = dse.get('status') or 'В работе' %}
                         <div class="col-md-6">
                             <label class="text-muted small mb-1">Номер ДСЕ</label>
                             <h4 class="text-primary">{{ dse.get('dse', 'N/A') }}</h4>
@@ -66,6 +80,14 @@
                         <div class="col-md-6">
                             <label class="text-muted small mb-1">Дата создания</label>
                             <h5>{{ dse.get('datetime', 'N/A') }}</h5>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small mb-1">Статус</label>
+                            <p class="mb-0">
+                                <span class="badge fs-6 {% if dse_status == 'Выполнена' %}bg-success{% elif dse_status == 'Отклонена' %}bg-danger{% elif dse_status == 'В работе' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                    {{ dse_status }}
+                                </span>
+                            </p>
                         </div>
                     </div>
 
@@ -415,6 +437,35 @@
     </div>
 </div>
 
+<!-- Модальное окно изменения статуса -->
+{% if permissions.close_dse %}
+{% set dse_status = dse.get('status') or 'В работе' %}
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="statusModalLabel">Изменить статус заявки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="statusSelect" class="form-label">Статус</label>
+                    <select class="form-select" id="statusSelect">
+                        <option value="В работе" {% if dse_status == 'В работе' %}selected{% endif %}>В работе</option>
+                        <option value="Выполнена" {% if dse_status == 'Выполнена' %}selected{% endif %}>Выполнена</option>
+                        <option value="Отклонена" {% if dse_status == 'Отклонена' %}selected{% endif %}>Отклонена</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="updateDseStatus('{{ dse.get('id') }}')">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Модальное окно для связанной заявки -->
 <div class="modal fade" id="relatedDseModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -559,6 +610,51 @@ function restoreDse(dseId) {
         .then(response => response.json())
         .then(() => window.location.reload())
         .catch(error => console.error('Ошибка восстановления:', error));
+}
+
+function closeDse(dseId) {
+    showConfirm('Закрыть эту заявку как выполненную?', () => {
+        fetch(`/api/dse/${encodeURIComponent(dseId)}/close`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.error) {
+                    showToast(data.error, 'danger');
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Ошибка закрытия:', error);
+                showToast('Ошибка закрытия заявки', 'danger');
+            });
+    }, { okVariant: 'success' });
+}
+
+function updateDseStatus(dseId) {
+    const statusSelect = document.getElementById('statusSelect');
+    const status = statusSelect ? statusSelect.value : '';
+    if (!status) {
+        showToast('Выберите статус', 'warning');
+        return;
+    }
+
+    fetch(`/api/dse/${encodeURIComponent(dseId)}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.error) {
+                showToast(data.error, 'danger');
+                return;
+            }
+            window.location.reload();
+        })
+        .catch(error => {
+            console.error('Ошибка обновления статуса:', error);
+            showToast('Ошибка обновления статуса', 'danger');
+        });
 }
 </script>
 {% endblock %}

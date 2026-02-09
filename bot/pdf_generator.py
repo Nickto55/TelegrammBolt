@@ -30,6 +30,10 @@ class DSEPDFGenerator:
                 'C:/Windows/Fonts/arial.ttf',
                 'C:/Windows/Fonts/calibri.ttf',
                 '/System/Library/Fonts/Arial.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+                '/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf',
+                '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
                 'DejaVuSans.ttf'
             ]
             
@@ -204,23 +208,29 @@ class DSEPDFGenerator:
             # Создаем рамку для описания
             desc_text = str(record_data.get('description', 'Описание не указано'))
             
-            # Разбиваем описание на строки и создаем таблицу с линиями
+            # Разбиваем описание на строки по фактической ширине текста
             desc_lines = []
-            max_chars = 80  # Максимум символов в строке
-            
-            # Разбиваем текст на строки
+
+            desc_font_name = self.font_name
+            desc_font_size = 10
+            desc_col_width = 255 * mm
+            desc_left_right_padding = 5 * 2
+            max_line_width = desc_col_width - desc_left_right_padding
+
             words = desc_text.split()
             current_line = ""
-            
+
             for word in words:
-                if len(current_line + word) <= max_chars:
-                    current_line += word + " "
+                candidate = f"{current_line} {word}".strip()
+                if pdfmetrics.stringWidth(candidate, desc_font_name, desc_font_size) <= max_line_width:
+                    current_line = candidate
                 else:
-                    desc_lines.append(current_line.strip())
-                    current_line = word + " "
-            
+                    if current_line:
+                        desc_lines.append(current_line)
+                    current_line = word
+
             if current_line:
-                desc_lines.append(current_line.strip())
+                desc_lines.append(current_line)
             
             # Добавляем пустые строки до минимума 10
             while len(desc_lines) < 10:

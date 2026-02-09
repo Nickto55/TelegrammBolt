@@ -156,8 +156,7 @@
                                     <th style="width: 8%;">Станок</th>
                                     <th style="width: 12%;">Наладчик</th>
                                     <th style="width: 12%;">Программист</th>
-                                    <th style="width: 25%;">Описание</th>
-                                    <th style="width: 10%;">Пользователь</th>
+                                    <th style="width: 35%;">Описание</th>
                                     <th style="width: 10%;">Дата</th>
                                     <th style="width: 5%;">Действия</th>
                                 </tr>
@@ -472,13 +471,6 @@ function displayTableView() {
                 <button class="btn btn-sm btn-outline-primary" onclick="viewDetails('${item.id}')" title="Просмотр">
                     <i class="bi bi-eye"></i>
                 </button>
-                ${canDeleteDse ? (item.hidden
-                    ? `<button class="btn btn-sm btn-outline-success ms-1" onclick="restoreDse('${item.id}')" title="Восстановить">
-                           <i class="bi bi-arrow-counterclockwise"></i>
-                       </button>`
-                    : `<button class="btn btn-sm btn-outline-danger ms-1" onclick="hideDse('${item.id}')" title="Скрыть">
-                           <i class="bi bi-eye-slash"></i>
-                       </button>`) : ''}
             </td>
         </tr>
     `).join('');

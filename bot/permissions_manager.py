@@ -64,6 +64,11 @@ PERMISSIONS = {
         'description': 'Удаление записей ДСЕ',
         'roles': ['admin']
     },
+    'close_dse': {
+        'name': 'Закрытие ДСЕ',
+        'description': 'Закрытие заявок ДСЕ как выполненных',
+        'roles': ['admin', 'responder']
+    },
     'view_own_dse': {
         'name': 'Просмотр своих ДСЕ',
         'description': 'Просмотр только своих созданных ДСЕ',
@@ -174,7 +179,7 @@ PERMISSIONS = {
 # Группировка прав для удобства отображения
 PERMISSION_GROUPS = {
     'Административные': ['admin', 'manage_users', 'view_users', 'use_terminal', 'create_web_user'],
-    'Работа с ДСЕ': ['view_dse', 'add_dse', 'approve_dse_requests', 'dse_receiver', 'edit_dse', 'delete_dse', 'view_own_dse'],
+    'Работа с ДСЕ': ['view_dse', 'add_dse', 'approve_dse_requests', 'dse_receiver', 'edit_dse', 'delete_dse', 'close_dse', 'view_own_dse'],
     'Экспорт и отчеты': ['export_data', 'pdf_export'],
     'Чат': ['chat_dse', 'view_chat_history'],
     'Приглашения': ['manage_invites', 'use_invite'],
