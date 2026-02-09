@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}QR Приглашения - BOLT{% endblock %}
+{% block title %}QR - BOLT{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -26,17 +26,6 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1><i class="bi bi-qr-code"></i> QR Приглашения</h1>
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createInviteModal">
-                    <i class="bi bi-plus-circle"></i> Создать приглашение
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Статистика -->
     <div class="row mb-4">
         <div class="col-md-3">
@@ -99,8 +88,8 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Активные приглашения</h5>
-                    <button class="btn btn-outline-danger btn-sm" onclick="cleanupExpired()">
-                        <i class="bi bi-trash"></i> Очистить истекшие
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createInviteModal">
+                                    <i class="bi bi-plus-circle"></i> Создать приглашение
                     </button>
                 </div>
                 <div class="card-body">
@@ -149,6 +138,9 @@
                         </table>
                     </div>
                 </div>
+                <button class="btn btn-outline-danger btn-sm" onclick="cleanupExpired()">
+                        <i class="bi bi-trash"></i> Очистить истекшие
+                </button>
             </div>
         </div>
     </div>
