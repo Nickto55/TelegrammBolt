@@ -1149,13 +1149,33 @@ def admin_auth():
             user_role = get_user_role(admin_user_id)
             
             logger.info(f"Admin auth: Using role from users_data: {user_role}")
-            
+            # Определяем имя/фамилию
+            first_name = ''
+            last_name = ''
+            try:
+                # Сначала пробуем взять из web-аккаунта
+                from bot.account_linking import find_web_user_by_email
+                _, web_user_data = find_web_user_by_email(username)
+                if web_user_data:
+                    first_name = (web_user_data.get('first_name') or '').strip()
+                    last_name = (web_user_data.get('last_name') or '').strip()
+            except Exception:
+                pass
+
+            if not first_name and not last_name:
+                user_data = get_user_data(admin_user_id) or {}
+                first_name = (user_data.get('first_name') or '').strip()
+                last_name = (user_data.get('last_name') or '').strip()
+
+            if not first_name and not last_name:
+                first_name = 'Пользователь'
+
             # Сохранение данных в сессию
             session.permanent = True
             session['user_id'] = admin_user_id
             session['user_role'] = user_role
-            session['first_name'] = 'Пользователь'
-            session['last_name'] = ''
+            session['first_name'] = first_name
+            session['last_name'] = last_name
             session['username'] = username
             session['photo_url'] = ''
             session['auth_type'] = 'password'  # Помечаем тип авторизации

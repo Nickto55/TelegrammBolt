@@ -1938,6 +1938,73 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user = query.from_user
     user_id = str(user.id)
     
+    # === ПОДТВЕРЖДЕНИЕ ФИО ПРИ РЕГИСТРАЦИИ ===
+    if data == 'reg_confirm_name':
+        if user_id in registration_states:
+            reg_state = registration_states[user_id]
+            if reg_state.get('step') == 'confirm_name':
+                first_name = reg_state.get('first_name', '').strip()
+                last_name = reg_state.get('last_name', '').strip()
+                username = reg_state.get('username', '')
+                invite_code = reg_state.get('invite_code')
+                del registration_states[user_id]
+
+                if invite_code:
+                    from bot.invite_manager import use_invite
+                    result = use_invite(
+                        invite_code,
+                        int(user_id),
+                        username,
+                        first_name,
+                        last_name
+                    )
+
+                    if result.get("success"):
+                        await query.message.reply_text(
+                            f"🎉 {result.get('message', '')}\n\n"
+                            f"✅ Регистрация завершена!\n"
+                            f"Имя: {first_name} {last_name}\n\n"
+                            f"Добро пожаловать в систему!"
+                        )
+                    else:
+                        register_user(user_id, username, first_name, last_name)
+                        await query.message.reply_text(
+                            f"⚠️ Ошибка при обработке приглашения: {result.get('error', 'Неизвестная ошибка')}\n\n"
+                            f"✅ Вы зарегистрированы с базовыми правами.\n"
+                            f"Имя: {first_name} {last_name}"
+                        )
+                else:
+                    register_user(user_id, username, first_name, last_name)
+                    await query.message.reply_text(
+                        f"✅ Регистрация завершена!\n"
+                        f"Имя: {first_name} {last_name}\n\n"
+                        f"Добро пожаловать в систему!"
+                    )
+
+                user_states[user_id] = {
+                    'application': '',
+                    'dse': '',
+                    'problem_type': '',
+                    'description': '',
+                    'rc': '',
+                    'photo_file_id': None
+                }
+
+                user_role = get_user_role(user_id)
+                if user_role == 'user':
+                    await show_scan_menu(update, user_id)
+                else:
+                    await show_main_menu(update, user_id)
+        return
+
+    elif data == 'reg_edit_name':
+        if user_id in registration_states:
+            registration_states[user_id]['step'] = 'ask_first_name'
+            registration_states[user_id].pop('first_name', None)
+            registration_states[user_id].pop('last_name', None)
+            await query.edit_message_text("Хорошо, давайте исправим. Введите ваше имя:")
+        return
+
     # === ГЛАВНОЕ МЕНЮ ===
     if data == 'back_to_main':
         await show_main_menu(update, user_id)
