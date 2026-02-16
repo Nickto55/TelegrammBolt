@@ -998,6 +998,26 @@ let messagePollingInterval = null;
 let listPollingInterval = null;
 var dseRequestsCache = new Map();
 var pendingChatOpenId = null;
+let chatsCache = [];
+let requestGroupsCache = [];
+
+const searchInputEl = document.getElementById('searchInput');
+if (searchInputEl) {
+    searchInputEl.addEventListener('input', () => applySearch());
+}
+
+function getSearchQuery() {
+    return (searchInputEl?.value || '').trim().toLowerCase();
+}
+
+function applySearch() {
+    const query = getSearchQuery();
+    if (currentTab === 'chats') {
+        renderChatList(chatsCache, query);
+    } else {
+        renderRequestsList(requestGroupsCache, query);
+    }
+}
 
 // Auto-expand textarea
 function autoExpandTextarea() {
@@ -1044,81 +1064,182 @@ function switchTab(tab, el) {
 }
 
 // Load chat list
+function renderChatList(chats, query) {
+    const chatList = document.getElementById('chatListContainer').querySelector('.chat-sidebar-list') || 
+                    document.getElementById('chatListContainer');
+
+    const q = (query || '').toLowerCase();
+    const filtered = !q ? chats : chats.filter(chat => {
+        const dse = (chat.dse || '').toString().toLowerCase();
+        const dseName = (chat.dse_name || chat.name || '').toString().toLowerCase();
+        const lastMessage = (chat.last_message || '').toString().toLowerCase();
+        return dse.includes(q) || dseName.includes(q) || lastMessage.includes(q);
+    });
+
+    if (!filtered || filtered.length === 0) {
+        chatList.innerHTML = `
+            <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
+                <p style="margin: 0;">${q ? 'Ничего не найдено' : 'Нет активных чатов'}</p>
+                <p style="font-size: 12px; margin-top: 8px;">${q ? 'Попробуйте другой запрос' : 'Создайте заявку, чтобы начать'}</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    filtered.forEach(chat => {
+        const isActive = chat.id === currentChatId ? 'active' : '';
+        const initials = (chat.dse || chat.name || 'U').toString().substring(0, 2).toUpperCase();
+        const isOnline = chat.is_online ? 'online' : '';
+        const lastMessage = chat.last_message ? chat.last_message.substring(0, 40) + (chat.last_message.length > 40 ? '...' : '') : 'Нет сообщений';
+        const dse = chat.dse || '';
+        const dseName = chat.dse_name || chat.name || '';
+
+        html += `
+            <div class="chat-item ${isActive}" data-chat-id="${chat.id}" onclick="selectChat(${chat.id}, '${String(dse).replace(/'/g, "\\'")}', '${String(dseName).replace(/'/g, "\\'")}', ${chat.is_online ? 'true' : 'false'}, this)">
+                <div class="chat-item-avatar ${isOnline}">
+                    ${initials}
+                </div>
+                <div class="chat-item-info">
+                    <p class="chat-item-name">${dse}</p>
+                    <p class="chat-item-message" style="font-size:13px; color:#6c757d; margin-top:4px;">${dseName}</p>
+                    <p class="chat-item-message">${lastMessage}</p>
+                </div>
+                <div class="chat-item-time">${chat.time || ''}</div>
+            </div>
+        `;
+    });
+
+    chatList.innerHTML = html;
+
+    if (pendingChatOpenId !== null) {
+        const target = filtered.find(c => String(c.id) === String(pendingChatOpenId));
+        const targetEl = chatList.querySelector(`[data-chat-id="${pendingChatOpenId}"]`);
+        if (target) {
+            selectChat(target.id, target.dse || '', target.dse_name || target.name || '', target.is_online ? true : false, targetEl);
+        }
+        pendingChatOpenId = null;
+    }
+}
+
 function loadChatList() {
     fetch('/api/chat/list')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const chatList = document.getElementById('chatListContainer').querySelector('.chat-sidebar-list') || 
-                                document.getElementById('chatListContainer');
-                
-                if (!data.chats || data.chats.length === 0) {
-                    chatList.innerHTML = `
-                        <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
-                            <p style="margin: 0;">Нет активных чатов</p>
-                            <p style="font-size: 12px; margin-top: 8px;">Создайте заявку, чтобы начать</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                let html = '';
-                data.chats.forEach(chat => {
-                    const isActive = chat.id === currentChatId ? 'active' : '';
-                    const initials = (chat.dse || chat.name || 'U').toString().substring(0, 2).toUpperCase();
-                    const isOnline = chat.is_online ? 'online' : '';
-                    const lastMessage = chat.last_message ? chat.last_message.substring(0, 40) + (chat.last_message.length > 40 ? '...' : '') : 'Нет сообщений';
-                    const dse = chat.dse || '';
-                    const dseName = chat.dse_name || chat.name || '';
-                    
-                    html += `
-                        <div class="chat-item ${isActive}" data-chat-id="${chat.id}" onclick="selectChat(${chat.id}, '${String(dse).replace(/'/g, "\\'")}', '${String(dseName).replace(/'/g, "\\'")}', ${chat.is_online ? 'true' : 'false'}, this)">
-                            <div class="chat-item-avatar ${isOnline}">
-                                ${initials}
-                            </div>
-                            <div class="chat-item-info">
-                                <p class="chat-item-name">${dse}</p>
-                                <p class="chat-item-message" style="font-size:13px; color:#6c757d; margin-top:4px;">${dseName}</p>
-                                <p class="chat-item-message">${lastMessage}</p>
-                            </div>
-                            <div class="chat-item-time">${chat.time || ''}</div>
-                        </div>
-                    `;
-                });
-                
-                chatList.innerHTML = html;
-
-                if (pendingChatOpenId !== null) {
-                    const target = data.chats.find(c => String(c.id) === String(pendingChatOpenId));
-                    const targetEl = chatList.querySelector(`[data-chat-id="${pendingChatOpenId}"]`);
-                    if (target) {
-                        selectChat(target.id, target.dse || '', target.dse_name || target.name || '', target.is_online ? true : false, targetEl);
-                    }
-                    pendingChatOpenId = null;
-                }
+                chatsCache = Array.isArray(data.chats) ? data.chats : [];
+                renderChatList(chatsCache, getSearchQuery());
             }
         })
         .catch(error => console.error('Error loading chat list:', error));
 }
 
 // Load requests list
+function renderRequestsList(groups, query) {
+    const requestsList = document.getElementById('requestsList');
+    const q = (query || '').toLowerCase();
+
+    if (!groups || groups.length === 0) {
+        requestsList.innerHTML = `
+            <div class="requests-empty">
+                <i class="bi bi-inbox" style="font-size: 32px; opacity: 0.5; display: block; margin-bottom: 12px;"></i>
+                <p>${q ? 'Ничего не найдено' : 'Нет заявок'}</p>
+            </div>
+        `;
+        return;
+    }
+
+    const filteredGroups = [];
+    groups.forEach(group => {
+        const groupDse = (group.dse || '').toString().toLowerCase();
+        const groupName = (group.dseName || '').toString().toLowerCase();
+        const groupMatches = q && (groupDse.includes(q) || groupName.includes(q));
+
+        const filteredRequests = !q ? group.requests : group.requests.filter(req => {
+            const subject = (req.problem_type || req.subject || '').toString().toLowerCase();
+            const message = (req.description || req.message || '').toString().toLowerCase();
+            const status = (req.status || '').toString().toLowerCase();
+            const dse = (req.dse || '').toString().toLowerCase();
+            const dseName = (req.dse_name || req.dse_title || req.name || '').toString().toLowerCase();
+            return dse.includes(q) || dseName.includes(q) || subject.includes(q) || message.includes(q) || status.includes(q);
+        });
+
+        if (groupMatches && !q) {
+            filteredGroups.push(group);
+        } else if (groupMatches && q) {
+            filteredGroups.push({ ...group, requests: group.requests });
+        } else if (filteredRequests.length > 0) {
+            filteredGroups.push({ ...group, requests: filteredRequests });
+        }
+    });
+
+    if (filteredGroups.length === 0) {
+        requestsList.innerHTML = `
+            <div class="requests-empty">
+                <i class="bi bi-inbox" style="font-size: 32px; opacity: 0.5; display: block; margin-bottom: 12px;"></i>
+                <p>Ничего не найдено</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    filteredGroups.forEach((group, idx) => {
+        const groupId = `req-group-${idx}`;
+        const groupTitle = group.dse || 'Заявки';
+        const groupName = group.dseName || 'Без наименования';
+
+        html += `
+            <div class="request-group open" id="${groupId}">
+                <div class="request-group-header" onclick="toggleRequestGroup('${groupId}')">
+                    <div class="request-group-title">
+                        <div class="request-group-dse">${groupTitle}</div>
+                        <div class="request-group-name">${groupName}</div>
+                    </div>
+                    <div class="request-group-meta">
+                        <span class="request-group-count">${group.requests.length}</span>
+                        <i class="bi bi-chevron-down request-group-toggle"></i>
+                    </div>
+                </div>
+                <div class="request-group-list">
+        `;
+
+        group.requests.forEach(req => {
+            const isActive = req.id === currentRequestId ? 'active' : '';
+            const statusRaw = (req.status || '').toString().trim();
+            const status = statusRaw || 'В работе';
+            const statusClass = status === 'Выполнена' ? 'accepted' : (status === 'Отклонена' ? 'pending' : 'pending');
+            const date = new Date(req.datetime || req.created_at || req.timestamp || Date.now()).toLocaleDateString('ru-RU');
+            const subject = (req.problem_type || req.subject || 'Заявка').toString();
+            const message = (req.description || req.message || '').toString();
+            const preview = message.length > 50 ? `${message.substring(0, 50)}...` : message;
+
+            html += `
+                <div class="request-item ${statusClass} ${isActive}" onclick="selectRequest('${String(req.id).replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}', this)">
+                    <div class="request-header">
+                        <p class="request-name">${subject}</p>
+                        <span class="request-status ${statusClass}">${status}</span>
+                    </div>
+                    <p class="request-subject">${preview}</p>
+                    <p class="request-date">${date}</p>
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+    });
+
+    requestsList.innerHTML = html;
+}
+
 function loadRequestsList() {
     fetch('/api/dse?include_hidden=1')
         .then(response => response.json())
         .then(data => {
             if (Array.isArray(data)) {
-                const requestsList = document.getElementById('requestsList');
-                
-                if (data.length === 0) {
-                    requestsList.innerHTML = `
-                        <div class="requests-empty">
-                            <i class="bi bi-inbox" style="font-size: 32px; opacity: 0.5; display: block; margin-bottom: 12px;"></i>
-                            <p>Нет заявок</p>
-                        </div>
-                    `;
-                    return;
-                }
-
                 const sortedRequests = [...data].sort((a, b) => {
                     const aTime = new Date(a.datetime || a.created_at || a.timestamp || 0).getTime();
                     const bTime = new Date(b.datetime || b.created_at || b.timestamp || 0).getTime();
@@ -1148,57 +1269,8 @@ function loadRequestsList() {
                     const bTime = new Date((b.requests[0] || {}).datetime || (b.requests[0] || {}).created_at || (b.requests[0] || {}).timestamp || 0).getTime();
                     return bTime - aTime;
                 });
-
-                let html = '';
-                groups.forEach((group, idx) => {
-                    const groupId = `req-group-${idx}`;
-                    const groupTitle = group.dse || 'Заявки';
-                    const groupName = group.dseName || 'Без наименования';
-
-                    html += `
-                        <div class="request-group" id="${groupId}">
-                            <div class="request-group-header" onclick="toggleRequestGroup('${groupId}')">
-                                <div class="request-group-title">
-                                    <div class="request-group-dse">${groupTitle}</div>
-                                    <div class="request-group-name">${groupName}</div>
-                                </div>
-                                <div class="request-group-meta">
-                                    <span class="request-group-count">${group.requests.length}</span>
-                                    <i class="bi bi-chevron-down request-group-toggle"></i>
-                                </div>
-                            </div>
-                            <div class="request-group-list">
-                    `;
-
-                    group.requests.forEach(req => {
-                        const isActive = req.id === currentRequestId ? 'active' : '';
-                        const statusRaw = (req.status || '').toString().trim();
-                        const status = statusRaw || 'В работе';
-                        const statusClass = status === 'Выполнена' ? 'accepted' : (status === 'Отклонена' ? 'pending' : 'pending');
-                        const date = new Date(req.datetime || req.created_at || req.timestamp || Date.now()).toLocaleDateString('ru-RU');
-                        const subject = (req.problem_type || req.subject || 'Заявка').toString();
-                        const message = (req.description || req.message || '').toString();
-                        const preview = message.length > 50 ? `${message.substring(0, 50)}...` : message;
-
-                        html += `
-                            <div class="request-item ${statusClass} ${isActive}" onclick="selectRequest('${String(req.id).replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}', this)">
-                                <div class="request-header">
-                                    <p class="request-name">${subject}</p>
-                                    <span class="request-status ${statusClass}">${status}</span>
-                                </div>
-                                <p class="request-subject">${preview}</p>
-                                <p class="request-date">${date}</p>
-                            </div>
-                        `;
-                    });
-
-                    html += `
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                requestsList.innerHTML = html;
+                requestGroupsCache = groups;
+                renderRequestsList(requestGroupsCache, getSearchQuery());
             } else {
                 document.getElementById('requestsList').innerHTML = `
                     <div class="requests-empty">
