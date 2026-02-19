@@ -8,6 +8,31 @@
         height: calc(100vh - 80px);
         gap: 0;
         background-color: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    /* Анимация слайда для чата */
+    @keyframes slideInFromRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutToRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
     }
 
     /* Модальное окно */
@@ -204,6 +229,10 @@
         color: var(--muted-color);
     }
 
+    [data-bs-theme="dark"] .message-attachment .attachment-meta {
+        color: var(--muted-color);
+    }
+
     .btn {
         padding: 10px 20px;
         border: none;
@@ -241,6 +270,8 @@
         display: flex;
         flex-direction: column;
         background: #fff;
+        position: relative;
+        z-index: 10;
     }
 
     .chat-sidebar-header {
@@ -264,6 +295,7 @@
         gap: 8px;
         border-bottom: 1px solid #e5e5ea;
         background-color: #f9f9f9;
+        flex-shrink: 0;
     }
 
     .chat-tab {
@@ -294,6 +326,7 @@
     .chat-sidebar-search {
         padding: 8px 20px;
         border-bottom: 1px solid #e5e5ea;
+        flex-shrink: 0;
     }
 
     .chat-sidebar-search input {
@@ -314,8 +347,21 @@
 
     .chat-sidebar-list {
         flex: 1;
+        min-height: 0;
         overflow-y: auto;
         overflow-x: hidden;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #chatListContainer,
+    #requestsListContainer {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
     }
 
     .chat-item {
@@ -357,8 +403,7 @@
         width: 14px;
         height: 14px;
         background-color: #31a24c;
-        border: 3px solid white;
-        border-radius: 50%;
+        border: 3px solid white;f
         position: absolute;
         bottom: 0;
         right: 0;
@@ -408,16 +453,39 @@
         justify-content: space-between;
         align-items: center;
         background-color: #fff;
+        flex-shrink: 0;
     }
 
     .chat-header-info {
         display: flex;
         align-items: center;
         gap: 12px;
+        flex: 1;
+    }
+    
+    /* Кнопка закрытия чата (стрелочка) */
+    .chat-header-close {
+        background: none;
+        border: none;
+        color: #0084ff;
+        cursor: pointer;
+        font-size: 20px;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+        margin-right: 8px;
+    }
+    
+    .chat-header-close:hover {
+        transform: scale(1.1);
     }
 
     .chat-header-title {
         margin: 0;
+        flex: 1;
+        min-width: 0;
     }
 
     .chat-header-title h2 {
@@ -436,6 +504,7 @@
     .chat-header-actions {
         display: flex;
         gap: 12px;
+        flex-shrink: 0;
     }
 
     .chat-header-actions button {
@@ -512,11 +581,111 @@
         border-bottom-left-radius: 4px;
     }
 
+    .message-bubble.has-attachment {
+        padding: 0;
+        background: transparent;
+    }
+
+    .message-bubble.has-attachment .message-text {
+        margin-top: 6px;
+        padding: 6px 10px;
+        border-radius: 18px;
+    }
+
+    .message-bubble.sent.has-attachment .message-text {
+        background-color: #0084ff;
+        color: white;
+    }
+
+    .message-bubble.received.has-attachment .message-text {
+        background-color: #e5e5ea;
+        color: #000;
+    }
+
     .message-time {
         font-size: 12px;
         color: #8a8a8e;
         margin-top: 4px;
         padding: 0 12px;
+    }
+
+    .message-status {
+        display: inline-block;
+        margin-left: 4px;
+        cursor: help;
+        position: relative;
+    }
+
+    .message-status:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 120%;
+        right: 0;
+        background: #333;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        white-space: nowrap;
+        z-index: 10;
+    }
+
+    .message-attachment {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .message-attachment .attachment-name {
+        font-size: 14px;
+        font-weight: 500;
+        word-break: break-word;
+    }
+
+    .message-attachment .attachment-meta {
+        font-size: 12px;
+        color: #8a8a8e;
+    }
+
+    .message-attachment-image,
+    .message-attachment-video {
+        max-width: 360px;
+        border-radius: 12px;
+        overflow: hidden;
+        display: block;
+        cursor: pointer;
+    }
+
+    .message-attachment-image img:hover,
+    .message-attachment-video video:hover {
+        opacity: 0.9;
+    }
+
+    .message-attachment-image img,
+    .message-attachment-video video {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .message-attachment-card {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 14px;
+    }
+
+    .message-bubble.sent .message-attachment-card {
+        background-color: #0084ff;
+        color: white;
+    }
+
+    .message-bubble.received .message-attachment-card {
+        background-color: #e5e5ea;
+        color: #000;
     }
 
     .message-sender {
@@ -641,30 +810,836 @@
         background: #999;
     }
 
-    @media (max-width: 768px) {
-        .chat-sidebar {
-            width: 100%;
-            max-height: 50%;
+    /* Десктопная версия - без бокового открытия */
+    @media (min-width: 993px) {
+        /* На большых экранах: чат рядом с панелью списков */
+        .telegram-chat-layout {
+            flex-direction: row;
+            height: calc(100vh - 80px);
+            position: relative;
+            gap: 0;
+            overflow: hidden;
         }
 
-        .telegram-chat-layout {
+        .chat-sidebar {
+            width: 320px;
+            height: 100%;
+            border-right: 1px solid #e5e5ea;
+            border-bottom: none;
+            display: flex;
             flex-direction: column;
+            position: relative;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        /* Чат показан рядом, без абсолютного позиционирования */
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            z-index: 15;
+            transform: none;
+            opacity: 1;
+            transition: none;
+            pointer-events: all;
+        }
+
+        .chat-main.active {
+            transform: none;
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Скрываем кнопку закрытия на десктопе */
+        .chat-header-close {
+            display: none !important;
+        }
+    }
+
+    /* Мобильная версия - боковое открытие чата */
+    @media (max-width: 992px) {
+        /* На мобильных/планшетах: чат открывается сбоку и перекрывает всё */
+        .telegram-chat-layout {
+            flex-direction: row;
+            height: calc(100vh - 80px);
+            position: relative;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        .chat-sidebar {
+            width: 320px;
+            height: 100%;
+            border-right: none;
+            border-bottom: none;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        /* Чат теперь абсолютно позиционирован и открывается сбоку */
+        .chat-main {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .chat-main.active {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Показываем кнопку закрытия на мобильных */
+        .chat-header-close {
+            display: flex !important;
+        }
+
+        .chat-messages {
+            padding: 12px 16px;
+        }
+
+        .chat-input-area {
+            padding: 10px 16px 16px;
         }
 
         .message-bubble {
-            max-width: 75%;
+            max-width: 80%;
+        }
+
+        .message-attachment-image,
+        .message-attachment-video {
+            max-width: 100%;
+        }
+
+        .input-action-btn {
+            font-size: 18px;
+            padding: 6px;
+        }
+
+        .send-btn {
+            font-size: 18px;
+            padding: 6px;
+        }
+
+        .chat-tab {
+            font-size: 13px;
+            padding: 10px 12px;
+        }
+
+        .chat-header {
+            padding: 10px 16px;
+        }
+
+        .chat-header-title h2 {
+            font-size: 14px;
+        }
+
+        .chat-header-subtitle {
+            font-size: 11px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        /* Портретная ориентация на телефонах */
+        .telegram-chat-layout {
+            height: calc(100vh - 80px);
+        }
+
+        .chat-sidebar {
+            max-height: none;
+            height: 100%;
+        }
+
+        .chat-sidebar-list {
+            height: 100%;
+        }
+
+        .chat-main {
+            height: calc(60vh - 20px);
+        }
+
+        .chat-messages {
+            height: calc(100vh - 280px);
+            padding: 10px 12px;
+            gap: 4px;
+        }
+
+        .chat-input-area {
+            padding: 8px 12px 12px;
+            gap: 8px;
+        }
+
+        .message-bubble {
+            max-width: 85%;
+            padding: 5px 8px;
+            font-size: 14px;
+            border-radius: 16px;
+        }
+
+        .message-input {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 18px;
+            max-height: 80px;
+        }
+
+        .message-input::placeholder {
+            font-size: 14px;
+        }
+
+        .chat-sidebar-header h1 {
+            font-size: 20px;
+        }
+
+        .chat-sidebar-tabs {
+            padding: 0 6px;
+            gap: 6px;
+        }
+
+        .chat-tab {
+            font-size: 11px;
+            padding: 6px 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-sidebar-search {
+            padding: 6px 12px;
+        }
+
+        .chat-sidebar-search input {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .chat-item {
+            padding: 4px 6px;
+            gap: 8px;
+            margin: 0 4px;
+        }
+
+        .chat-item-avatar {
+            width: 40px;
+            height: 40px;
+            font-size: 14px;
+        }
+
+        .chat-item-name {
+            font-size: 12px;
+        }
+
+        .chat-item-message {
+            font-size: 11px;
+            margin-top: 3px;
+        }
+
+        .chat-item-time {
+            font-size: 10px;
+        }
+
+        .chat-header {
+            padding: 8px 12px;
+            gap: 8px;
+        }
+
+        .chat-header-close {
+            font-size: 16px;
+            padding: 4px;
+        }
+
+        .chat-header-title h2 {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .chat-header-subtitle {
+            font-size: 10px;
+            margin-top: 0;
+        }
+
+        .chat-header-actions button {
+            font-size: 14px;
+            padding: 2px;
+        }
+
+        .message-attachment-image,
+        .message-attachment-video {
+            max-width: calc(100vw - 30px);
+            border-radius: 8px;
+        }
+
+        .message-attachment {
+            gap: 6px;
+        }
+
+        .message-attachment-card {
+            padding: 4px 6px;
+            font-size: 11px;
+            border-radius: 10px;
+        }
+
+        .message-input {
+            padding: 6px 10px;
+            font-size: 13px;
+            max-height: 70px;
+        }
+
+        .input-actions {
+            gap: 2px;
+        }
+
+        .input-action-btn,
+        .send-btn {
+            font-size: 14px;
+            padding: 2px;
+            min-width: 32px;
+            min-height: 32px;
+        }
+
+        .message-bubble {
+            max-width: 88%;
+            padding: 4px 6px;
+            font-size: 13px;
+        }
+
+        .message-sender {
+            font-size: 10px;
+            margin-bottom: 0;
+        }
+
+        .message-time {
+            font-size: 9px;
+            padding: 0 6px;
+            margin-top: 1px;
+        }
+
+        .message-status {
+            font-size: 8px;
+        }
+
+        .messages-empty {
+            gap: 8px;
+        }
+
+        .messages-empty-icon {
+            font-size: 48px;
+        }
+
+        .modal-dialog {
+            width: calc(100vw - 20px);
+            max-width: none;
+            margin: 10px;
+            max-height: calc(100vh - 20px);
+        }
+
+        .modal-header {
+            padding: 12px 16px;
+        }
+
+        .modal-body {
+            padding: 16px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 12px;
+            gap: 6px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            font-size: 14px;
+            padding: 8px 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            font-size: 13px;
+            min-height: 44px;
+        }
+
+        .btn-create-request {
+            padding: 10px 16px;
+            margin: 10px;
+            width: calc(100% - 20px);
+            font-size: 13px;
+        }
+
+        .request-item {
+            padding: 10px;
+            margin: 0 6px;
+        }
+
+        .request-group {
+            margin: 6px;
+        }
+
+        .request-group-header {
+            padding: 10px 12px;
+        }
+
+        .request-name {
+            font-size: 13px;
+        }
+
+        .request-subject {
+            font-size: 12px;
+        }
+
+        .request-date {
+            font-size: 11px;
+        }
+
+        .request-status {
+            font-size: 10px;
+            padding: 3px 6px;
+        }
+
+        .request-group-count {
+            font-size: 11px;
+            padding: 2px 6px;
+        }
+
+        .request-group-dse {
+            font-size: 13px;
+        }
+
+        .request-group-name {
+            font-size: 11px;
+        }
+
+        /* Переключатель тем на мобильных */
+        #themeToggle {
+            padding: 0.5rem 0.75rem;
+        }
+
+        /* Фото модальное окно */
+        #photoModal {
+            padding: 0;
+        }
+
+        #photoModal > div {
+            width: calc(100vw - 20px);
+            max-width: 90vw;
+        }
+
+        #photoModalImage {
+            max-height: calc(100vh - 100px);
+            max-width: 100%;
+        }
+    }
+
+    @media (max-width: 576px) {
+        /* Очень маленькие экраны (телефоны) */
+        .telegram-chat-layout {
+            display: flex;
+            flex-direction: row;
+            height: calc(100vh - 80px);
+            position: relative;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        .chat-sidebar {
+            width: 320px;
+            height: 100%;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+            border-right: 1px solid #e5e5ea;
+            border-bottom: none;
+        }
+
+        .chat-sidebar-list {
+            height: 100%;
+        }
+
+        .chat-main {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .chat-main.active {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .chat-messages {
+            height: auto;
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100% - 80px);
+        }
+
+        .chat-input-area {
+            flex-shrink: 0;
+            padding: 6px 8px 10px;
+            gap: 6px;
+            max-height: 80px;
+        }
+
+        .message-input-container {
+            gap: 4px;
+        }
+
+        .message-bubble {
+            max-width: 88%;
+            padding: 4px 6px;
+            font-size: 13px;
+        }
+
+        .message-input {
+            padding: 6px 10px;
+            font-size: 13px;
+            max-height: 70px;
+        }
+
+        .chat-sidebar-header h1 {
+            font-size: 20px;
+        }
+
+        .chat-header {
+            padding: 6px 10px;
+        }
+
+        .chat-header-title h2 {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .chat-header-subtitle {
+            font-size: 9px;
+            margin-top: 0;
+        }
+
+        .chat-item {
+            padding: 4px 6px;
+            gap: 8px;
+            margin: 0 4px;
+        }
+
+        .chat-item-avatar {
+            width: 40px;
+            height: 40px;
+            font-size: 14px;
+        }
+
+        .chat-item-name {
+            font-size: 12px;
+        }
+
+        .chat-item-message {
+            font-size: 11px;
+            margin-top: 3px;
+        }
+
+        .chat-item-time {
+            font-size: 10px;
+        }
+
+        .message-sender {
+            font-size: 10px;
+            margin-bottom: 0;
+        }
+
+        .message-time {
+            font-size: 9px;
+            padding: 0 6px;
+            margin-top: 1px;
+        }
+
+        .message-status {
+            font-size: 8px;
+        }
+
+        .chat-tab {
+            font-size: 11px;
+            padding: 6px 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-sidebar-search input {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .message-attachment-image,
+        .message-attachment-video {
+            max-width: calc(100vw - 30px);
+            border-radius: 8px;
+        }
+
+        .message-attachment-card {
+            padding: 4px 6px;
+            font-size: 11px;
+        }
+
+        .message-attachment .attachment-name {
+            font-size: 12px;
+        }
+
+        .message-attachment .attachment-meta {
+            font-size: 10px;
+        }
+
+        .input-actions {
+            gap: 2px;
+        }
+
+        .input-action-btn,
+        .send-btn {
+            font-size: 14px;
+            padding: 2px;
+        }
+
+        .modal-dialog {
+            width: calc(100vw - 10px);
+            margin: 5px;
+            max-height: calc(100vh - 10px);
+        }
+
+        .modal-header {
+            padding: 10px 12px;
+            gap: 8px;
+        }
+
+        .modal-header h3 {
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .modal-close {
+            font-size: 20px;
+            width: auto;
+            height: auto;
+        }
+
+        .modal-body {
+            padding: 12px;
+        }
+
+        .modal-footer {
+            padding: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            font-size: 13px;
+            padding: 6px 8px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            min-height: 40px;
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-danger {
+            font-size: 12px;
+        }
+
+        .request-item {
+            padding: 8px;
+            margin: 0 4px;
+        }
+
+        .request-group {
+            margin: 4px;
+        }
+
+        .request-group-header {
+            padding: 8px 10px;
+        }
+
+        .request-name {
+            font-size: 12px;
+        }
+
+        .request-subject {
+            font-size: 11px;
+        }
+
+        .request-date {
+            font-size: 10px;
+        }
+
+        .request-status {
+            font-size: 9px;
+            padding: 2px 4px;
+        }
+
+        .request-group-count {
+            font-size: 10px;
+            padding: 2px 4px;
+        }
+
+        .request-group-dse {
+            font-size: 12px;
+        }
+
+        .request-group-name {
+            font-size: 10px;
+        }
+
+        .btn-create-request {
+            padding: 8px 12px;
+            margin: 8px;
+            width: calc(100% - 16px);
+            font-size: 12px;
+        }
+
+        .messages-empty-icon {
+            font-size: 40px;
+        }
+
+        .messages-empty {
+            padding: 0 10px;
+        }
+
+        .messages-empty p {
+            font-size: 12px;
+        }
+
+        /* Улучшение для ландшафтной ориентации */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .chat-sidebar {
+                display: none;
+            }
+
+            .chat-main {
+                height: calc(100vh - 80px);
+            }
+
+            .chat-messages {
+                max-height: calc(100vh - 200px);
+            }
+
+            .chat-input-area {
+                padding: 4px 8px 8px;
+            }
+
+            .message-input {
+                max-height: 50px;
+                padding: 4px 8px;
+            }
+
+            .chat-header {
+                padding: 4px 8px;
+            }
+        }
+    }
+
+    /* Планшеты в ландшафтной ориентации */
+    @media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+        .chat-sidebar {
+            max-width: 35%;
+        }
+
+        .chat-main {
+            width: 65%;
+        }
+    }
+
+    /* Touch-friendly размеры */
+    @media (hover: none) and (pointer: coarse) {
+        .chat-item {
+            min-height: 50px;
+        }
+
+        .chat-tab {
+            min-height: 44px;
+        }
+
+        .message-input {
+            min-height: 40px;
+        }
+
+        .btn {
+            min-height: 44px;
+        }
+
+        .input-action-btn,
+        .send-btn {
+            min-width: 44px;
+            min-height: 44px;
+        }
+
+        .chat-header-actions button {
+            min-width: 44px;
+            min-height: 44px;
+        }
+
+        .modal-close {
+            min-width: 44px;
+            min-height: 44px;
+        }
+
+        .request-item,
+        .request-group-header {
+            min-height: 48px;
         }
     }
 
     /* Заявки */
     .request-item {
         padding: 12px;
-        margin: 0 8px;
+        margin: 0 8px 8px 8px;
         border: 1px solid #e5e5ea;
         border-radius: 8px;
         cursor: pointer;
         transition: all 0.2s;
         background-color: #fff;
+        width: calc(100% - 16px);
+        box-sizing: border-box;
     }
 
     .request-item:hover {
@@ -687,12 +1662,18 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 8px;
+        gap: 8px;
     }
 
     .request-name {
         font-weight: 600;
         color: #000;
         margin: 0;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .request-status {
@@ -876,18 +1857,21 @@
             <input type="text" id="searchInput" placeholder="Поиск..." />
         </div>
 
-        <!-- Содержимое чатов -->
-        <div class="chat-sidebar-list" id="chatListContainer">
-            <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
-                <p style="margin: 0;">Загрузка чатов...</p>
+        <!-- Содержимое чатов и заявок -->
+        <div class="chat-sidebar-list">
+            <!-- Чаты -->
+            <div id="chatListContainer">
+                <div style="padding: 40px 20px; text-align: center; color: #8a8a8e;">
+                    <p style="margin: 0;">Загрузка чатов...</p>
+                </div>
             </div>
-        </div>
 
-        <!-- Содержимое заявок -->
-        <div class="chat-sidebar-list" id="requestsListContainer" style="display: none;">
-            <div id="requestsList" style="padding: 10px 8px;">
-                <div style="text-align: center; color: #8a8a8e; padding: 20px;">
-                    <p>Загрузка заявок...</p>
+            <!-- Заявки -->
+            <div id="requestsListContainer" style="display: none;">
+                <div id="requestsList">
+                    <div style="text-align: center; color: #8a8a8e; padding: 20px;">
+                        <p>Загрузка заявок...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -897,6 +1881,9 @@
     <div class="chat-main">
         <!-- Заголовок чата -->
         <div class="chat-header" id="chatHeader" style="display: none;">
+            <button class="chat-header-close" onclick="closeChat()" title="Вернуться к чатам">
+                <i class="bi bi-arrow-left"></i>
+            </button>
             <div class="chat-header-info">
                 <div>
                     <div class="chat-header-title">
@@ -906,7 +1893,7 @@
                 </div>
             </div>
             <div class="chat-header-actions">
-                <button class="input-action-btn" title="Информация">
+                <button class="input-action-btn" id="chatInfoBtn" title="Информация" style="display: none;">
                     <i class="bi bi-info-circle"></i>
                 </button>
             </div>
@@ -914,6 +1901,9 @@
 
         <!-- Заголовок заявки -->
         <div class="chat-header" id="requestHeader" style="display: none;">
+            <button class="chat-header-close" onclick="closeChat()" title="Вернуться к заявкам">
+                <i class="bi bi-arrow-left"></i>
+            </button>
             <div class="chat-header-info">
                 <div>
                     <div class="chat-header-title">
@@ -942,9 +1932,10 @@
         <!-- Input area -->
         <div class="chat-input-area" id="inputArea" style="display: none;">
             <div class="input-actions">
-                <button class="input-action-btn" title="Прикрепить файл">
+                <button class="input-action-btn" id="attachBtn" title="Прикрепить файл">
                     <i class="bi bi-plus-circle"></i>
                 </button>
+                <input type="file" id="fileInput" multiple style="display: none;" />
             </div>
             <div class="message-input-container">
                 <textarea 
@@ -989,10 +1980,38 @@
     </div>
 </div>
 
+<!-- Модальное окно информации о заявке -->
+<div class="modal-backdrop" id="requestInfoModal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>Информация по заявке</h3>
+            <button class="modal-close" onclick="closeRequestInfoModal()">×</button>
+        </div>
+        <div class="modal-body" id="requestInfoBody">
+            <div style="text-align:center; color:#8a8a8e;">Нет данных</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeRequestInfoModal()">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно просмотра фото -->
+<div class="modal-backdrop" id="photoModal">
+    <div style="position: relative; max-width: 90%; max-height: 90%;">
+        <button class="modal-close" onclick="closePhotoModal()" style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">×</button>
+        <img id="photoModalImage" src="" alt="фото" style="max-width: 100%; max-height: 90vh; object-fit: contain; border-radius: 8px;" />
+    </div>
+</div>
+
 <script>
 let currentChatId = null;
 let currentRequestId = null;
 let currentUserId = {{ (session.user_id|default('')|string)|tojson }};
+let currentRequestInfo = null;
+let lastRequestInfoForChat = null;
+let currentChatDse = '';
+let user_data = {};
 var currentTab = 'chats';
 let messagePollingInterval = null;
 let listPollingInterval = null;
@@ -1271,6 +2290,7 @@ function loadRequestsList() {
                 });
                 requestGroupsCache = groups;
                 renderRequestsList(requestGroupsCache, getSearchQuery());
+                updateChatInfoButton();
             } else {
                 document.getElementById('requestsList').innerHTML = `
                     <div class="requests-empty">
@@ -1289,11 +2309,43 @@ function loadRequestsList() {
         });
 }
 
+function getRequestInfoForChatDse(dse) {
+    const targetDse = (dse || '').toString().trim().toLowerCase();
+    if (!targetDse) return null;
+    for (const req of dseRequestsCache.values()) {
+        const reqDse = (req.dse || '').toString().trim().toLowerCase();
+        if (reqDse && reqDse === targetDse) return req;
+    }
+    return null;
+}
+
+function updateChatInfoButton() {
+    const chatInfoBtn = document.getElementById('chatInfoBtn');
+    if (!chatInfoBtn) return;
+
+    const info = getRequestInfoForChatDse(currentChatDse) || lastRequestInfoForChat;
+    if (info) {
+        lastRequestInfoForChat = info;
+        chatInfoBtn.style.display = 'inline-flex';
+        chatInfoBtn.onclick = openRequestInfoModal;
+    } else {
+        chatInfoBtn.style.display = 'none';
+        chatInfoBtn.onclick = null;
+    }
+}
+
 
 // Select chat
 function selectChat(chatId, dse, dseName, isOnline, el) {
     currentChatId = chatId;
     currentRequestId = null;
+    currentChatDse = (dse || '').toString();
+    
+    // Открываем чат (добавляем класс active)
+    const chatMain = document.querySelector('.chat-main');
+    if (chatMain) {
+        chatMain.classList.add('active');
+    }
     
     // Update UI: show DSE number and smaller DSE name
     document.getElementById('chatTitle').textContent = dse || 'Чат';
@@ -1301,6 +2353,8 @@ function selectChat(chatId, dse, dseName, isOnline, el) {
     document.getElementById('chatHeader').style.display = 'flex';
     document.getElementById('requestHeader').style.display = 'none';
     document.getElementById('inputArea').style.display = 'flex';
+
+    updateChatInfoButton();
     
     // Highlight active chat
     document.querySelectorAll('.chat-item').forEach(item => {
@@ -1316,11 +2370,50 @@ function selectChat(chatId, dse, dseName, isOnline, el) {
     messagePollingInterval = setInterval(loadMessages, 3000);
 }
 
+// Закрытие чата (возврат к списку)
+function closeChat() {
+    const chatMain = document.querySelector('.chat-main');
+    if (chatMain) {
+        chatMain.classList.remove('active');
+    }
+    
+    // Очищаем текущие данные
+    currentChatId = null;
+    currentRequestId = null;
+    
+    // Скрываем область сообщений
+    document.getElementById('chatHeader').style.display = 'none';
+    document.getElementById('requestHeader').style.display = 'none';
+    document.getElementById('inputArea').style.display = 'none';
+    
+    // Очищаем список активных элементов
+    document.querySelectorAll('.chat-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelectorAll('.request-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Останавливаем polling
+    if (messagePollingInterval) {
+        clearInterval(messagePollingInterval);
+        messagePollingInterval = null;
+    }
+}
+
 // Select request
 function selectRequest(requestId, subject, el) {
     currentRequestId = requestId;
     currentChatId = null;
     const requestInfo = dseRequestsCache.get(String(requestId));
+    currentRequestInfo = requestInfo || null;
+    lastRequestInfoForChat = requestInfo || null;
+    
+    // Открываем чат-панель
+    const chatMain = document.querySelector('.chat-main');
+    if (chatMain) {
+        chatMain.classList.add('active');
+    }
     
     // Update UI
     document.getElementById('requestTitle').textContent = requestInfo?.dse || subject;
@@ -1444,6 +2537,18 @@ function loadMessages() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                // Загружаем данные пользователей для подсказок
+                fetch('/api/users')
+                    .then(r => r.json())
+                    .then(users => {
+                        if (Array.isArray(users)) {
+                            users.forEach(u => {
+                                user_data[u.id || u.user_id] = u;
+                            });
+                        }
+                    })
+                    .catch(() => {});
+                
                 const container = document.getElementById('messagesContainer');
                 const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
                 
@@ -1471,6 +2576,15 @@ function loadMessages() {
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#39;');
 
+                const formatFileSize = (bytes) => {
+                    const size = Number(bytes || 0);
+                    if (!size) return '';
+                    const units = ['Б', 'КБ', 'МБ', 'ГБ'];
+                    const idx = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+                    const value = size / Math.pow(1024, idx);
+                    return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+                };
+
                 data.messages.forEach((msg, index) => {
                     const isSent = msg.user_id === currentUserId;
                     const groupClass = isSent ? 'sent' : 'received';
@@ -1491,13 +2605,68 @@ function loadMessages() {
                         minute: '2-digit' 
                     });
 
-                    const safeText = escapeHtml(msg.text).replace(/^\s+/, '');
+                    const rawText = (msg.text || '').toString();
+                    const lines = rawText.split(/\r?\n/).filter(line => line.trim().length > 0);
+                    const normalizedText = lines.join('\n').trim();
+                    const safeText = escapeHtml(normalizedText);
                     const senderName = escapeHtml(msg.sender_name || '');
+                    const fileInfo = msg.file || null;
+                    const msgType = (msg.type || (fileInfo ? 'file' : 'text')).toString();
+
+                    let attachmentHtml = '';
+                    if (fileInfo && msgType === 'image') {
+                        attachmentHtml = `
+                            <div class="message-attachment-image" onclick="openPhotoModal('${fileInfo.url}')">
+                                <img src="${fileInfo.url}" alt="${escapeHtml(fileInfo.name || '')}" />
+                            </div>
+                        `;
+                    } else if (fileInfo && msgType === 'video') {
+                        attachmentHtml = `
+                            <div class="message-attachment-video">
+                                <video src="${fileInfo.url}" controls></video>
+                            </div>
+                        `;
+                    } else if (fileInfo) {
+                        const sizeLabel = formatFileSize(fileInfo.size);
+                        attachmentHtml = `
+                            <a class="message-attachment message-attachment-card" href="${fileInfo.url}" target="_blank" rel="noopener">
+                                <i class="bi bi-paperclip"></i>
+                                <div>
+                                    <div class="attachment-name">${escapeHtml(fileInfo.name || 'Файл')}</div>
+                                    <div class="attachment-meta">${sizeLabel}${fileInfo.mime ? ` • ${escapeHtml(fileInfo.mime)}` : ''}</div>
+                                </div>
+                            </a>
+                        `;
+                    }
+                    const bubbleClass = `${isSent ? 'sent' : 'received'}${attachmentHtml ? ' has-attachment' : ''}`;
+                    
+                    let statusHtml = '';
+                    if (isSent) {
+                        const readBy = msg.read_by || [];
+                        const deliveredTo = msg.delivered_to || [];
+                        let statusSymbol = '✓';
+                        let tooltip = 'Отправлено';
+                        
+                        if (readBy && readBy.length > 0) {
+                            statusSymbol = '✓✓';
+                            const names = readBy.map(uid => {
+                                const data = user_data[uid];
+                                return data ? `${data.first_name || ''} ${data.last_name || ''}`.trim() : `Пользователь ${uid}`;
+                            }).join(', ');
+                            tooltip = `Прочитано: ${names}`;
+                        } else if (deliveredTo && deliveredTo.length > 0) {
+                            statusSymbol = '✓✓';
+                            tooltip = 'Доставлено';
+                        }
+                        
+                        statusHtml = `<span class="message-status" style="${readBy && readBy.length > 0 ? 'color: #0084ff;' : 'color: #8a8a8e;'}" data-tooltip="${tooltip}">${statusSymbol}</span>`;
+                    }
+                    
                     html += `
                         <div class="message-item">
                             <div class="message-sender">${senderName}</div>
-                            <div class="message-bubble ${isSent ? 'sent' : 'received'}">${safeText}</div>
-                            <div class="message-time">${timeStr}</div>
+                            <div class="message-bubble ${bubbleClass}">${attachmentHtml}${safeText ? `<div class="message-text">${safeText}</div>` : ''}</div>
+                            <div class="message-time">${timeStr}${statusHtml}</div>
                         </div>
                     `;
                 });
@@ -1546,6 +2715,51 @@ function sendMessage() {
     .catch(error => console.error('Error sending message:', error));
 }
 
+// File upload
+function openFilePicker() {
+    const input = document.getElementById('fileInput');
+    if (!input) return;
+    input.value = '';
+    input.click();
+}
+
+function uploadFile(file) {
+    if (!file) return Promise.resolve();
+
+    const isChat = !!currentChatId;
+    const endpoint = isChat ? '/api/chat/upload' : '/api/chat/request-upload';
+    const formData = new FormData();
+    formData.append('file', file);
+    if (isChat) {
+        formData.append('chat_id', currentChatId);
+    } else {
+        formData.append('request_id', currentRequestId);
+    }
+
+    return fetch(endpoint, {
+        method: 'POST',
+        body: formData
+    }).then(response => response.json());
+}
+
+function handleFilesUpload(files) {
+    if (!files || files.length === 0) return;
+    if (!currentChatId && !currentRequestId) return;
+
+    const list = Array.from(files);
+    const uploadChain = list.reduce((promise, file) => {
+        return promise.then(() => uploadFile(file));
+    }, Promise.resolve());
+
+    uploadChain
+        .then(() => {
+            loadMessages();
+            loadChatList();
+            loadRequestsList();
+        })
+        .catch(error => console.error('Error uploading files:', error));
+}
+
 // Create request modal
 function openCreateRequestModal() {
     document.getElementById('createRequestModal').classList.add('active');
@@ -1556,6 +2770,74 @@ function closeCreateRequestModal() {
     document.getElementById('requestDseInput').value = '';
     document.getElementById('requestSubjectInput').value = '';
     document.getElementById('requestMessageInput').value = '';
+}
+
+// Request info modal
+function openRequestInfoModal() {
+    const modal = document.getElementById('requestInfoModal');
+    const body = document.getElementById('requestInfoBody');
+    const info = currentRequestInfo || lastRequestInfoForChat;
+    if (!modal || !body || !info) return;
+
+    const status = (info.status || 'В работе').toString();
+    const dateRaw = info.datetime || info.created_at || info.timestamp || '';
+    const date = dateRaw ? new Date(dateRaw).toLocaleString('ru-RU') : '-';
+    const dse = (info.dse || '').toString();
+    const dseName = (info.dse_name || info.dse_title || info.name || '').toString();
+    const subject = (info.problem_type || info.subject || 'Заявка').toString();
+    const description = (info.description || info.message || 'Без описания').toString();
+    const author = (info.user_name || info.sender_name || '').toString();
+
+    body.innerHTML = `
+        <div class="form-group">
+            <label>ДСЕ</label>
+            <div>${dse || '-'}</div>
+        </div>
+        <div class="form-group">
+            <label>Наименование ДСЕ</label>
+            <div>${dseName || '-'}</div>
+        </div>
+        <div class="form-group">
+            <label>Тема</label>
+            <div>${subject}</div>
+        </div>
+        <div class="form-group">
+            <label>Статус</label>
+            <div>${status}</div>
+        </div>
+        <div class="form-group">
+            <label>Дата</label>
+            <div>${date}</div>
+        </div>
+        ${author ? `
+        <div class="form-group">
+            <label>Автор</label>
+            <div>${author}</div>
+        </div>` : ''}
+        <div class="form-group">
+            <label>Описание</label>
+            <div style="white-space: pre-wrap;">${description}</div>
+        </div>
+    `;
+
+    modal.classList.add('active');
+}
+
+function closeRequestInfoModal() {
+    document.getElementById('requestInfoModal')?.classList.remove('active');
+}
+
+function openPhotoModal(photoUrl) {
+    const modal = document.getElementById('photoModal');
+    const img = document.getElementById('photoModalImage');
+    if (modal && img) {
+        img.src = photoUrl;
+        modal.classList.add('active');
+    }
+}
+
+function closePhotoModal() {
+    document.getElementById('photoModal')?.classList.remove('active');
 }
 
 function createRequest() {
@@ -1597,6 +2879,8 @@ function createRequest() {
 document.addEventListener('DOMContentLoaded', function() {
     const textarea = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
+    const attachBtn = document.getElementById('attachBtn');
+    const fileInput = document.getElementById('fileInput');
     
     textarea.addEventListener('keypress', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1607,8 +2891,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     textarea.addEventListener('input', autoExpandTextarea);
     sendBtn.addEventListener('click', sendMessage);
+    attachBtn?.addEventListener('click', openFilePicker);
+    fileInput?.addEventListener('change', (e) => handleFilesUpload(e.target.files));
     
     loadChatList();
+    loadRequestsList();
     listPollingInterval = setInterval(() => {
         if (currentTab === 'chats') {
             loadChatList();
@@ -1640,6 +2927,20 @@ document.getElementById('searchInput')?.addEventListener('input', function(e) {
 document.getElementById('createRequestModal')?.addEventListener('click', function(e) {
     if (e.target === this) {
         closeCreateRequestModal();
+    }
+});
+
+// Close request info modal by clicking backdrop
+document.getElementById('requestInfoModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeRequestInfoModal();
+    }
+});
+
+// Close photo modal by clicking backdrop
+document.getElementById('photoModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closePhotoModal();
     }
 });
 </script>

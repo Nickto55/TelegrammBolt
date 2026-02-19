@@ -190,6 +190,18 @@ let currentView = 'table'; // 'table' или 'card'
 
 // Загрузка данных при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
+    const isMobile = window.matchMedia('(max-width: 992px)').matches;
+    if (isMobile) {
+        currentView = 'card';
+        const tableView = document.getElementById('tableView');
+        const cardView = document.getElementById('cardView');
+        const toggleIcon = document.getElementById('viewToggleIcon');
+        const toggleText = document.getElementById('viewToggleText');
+        if (tableView) tableView.style.display = 'none';
+        if (cardView) cardView.style.display = 'block';
+        if (toggleIcon) toggleIcon.className = 'bi bi-table';
+        if (toggleText) toggleText.textContent = 'Таблица';
+    }
     loadDseData();
     if (canApproveRequests) {
         loadPendingRequests();

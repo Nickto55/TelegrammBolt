@@ -3,13 +3,19 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#1E5EFF"> <!-- Цвет темы браузера: бренд‑синий -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20,30 Q35,20 50,30 T80,30' fill='none' stroke='%2300D4FF' stroke-width='8' opacity='0.6'/%3E%3Cpath d='M10,50 Q30,35 50,50 T90,50' fill='none' stroke='%231E5EFF' stroke-width='10' opacity='0.8'/%3E%3Cpath d='M15,70 Q35,55 55,70 T85,70' fill='none' stroke='%235B9FFF' stroke-width='8' opacity='0.5'/%3E%3Ctext x='50' y='68' font-family='Arial, sans-serif' font-size='46' font-weight='bold' fill='white' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E"> <!-- Иконка: #00D4FF верхняя волна, #1E5EFF средняя волна, #5B9FFF нижняя волна, white буква B -->
-
+    <meta name="theme-color" content="#1E5EFF">
+    <meta name="apple-mobile-web-app-title" content="BOLT">
+    <meta name="description" content="BOLT - Система управления ДСЕ и коммуникация">
+    <meta name="keywords" content="BOLT, ДСЕ, управление, коммуникация">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="format-detection" content="email=no">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20,30 Q35,20 50,30 T80,30' fill='none' stroke='%2300D4FF' stroke-width='8' opacity='0.6'/%3E%3Cpath d='M10,50 Q30,35 50,50 T90,50' fill='none' stroke='%231E5EFF' stroke-width='10' opacity='0.8'/%3E%3Cpath d='M15,70 Q35,55 55,70 T85,70' fill='none' stroke='%235B9FFF' stroke-width='8' opacity='0.5'/%3E%3Ctext x='50' y='68' font-family='Arial, sans-serif' font-size='46' font-weight='bold' fill='white' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%231E5EFF'/%3E%3Cpath d='M60,54 Q84,40 108,54 T156,54' fill='none' stroke='%2300D4FF' stroke-width='12' opacity='0.6'/%3E%3Cpath d='M36,90 Q72,63 108,90 T180,90' fill='none' stroke='%231E5EFF' stroke-width='15' opacity='0.8'/%3E%3Cpath d='M45,126 Q84,99 135,126 T171,126' fill='none' stroke='%235B9FFF' stroke-width='12' opacity='0.5'/%3E%3Ctext x='90' y='122' font-family='Arial, sans-serif' font-size='69' font-weight='bold' fill='white' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E">
+    
     <title>{% block title %}BOLT{% endblock %}</title>
 
     <!-- Bootstrap CSS -->
@@ -37,6 +43,65 @@
         window.showAlert = (message, type = 'info') => window.__toastQueue.push({ message, type });
         window.showMessage = (message, type = 'info') => window.__toastQueue.push({ message, type });
     </script>
+
+    <script>
+        // Поддержка мобильных устройств и адаптивного дизайна
+        (function() {
+            // Обнаружение мобильного устройства
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const isTablet = /iPad|Android/.test(navigator.userAgent);
+            const isPhone = isMobile && !isTablet;
+            
+            if (isMobile) {
+                document.documentElement.classList.add('is-mobile');
+            }
+            if (isTablet) {
+                document.documentElement.classList.add('is-tablet');
+            }
+            if (isPhone) {
+                document.documentElement.classList.add('is-phone');
+            }
+            
+            // Обработка изменения ориентации
+            window.addEventListener('orientationchange', function() {
+                document.documentElement.classList.toggle('landscape', window.innerHeight < window.innerWidth);
+                document.documentElement.classList.toggle('portrait', window.innerHeight >= window.innerWidth);
+            });
+            
+            // Инициальная установка ориентации
+            window.dispatchEvent(new Event('orientationchange'));
+            
+            // Предотвращение двойного тапа при масштабировании на iOS
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function(event) {
+                const target = event.target;
+                if (target && target.closest) {
+                    if (target.closest('.navbar, .navbar-toggler, [data-bs-toggle="collapse"], [data-bs-toggle="dropdown"]')) {
+                        return;
+                    }
+                    if (target.closest('a, button, input, textarea, select, label, summary, details')) {
+                        return;
+                    }
+                }
+                const now = Date.now();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
+            
+            // Обработка виртуальной клавиатуры
+            const originalInnerHeight = window.innerHeight;
+            window.addEventListener('resize', function() {
+                const currentHeight = window.innerHeight;
+                if (currentHeight < originalInnerHeight * 0.75) {
+                    document.documentElement.classList.add('keyboard-open');
+                } else {
+                    document.documentElement.classList.remove('keyboard-open');
+                }
+            });
+        })();
+    </script>
 </head>
 
 <body>
@@ -51,21 +116,24 @@
                     <path d="M10,50 Q30,35 50,50 T90,50" fill="none" stroke="#1E5EFF" stroke-width="10" opacity="0.8" /> <!-- Средняя волна логотипа (бренд‑синий) -->
                     <path d="M15,70 Q35,55 55,70 T85,70" fill="none" stroke="#5B9FFF" stroke-width="8" opacity="0.5" /> <!-- Нижняя волна логотипа (светло‑синий) -->
                     <!-- Буква B -->
-                    <text x="50" y="65" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="white" <!-- Белая буква логотипа -->
-                        text-anchor="middle">B</text>
+                    <text x="50" y="65" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="white" text-anchor="middle">B</text>
                 </svg>
                 <span class="fw-bold fs-4">BOLT</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
+            <button class="btn btn-link nav-link theme-toggle-flyout d-lg-none" id="themeToggleMobile"
+                onclick="toggleTheme()" title="Переключить тему">
+                <i class="bi bi-moon-fill theme-icon"></i>
+            </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <!-- Переключатель темы -->
-                    <li class="nav-item">
+                    <li class="nav-item d-none d-lg-flex">
                         <button class="btn btn-link nav-link" id="themeToggle" onclick="toggleTheme()"
                             title="Переключить тему">
-                            <i class="bi bi-moon-fill" id="themeIcon"></i>
+                            <i class="bi bi-moon-fill theme-icon"></i>
                         </button>
                     </li>
 
@@ -76,7 +144,7 @@
                             <img src="{{ session.photo_url }}" alt="Avatar" class="rounded-circle" width="32"
                                 height="32">
                             {% endif %}
-                            {{ session.first_name }}
+                            <span class="d-none d-lg-inline ms-1">{{ session.first_name }}</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
 
@@ -231,14 +299,13 @@
         }
 
         function updateThemeIcon(theme) {
-            const icon = document.getElementById('themeIcon');
-            if (icon) {
+            document.querySelectorAll('.theme-icon').forEach(icon => {
                 if (theme === 'dark') {
-                    icon.className = 'bi bi-sun-fill';
+                    icon.className = 'bi bi-sun-fill theme-icon';
                 } else {
-                    icon.className = 'bi bi-moon-fill';
+                    icon.className = 'bi bi-moon-fill theme-icon';
                 }
-            }
+            });
         }
 
         // Обновление иконки при загрузке страницы
@@ -260,6 +327,47 @@
         document.addEventListener('DOMContentLoaded', function () {
             const currentTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-bs-theme', currentTheme);
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const isMobile = document.documentElement.classList.contains('is-mobile') ||
+                window.matchMedia('(max-width: 992px)').matches;
+            if (!isMobile) return;
+
+            const toggler = document.querySelector('.navbar-toggler');
+            const collapseEl = document.getElementById('navbarNav');
+            const dropdownToggle = document.getElementById('navbarDropdown');
+            const navbar = toggler ? toggler.closest('.navbar') : null;
+
+            if (!toggler || !collapseEl || !dropdownToggle) return;
+
+            const openDropdown = () => {
+                if (window.bootstrap && window.bootstrap.Dropdown) {
+                    const dropdown = window.bootstrap.Dropdown.getOrCreateInstance(dropdownToggle);
+                    dropdown.show();
+                }
+            };
+
+            const setFlyout = (open) => {
+                if (!navbar) return;
+                navbar.classList.toggle('nav-flyout-open', open);
+            };
+
+            collapseEl.addEventListener('shown.bs.collapse', function () {
+                setFlyout(true);
+                openDropdown();
+            });
+            collapseEl.addEventListener('hidden.bs.collapse', function () {
+                setFlyout(false);
+            });
+            toggler.addEventListener('click', function () {
+                if (collapseEl.classList.contains('show')) {
+                    setFlyout(true);
+                    openDropdown();
+                }
+            });
         });
     </script>
 
@@ -367,11 +475,11 @@
         }
 
         [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link:hover {
-            color: #ffffff !important; /* Текст ссылок навбара при наведении */
+            color: #d5d3d3 !important; /* Текст ссылок навбара при наведении */
         }
 
         [data-bs-theme="dark"] .navbar-dark .navbar-nav .dropdown-menu {
-            background-color: var(--surface-color);
+            background-color: #16263d;
             border-color: var(--border-color);
         }
 
@@ -643,6 +751,53 @@
 
         [data-bs-theme="dark"] ::-webkit-scrollbar-thumb:hover {
             background: #4a5875; /* Ползунок скролла при наведении */
+        }
+
+        @media (max-width: 992px) {
+            .navbar {
+                position: relative;
+            }
+
+            .navbar .navbar-collapse {
+                position: fixed;
+                top: 56px;
+                left: 0;
+                width: 100%;
+                z-index: 1055;
+                background: inherit;
+                max-height: calc(100vh - 56px);
+                overflow-y: auto;
+            }
+
+            .navbar .theme-toggle-flyout {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                right: 60px;
+                transform: translateX(16px);
+                opacity: 0;
+                pointer-events: none;
+                transition: transform 0.25s ease, opacity 0.2s ease;
+                margin: 0;
+                display: flex;
+                align-items: center;
+            }
+
+            .navbar.nav-flyout-open .theme-toggle-flyout {
+                opacity: 1;
+                pointer-events: auto;
+                transform: translateX(0);
+            }
+
+            .navbar .theme-toggle-flyout {
+                padding: 0.25rem 0.5rem;
+            }
+        }
+
+
+
+        #navbarDropdown::after {
+            display: none !important;
         }
     </style>
 

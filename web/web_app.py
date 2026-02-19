@@ -22,6 +22,9 @@ from urllib.parse import parse_qs
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file, flash
+import mimetypes
+import uuid
+from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import threading
@@ -31,7 +34,7 @@ import queue
 from bot.account_linking import get_telegram_id_by_web_user
 
 # Импорты из существующих модулей бота
-from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR, load_data, save_data
+from config.config import BOT_TOKEN, BOT_USERNAME, PROBLEM_TYPES, RC_TYPES, DATA_FILE, PHOTOS_DIR, DATA_DIR, load_data, save_data
 from bot.user_manager import (
     get_users_data, 
     get_user_data,
@@ -98,6 +101,9 @@ app.secret_key = SECRET_KEY
 
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+CHAT_UPLOADS_DIR = os.path.join(str(DATA_DIR), "chat_uploads")
+os.makedirs(CHAT_UPLOADS_DIR, exist_ok=True)
 app.config['SESSION_COOKIE_SECURE'] = True  # Установите True если используете HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2903,10 +2909,227 @@ def api_get_messages():
         for msg in messages:
             enriched_msg = msg.copy()
             enriched_msg['sender_name'] = _get_sender_name(msg.get('user_id'), session.get('user_id'))
+            # Отмечаем как доставленное для текущего пользователя
+            if 'delivered_to' not in enriched_msg:
+                enriched_msg['delivered_to'] = []
+            if str(user_id) not in enriched_msg.get('delivered_to', []):
+                enriched_msg['delivered_to'].append(str(user_id))
+                msg['delivered_to'] = enriched_msg['delivered_to']
             enriched.append(enriched_msg)
+        
+        # Сохраняем обновленные статусы доставки
+        chats[str(chat_id)]['messages'] = messages
+        all_data_to_save = data.copy()
+        all_data_to_save['chats'] = chats
+        save_data(all_data_to_save, DATA_FILE)
+        
         return jsonify({'success': True, 'messages': enriched})
     except Exception as e:
         logger.error(f"Error loading messages: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/mark-read', methods=['POST'])
+@login_required
+def api_mark_message_read():
+    """API: Отметить сообщение как прочитанное"""
+    user_id = session['user_id']
+    
+    if not _has_chat_access(user_id):
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    data = request.json
+    chat_id = data.get('chat_id')
+    message_index = data.get('message_index')
+    
+    if chat_id is None or message_index is None:
+        return jsonify({'success': False, 'error': 'chat_id и message_index обязательны'}), 400
+    
+    try:
+        all_data = load_data(DATA_FILE)
+        chats = all_data.get('chats', {})
+        if str(chat_id) not in chats:
+            return jsonify({'success': False, 'error': 'Чат не найден'}), 404
+        
+        messages = chats[str(chat_id)].get('messages', [])
+        if message_index < 0 or message_index >= len(messages):
+            return jsonify({'success': False, 'error': 'Сообщение не найдено'}), 404
+        
+        msg = messages[message_index]
+        if 'read_by' not in msg:
+            msg['read_by'] = []
+        if str(user_id) not in msg.get('read_by', []):
+            msg['read_by'].append(str(user_id))
+        
+        all_data['chats'] = chats
+        save_data(all_data, DATA_FILE)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error marking message as read: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    attachment_type = 'file'
+    if mime_type.startswith('image/'):
+        attachment_type = 'image'
+    elif mime_type.startswith('video/'):
+        attachment_type = 'video'
+
+    return {
+        'user_id': user_id,
+        'text': '',
+        'timestamp': datetime.now().isoformat(),
+        'type': attachment_type,
+        'file': {
+            'name': file_name,
+            'url': file_url,
+            'mime': mime_type,
+            'size': file_size
+        }
+    }
+
+
+@app.route('/api/chat/attachment/chat/<chat_id>/<path:filename>', methods=['GET'])
+@login_required
+def api_get_chat_attachment(chat_id, filename):
+    """API: Скачать файл чата"""
+    user_id = session['user_id']
+
+    if not _has_chat_access(user_id):
+        return "Доступ запрещен", 403
+
+    safe_name = secure_filename(filename)
+    if safe_name != filename:
+        return "Некорректное имя файла", 400
+
+    file_path = os.path.join(CHAT_UPLOADS_DIR, 'chat', str(chat_id), safe_name)
+    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+        return "Файл не найден", 404
+
+    mime_type = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+    return send_file(file_path, mimetype=mime_type, as_attachment=False, download_name=safe_name)
+
+
+@app.route('/api/chat/attachment/request/<request_id>/<path:filename>', methods=['GET'])
+@login_required
+def api_get_request_attachment(request_id, filename):
+    """API: Скачать файл заявки"""
+    user_id = session['user_id']
+
+    safe_name = secure_filename(filename)
+    if safe_name != filename:
+        return "Некорректное имя файла", 400
+
+    try:
+        data = load_data(DATA_FILE)
+        requests_data = data.get('requests', {})
+        req_info = requests_data.get(str(request_id))
+        if not req_info:
+            return "Заявка не найдена", 404
+        if req_info.get('user_id') != user_id and not is_admin(user_id):
+            return "Доступ запрещен", 403
+    except Exception:
+        return "Ошибка доступа", 500
+
+    file_path = os.path.join(CHAT_UPLOADS_DIR, 'request', str(request_id), safe_name)
+    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+        return "Файл не найден", 404
+
+    mime_type = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+    return send_file(file_path, mimetype=mime_type, as_attachment=False, download_name=safe_name)
+
+
+@app.route('/api/chat/upload', methods=['POST'])
+@login_required
+def api_upload_chat_file():
+    """API: Загрузить файл в чат"""
+    user_id = session['user_id']
+
+    if not _has_chat_access(user_id):
+        return jsonify({'success': False, 'error': 'Доступ запрещен'}), 403
+
+    chat_id = request.form.get('chat_id')
+    upload = request.files.get('file')
+
+    if not chat_id or not upload:
+        return jsonify({'success': False, 'error': 'chat_id и файл обязательны'}), 400
+
+    try:
+        all_data = load_data(DATA_FILE)
+        chats = all_data.get('chats', {})
+        if str(chat_id) not in chats:
+            return jsonify({'success': False, 'error': 'Чат не найден'}), 404
+
+        original_name = secure_filename(upload.filename or '')
+        if not original_name:
+            return jsonify({'success': False, 'error': 'Некорректное имя файла'}), 400
+
+        ext = os.path.splitext(original_name)[1]
+        saved_name = f"{uuid.uuid4().hex[:12]}{ext}"
+        save_dir = os.path.join(CHAT_UPLOADS_DIR, 'chat', str(chat_id))
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(save_dir, saved_name)
+        upload.save(file_path)
+
+        file_size = os.path.getsize(file_path)
+        mime_type = upload.mimetype or mimetypes.guess_type(original_name)[0] or 'application/octet-stream'
+        file_url = url_for('api_get_chat_attachment', chat_id=chat_id, filename=saved_name)
+
+        message = _build_attachment_message(user_id, original_name, file_url, mime_type, file_size)
+        chats[str(chat_id)].setdefault('messages', []).append(message)
+        all_data['chats'] = chats
+        save_data(all_data, DATA_FILE)
+
+        return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        logger.error(f"Error uploading chat file: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chat/request-upload', methods=['POST'])
+@login_required
+def api_upload_request_file():
+    """API: Загрузить файл в заявку"""
+    user_id = session['user_id']
+
+    request_id = request.form.get('request_id')
+    upload = request.files.get('file')
+
+    if not request_id or not upload:
+        return jsonify({'success': False, 'error': 'request_id и файл обязательны'}), 400
+
+    try:
+        all_data = load_data(DATA_FILE)
+        requests_data = all_data.get('requests', {})
+        req_info = requests_data.get(str(request_id))
+        if not req_info:
+            return jsonify({'success': False, 'error': 'Заявка не найдена'}), 404
+
+        if req_info.get('user_id') != user_id and not is_admin(user_id):
+            return jsonify({'success': False, 'error': 'Доступ запрещен'}), 403
+
+        original_name = secure_filename(upload.filename or '')
+        if not original_name:
+            return jsonify({'success': False, 'error': 'Некорректное имя файла'}), 400
+
+        ext = os.path.splitext(original_name)[1]
+        saved_name = f"{uuid.uuid4().hex[:12]}{ext}"
+        save_dir = os.path.join(CHAT_UPLOADS_DIR, 'request', str(request_id))
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(save_dir, saved_name)
+        upload.save(file_path)
+
+        file_size = os.path.getsize(file_path)
+        mime_type = upload.mimetype or mimetypes.guess_type(original_name)[0] or 'application/octet-stream'
+        file_url = url_for('api_get_request_attachment', request_id=request_id, filename=saved_name)
+
+        message = _build_attachment_message(user_id, original_name, file_url, mime_type, file_size)
+        req_info.setdefault('messages', []).append(message)
+        requests_data[str(request_id)] = req_info
+        all_data['requests'] = requests_data
+        save_data(all_data, DATA_FILE)
+
+        return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        logger.error(f"Error uploading request file: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -3812,7 +4035,7 @@ def show_url():
                 border-radius: 20px;
                 padding: 3rem;
                 box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                max-width: 600px;
+                max-width: 6000px;
                 width: 100%;
             }}
             .url-display {{
