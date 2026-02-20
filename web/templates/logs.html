@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}BOLT — Логи{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-list-ul"></i>
+                {% if selected_dse %}
+                    История по заявке: {{ selected_dse }}
+                {% else %}
+                    Список заявок
+                {% endif %}
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                {% if selected_dse %}
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 18%">ДСЕ</th>
+                            <th style="width: 22%">Наименование</th>
+                            <th style="width: 16%">Действие</th>
+                            <th style="width: 16%">ID</th>
+                            <th style="width: 18%">Дата</th>
+                            <th style="width: 10%">ID записи</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if logs %}
+                            {% for log in logs %}
+                            <tr>
+                                <td>{{ log.dse or '—' }}</td>
+                                <td>{{ log.dse_name or '—' }}</td>
+                                <td>
+                                    {% if log.action == 'Закрыта' %}
+                                        <span class="badge bg-success">Решено</span>
+                                    {% elif log.action == 'Отклонена' %}
+                                        <span class="badge bg-danger">Отклонена</span>
+                                    {% elif log.action == 'Подтверждена' %}
+                                        <span class="badge bg-info text-dark">Подтверждена</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ log.action }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.actor_id or '—' }}</td>
+                                <td>{{ log.timestamp or '—' }}</td>
+                                <td>{{ log.record_id or '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">Логи отсутствуют</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+                {% else %}
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 24%">ДСЕ</th>
+                            <th style="width: 30%">Наименование</th>
+                            <th style="width: 16%">Последнее действие</th>
+                            <th style="width: 20%">Последняя дата</th>
+                            <th style="width: 10%">Событий</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if dse_list %}
+                            {% for item in dse_list %}
+                            <tr role="button" onclick="window.location.href='{{ url_for('dse_logs', dse=item.dse) }}'">
+                                <td><strong>{{ item.dse }}</strong></td>
+                                <td>{{ item.dse_name or '—' }}</td>
+                                <td>{{ item.last_action or '—' }}</td>
+                                <td>{{ item.last_timestamp or '—' }}</td>
+                                <td>{{ item.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">Заявки отсутствуют</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
