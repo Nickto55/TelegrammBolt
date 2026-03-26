@@ -2302,7 +2302,7 @@ def get_photo(photo_id):
     <rect width="400" height="300" fill="#f8f9fa"/>
     <rect x="10" y="10" width="380" height="280" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
     <text x="200" y="130" font-family="Arial, sans-serif" font-size="20" fill="#6c757d" text-anchor="middle">
-        ⚠️ Ошибка загрузки фото
+         Ошибка загрузки фото
     </text>
     <text x="200" y="160" font-family="Arial, sans-serif" font-size="14" fill="#6c757d" text-anchor="middle">
         Фото временно недоступно
@@ -2967,6 +2967,7 @@ def api_mark_message_read():
     except Exception as e:
         logger.error(f"Error marking message as read: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+    
     attachment_type = 'file'
     if mime_type.startswith('image/'):
         attachment_type = 'image'
@@ -4141,7 +4142,7 @@ def show_url():
                     <li>Укажите: <code>{telegram_domain}</code> <strong>(БЕЗ http:// и порта!)</strong></li>
                 </ol>
                 <div class="alert alert-info mb-0">
-                    <strong>⚠️ Важно:</strong> Telegram принимает только домен или IP без протокола (http/https) и порта.<br>
+                    <strong> Важно:</strong> Telegram принимает только домен или IP без протокола (http/https) и порта.<br>
                     <strong>Правильно:</strong> <code>{telegram_domain}</code><br>
                     <strong>Неправильно:</strong> <code>http://{telegram_domain}:5000</code>
                 </div>
