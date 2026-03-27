@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: bolt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bolt_db
+      POSTGRES_USER: bolt_user
+      POSTGRES_PASSWORD: bolt_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bolt_user -d bolt_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bolt-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./bolt-backend
+      dockerfile: Dockerfile
+    container_name: bolt-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: bolt_db
+      DB_USER: bolt_user
+      DB_PASSWORD: bolt_password
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_EXPIRES_IN: 7d
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "3001:3001"
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bolt-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend (optional - can be served via CDN or separate container)
+  # frontend:
+  #   build:
+  #     context: ./app
+  #     dockerfile: Dockerfile
+  #   container_name: bolt-frontend
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - bolt-network
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_uploads:
+    driver: local
+
+networks:
+  bolt-network:
+    driver: bridge
