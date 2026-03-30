@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # =============================================================================
-# BOLT - Management Script v2.1
+# BOLT - Management Script v2.2
 # =============================================================================
-# Fixed: Auto-detects correct entry point for NestJS/Node.js apps
+# Fixed: Proper environment loading for PM2 and Node.js
 # =============================================================================
 
 set -e
@@ -13,8 +13,7 @@ BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR_SYSTEM="/opt/bolt"
-ENV_FILE="$SCRIPT_DIR/.env"
-[ -f "$INSTALL_DIR_SYSTEM/.env" ] && ENV_FILE="$INSTALL_DIR_SYSTEM/.env"
+ENV_FILE="$INSTALL_DIR_SYSTEM/.env"
 
 detect_mode() {
     if [ -f "$SCRIPT_DIR/docker-compose.yml" ] && [ -d "$SCRIPT_DIR/.git" ] 2>/dev/null; then
@@ -39,7 +38,7 @@ info() { echo -e "${CYAN}[i]${NC} $1"; }
 print_help() {
     cat << EOF
 ╔══════════════════════════════════════════════════════════════════╗
-║                    BOLT Management Script v2.1                   ║
+║                    BOLT Management Script v2.2                     ║
 ║                    Mode: ${INSTALL_MODE^^}                                 ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -51,29 +50,18 @@ Commands:
   restart            Restart all services
   status             Show service status
   logs [service]     View logs (backend/frontend/postgres/nginx)
+  env                Edit environment configuration
+  fix                Fix/repair installation
   update             Update to latest version
   backup             Create manual backup
-  restore [file]     Restore from backup file
-  shell [service]    Open shell (backend/postgres/nginx)
   db [command]       Database operations (backup/restore/console)
+  shell [service]    Open shell (backend/postgres/nginx)
   clean              Clean up resources
   reset              Reset all data (DANGEROUS!)
-  fix                Fix/repair installation
   install            Run full installation
   help               Show this help message
 
 EOF
-}
-
-check_docker() {
-    if ! command -v docker &> /dev/null; then
-        error "Docker is not installed"
-        exit 1
-    fi
-    if ! docker info &> /dev/null; then
-        error "Docker daemon is not running"
-        exit 1
-    fi
 }
 
 load_env() {
@@ -84,62 +72,39 @@ load_env() {
     fi
 }
 
-# =============================================================================
-# Find Entry Point
-# =============================================================================
-
-find_entry_point() {
-    local backend_dir="$1"
-    
-    # Check common locations
-    local candidates=(
-        "main.js"
-        "index.js"
-        "server.js"
-        "app.js"
-        "dist/main.js"
-        "dist/index.js"
-        "dist/server.js"
-        "build/main.js"
-        "src/main.js"
-    )
-    
-    for candidate in "${candidates[@]}"; do
-        if [ -f "$backend_dir/$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-    
-    # Find any JS file that looks like entry point
-    local found=$(find "$backend_dir" -maxdepth 2 -name "*.js" -type f 2>/dev/null | \
-        grep -E "(main|index|server|app)" | head -1)
-    
-    if [ -n "$found" ]; then
-        echo "$(basename "$found")"
-        return 0
+check_docker() {
+    if ! command -v docker &> /dev/null; then
+        error "Docker not installed"
+        exit 1
     fi
-    
-    # Last resort - first JS file in dist or root
-    found=$(find "$backend_dir" -maxdepth 2 -name "*.js" -type f 2>/dev/null | head -1)
-    if [ -n "$found" ]; then
-        echo "$(basename "$found")"
-        return 0
+    if ! docker info &> /dev/null; then
+        error "Docker daemon not running"
+        exit 1
     fi
-    
-    return 1
 }
 
 # =============================================================================
-# Fix Installation
+# Fix Environment Configuration
 # =============================================================================
+
+cmd_env() {
+    log "Editing environment..."
+    if command -v nano &> /dev/null; then
+        nano "$ENV_FILE"
+    elif command -v vim &> /dev/null; then
+        vim "$ENV_FILE"
+    else
+        cat "$ENV_FILE"
+        info "Edit manually: $ENV_FILE"
+    fi
+}
 
 cmd_fix() {
     log "Repairing installation..."
     load_env
     
     if [ "$INSTALL_MODE" != "native" ] && [ "$INSTALL_MODE" != "container" ]; then
-        error "Fix command only for native/container mode"
+        error "Fix only for native/container mode"
         return 1
     fi
     
@@ -150,8 +115,41 @@ cmd_fix() {
         return 1
     fi
     
-    # Find correct entry point
-    local entry=$(find_entry_point "$backend_dir")
+    # Ensure .env exists in backend directory
+    if [ ! -f "$backend_dir/.env" ]; then
+        log "Creating .env in backend directory..."
+        if [ -f "$ENV_FILE" ]; then
+            cp "$ENV_FILE" "$backend_dir/.env"
+        else
+            # Create minimal .env
+            cat > "$backend_dir/.env" << EOF
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=bolt_db
+DB_USER=bolt_user
+DB_PASSWORD=${DB_PASSWORD:-bolt_password}
+JWT_SECRET=$(openssl rand -base64 32)
+JWT_EXPIRES_IN=7d
+PORT=3001
+NODE_ENV=production
+EOF
+        fi
+    fi
+    
+    # Ensure .env exists in parent directory too (for compatibility)
+    if [ ! -f "$ENV_FILE" ]; then
+        cp "$backend_dir/.env" "$ENV_FILE"
+    fi
+    
+    # Find entry point
+    local entry=""
+    for f in "dist/main.js" "dist/index.js" "main.js" "index.js" "server.js"; do
+        if [ -f "$backend_dir/$f" ]; then
+            entry="$f"
+            break
+        fi
+    done
+    
     if [ -z "$entry" ]; then
         error "Cannot find entry point in $backend_dir"
         ls -la "$backend_dir"
@@ -160,7 +158,7 @@ cmd_fix() {
     
     success "Found entry point: $entry"
     
-    # Update PM2 ecosystem config
+    # Create ecosystem file with proper environment loading
     cat > "$INSTALL_DIR_SYSTEM/ecosystem.config.js" << EOF
 module.exports = {
   apps: [{
@@ -172,29 +170,85 @@ module.exports = {
     autorestart: true,
     watch: false,
     max_memory_restart: '1G',
-    env: { NODE_ENV: 'production' },
+    env: {
+      NODE_ENV: 'production',
+      PORT: ${BACKEND_PORT:-3001}
+    },
+    // Load .env file explicitly
+    env_file: '$backend_dir/.env',
     log_file: '/var/log/bolt/backend.log',
     out_file: '/var/log/bolt/backend.out.log',
     error_file: '/var/log/bolt/backend.error.log',
     merge_logs: true,
-    time: true
+    time: true,
+    // Ensure working directory is correct
+    cwd: '$backend_dir'
   }]
 };
 EOF
     
-    # Create fallback start script
+    # Create wrapper script that loads .env properly
     cat > "$backend_dir/start.sh" << EOF
 #!/bin/bash
-cd \$(dirname "\$0")
+# BOLT Backend Startup Script
+set -e
+
+cd "\$(dirname "\$0")"
+
+# Load environment from .env file
+if [ -f .env ]; then
+    export \$(grep -v '^#' .env | xargs -d '\n' 2>/dev/null || grep -v '^#' .env | xargs)
+fi
+
+# Additional exports for compatibility
 export NODE_ENV=production
-[ -f ../.env ] && export \$(grep -v '^#' ../.env | xargs 2>/dev/null)
-[ -f .env ] && export \$(grep -v '^#' .env | xargs 2>/dev/null)
+export PORT=\${PORT:-3001}
+
+echo "Starting BOLT Backend..."
+echo "NODE_ENV: \$NODE_ENV"
+echo "PORT: \$PORT"
+echo "DB_HOST: \$DB_HOST"
+
+# Run the application
 exec node $entry
 EOF
     chmod +x "$backend_dir/start.sh"
     
+    # Alternative: Create a Node.js launcher that loads dotenv
+    cat > "$backend_dir/launcher.js" << 'EOF'
+// Launcher script that ensures dotenv is loaded
+const path = require('path');
+const fs = require('fs');
+
+// Try to load .env
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath });
+    console.log('Loaded .env from:', envPath);
+} else {
+    console.warn('No .env file found at:', envPath);
+}
+
+// Also try parent directory
+const parentEnvPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(parentEnvPath) && !fs.existsSync(envPath)) {
+    require('dotenv').config({ path: parentEnvPath });
+    console.log('Loaded .env from parent:', parentEnvPath);
+}
+
+// Start the actual application
+const entryPoint = process.argv[2] || 'dist/main.js';
+console.log('Starting:', entryPoint);
+require(path.join(__dirname, entryPoint));
+EOF
+    
     success "Configuration fixed"
-    info "Entry point: $entry"
+    info "Files updated:"
+    info "  - $backend_dir/.env"
+    info "  - $INSTALL_DIR_SYSTEM/ecosystem.config.js"
+    info "  - $backend_dir/start.sh"
+    info "  - $backend_dir/launcher.js"
+    info ""
     info "Restart with: ./bolt.sh restart"
 }
 
@@ -203,19 +257,17 @@ EOF
 # =============================================================================
 
 docker_start() {
-    log "Starting BOLT services (Docker)..."
+    log "Starting BOLT (Docker)..."
     check_docker
     cd "$SCRIPT_DIR"
     docker-compose up -d
     success "Services started"
-    
     sleep 5
     
-    if curl -s "http://localhost:${BACKEND_PORT:-3001}/health" > /dev/null 2>&1 || \
-       curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
-        success "Backend ready at http://localhost:${BACKEND_PORT:-3001}"
+    if curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
+        success "Backend ready"
     else
-        warn "Backend may still be starting..."
+        warn "Backend starting..."
     fi
 }
 
@@ -225,38 +277,6 @@ docker_stop() {
     cd "$SCRIPT_DIR"
     docker-compose down
     success "Stopped"
-}
-
-docker_restart() {
-    docker_stop
-    sleep 2
-    docker_start
-}
-
-docker_status() {
-    log "Docker Status"
-    check_docker
-    cd "$SCRIPT_DIR"
-    docker-compose ps
-    
-    echo ""
-    info "Health Checks"
-    if curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
-        success "Backend: OK"
-    else
-        error "Backend: Not responding"
-    fi
-}
-
-docker_logs() {
-    local service="$1"
-    check_docker
-    cd "$SCRIPT_DIR"
-    if [ -n "$service" ]; then
-        docker-compose logs -f "$service"
-    else
-        docker-compose logs -f
-    fi
 }
 
 native_start() {
@@ -279,46 +299,45 @@ native_start() {
     fi
     
     # Start Backend
+    local backend_dir="$INSTALL_DIR_SYSTEM/backend"
+    
+    if [ ! -d "$backend_dir" ]; then
+        error "Backend not found at $backend_dir"
+        return 1
+    fi
+    
+    # Check if fix is needed
+    if [ ! -f "$backend_dir/.env" ] || [ ! -f "$INSTALL_DIR_SYSTEM/ecosystem.config.js" ]; then
+        warn "Configuration incomplete, running fix..."
+        cmd_fix
+    fi
+    
     if command -v pm2 &> /dev/null; then
         cd "$INSTALL_DIR_SYSTEM"
         
-        # Check if ecosystem exists
+        # Try ecosystem first
         if [ -f "ecosystem.config.js" ]; then
             pm2 start ecosystem.config.js 2>/dev/null || pm2 restart ecosystem.config.js
         else
-            # Direct start with auto-detect
-            local backend_dir="$INSTALL_DIR_SYSTEM/backend"
-            local entry=$(find_entry_point "$backend_dir")
-            
-            if [ -n "$entry" ]; then
-                cd "$backend_dir"
-                pm2 start "$entry" --name "bolt-backend" || pm2 restart "bolt-backend"
-            else
-                error "Cannot find entry point"
-                return 1
-            fi
+            # Fallback to direct start with launcher
+            cd "$backend_dir"
+            pm2 start launcher.js --name "bolt-backend" || pm2 restart "bolt-backend"
         fi
         
         pm2 save
         success "Backend started with PM2"
     else
-        # Direct node execution
-        local backend_dir="$INSTALL_DIR_SYSTEM/backend"
-        local entry=$(find_entry_point "$backend_dir")
-        
-        if [ -n "$entry" ]; then
-            cd "$backend_dir"
-            nohup node "$entry" > /var/log/bolt/backend.log 2>&1 &
-            success "Backend started (PID: $!)"
-        else
-            error "Cannot find entry point"
-            return 1
-        fi
+        # Direct start
+        cd "$backend_dir"
+        nohup ./start.sh > /var/log/bolt/backend.log 2>&1 &
+        success "Backend started (PID: $!)"
     fi
     
     sleep 3
     if curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
         success "Backend responding on port ${BACKEND_PORT:-3001}"
+    else
+        warn "Backend may still be starting, check: ./bolt.sh logs"
     fi
 }
 
@@ -341,41 +360,8 @@ native_stop() {
     success "Stopped"
 }
 
-native_restart() {
-    native_stop
-    sleep 2
-    native_start
-}
-
-native_status() {
-    log "Native Status"
-    
-    if command -v pm2 &> /dev/null; then
-        pm2 status
-    fi
-    
-    echo ""
-    info "Process Checks"
-    
-    if pgrep -f "node.*main\|node.*index\|node.*server" > /dev/null; then
-        success "Backend process: Running"
-    else
-        error "Backend process: Not running"
-    fi
-    
-    if curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
-        success "Backend API: Responding"
-    else
-        error "Backend API: Not responding"
-    fi
-    
-    if pgrep nginx > /dev/null; then
-        success "Nginx: Running"
-    fi
-}
-
 native_logs() {
-    local service="$1"
+    local service="${1:-backend}"
     
     case "$service" in
         backend|api|"")
@@ -400,7 +386,7 @@ native_logs() {
 }
 
 # =============================================================================
-# Unified Commands
+# Main Commands
 # =============================================================================
 
 cmd_start() {
@@ -422,89 +408,89 @@ cmd_stop() {
 }
 
 cmd_restart() {
-    load_env
-    case "$INSTALL_MODE" in
-        docker) docker_restart ;;
-        native|container) native_restart ;;
-        *) error "Unknown mode"; exit 1 ;;
-    esac
+    cmd_stop
+    sleep 2
+    cmd_start
 }
 
 cmd_status() {
     load_env
     case "$INSTALL_MODE" in
-        docker) docker_status ;;
-        native|container) native_status ;;
-        *) error "Unknown mode"; exit 1 ;;
+        docker)
+            check_docker
+            cd "$SCRIPT_DIR"
+            docker-compose ps
+            ;;
+        native|container)
+            if command -v pm2 &> /dev/null; then
+                pm2 status
+            fi
+            echo ""
+            info "Health Checks"
+            if curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
+                success "Backend: OK"
+            else
+                error "Backend: Not responding"
+            fi
+            ;;
     esac
 }
 
 cmd_logs() {
     load_env
     case "$INSTALL_MODE" in
-        docker) docker_logs "$1" ;;
-        native|container) native_logs "$1" ;;
-        *) error "Unknown mode"; exit 1 ;;
-    esac
-}
-
-# =============================================================================
-# Other Commands (Backup, Restore, DB, etc.)
-# =============================================================================
-
-cmd_backup() {
-    load_env
-    local backup_dir="/var/backups/bolt"
-    mkdir -p "$backup_dir"
-    local date_stamp=$(date +%Y%m%d_%H%M%S)
-    
-    log "Creating backup..."
-    
-    # Database
-    case "$INSTALL_MODE" in
         docker)
-            docker-compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" 2>/dev/null | gzip > "$backup_dir/db_$date_stamp.sql.gz" || \
-            warn "DB backup failed"
+            check_docker
+            cd "$SCRIPT_DIR"
+            docker-compose logs -f "${1:-}"
             ;;
         native|container)
-            pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" 2>/dev/null | gzip > "$backup_dir/db_$date_stamp.sql.gz" || \
-            sudo -u postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" 2>/dev/null | gzip > "$backup_dir/db_$date_stamp.sql.gz" || \
-            warn "DB backup failed"
+            native_logs "$1"
             ;;
     esac
-    
-    # Uploads
-    local upload_dir="$INSTALL_DIR_SYSTEM/uploads"
-    [ "$INSTALL_MODE" = "docker" ] && upload_dir="$SCRIPT_DIR/uploads"
-    
-    if [ -d "$upload_dir" ] && [ "$(ls -A "$upload_dir" 2>/dev/null)" ]; then
-        tar -czf "$backup_dir/uploads_$date_stamp.tar.gz" -C "$(dirname "$upload_dir")" "$(basename "$upload_dir")" 2>/dev/null || true
-    fi
-    
-    success "Backup: $backup_dir"
-    ls -lh "$backup_dir"/*.gz 2>/dev/null | tail -5
 }
+
+# =============================================================================
+# Other Commands
+# =============================================================================
 
 cmd_db() {
     load_env
     local cmd="$1"
     
     case "$cmd" in
-        backup) cmd_backup ;;
-        restore)
-            # List backups
-            ls -la /var/backups/bolt/ 2>/dev/null || ls -la "${SCRIPT_DIR}/backups/" 2>/dev/null || error "No backups"
-            ;;
         console|psql)
             case "$INSTALL_MODE" in
-                docker) docker-compose exec postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" ;;
-                native|container) 
+                docker)
+                    check_docker
+                    cd "$SCRIPT_DIR"
+                    docker-compose exec postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
+                    ;;
+                native|container)
                     psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" 2>/dev/null || \
                     sudo -u postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
                     ;;
             esac
             ;;
-        *) info "Commands: backup, restore, console" ;;
+        backup)
+            local backup_dir="/var/backups/bolt"
+            mkdir -p "$backup_dir"
+            local date_stamp=$(date +%Y%m%d_%H%M%S)
+            
+            case "$INSTALL_MODE" in
+                docker)
+                    docker-compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" | gzip > "$backup_dir/db_$date_stamp.sql.gz"
+                    ;;
+                native|container)
+                    pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" 2>/dev/null | gzip > "$backup_dir/db_$date_stamp.sql.gz" || \
+                    sudo -u postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" | gzip > "$backup_dir/db_$date_stamp.sql.gz"
+                    ;;
+            esac
+            success "Database backup: $backup_dir/db_$date_stamp.sql.gz"
+            ;;
+        *)
+            info "DB commands: console, backup"
+            ;;
     esac
 }
 
@@ -513,6 +499,7 @@ cmd_shell() {
     local svc="$1"
     case "$INSTALL_MODE" in
         docker)
+            check_docker
             case "$svc" in
                 backend) docker-compose exec backend /bin/sh ;;
                 postgres) docker-compose exec postgres /bin/bash ;;
@@ -527,25 +514,6 @@ cmd_shell() {
             esac
             ;;
     esac
-}
-
-cmd_update() {
-    log "Updating..."
-    load_env
-    
-    case "$INSTALL_MODE" in
-        docker)
-            check_docker
-            cd "$SCRIPT_DIR"
-            docker-compose pull && docker-compose up -d
-            ;;
-        native|container)
-            cd "$SCRIPT_DIR"
-            git pull 2>/dev/null || true
-            bash install.sh
-            ;;
-    esac
-    success "Updated"
 }
 
 cmd_clean() {
@@ -567,6 +535,7 @@ cmd_reset() {
     read -p "Type 'DELETE': " confirm
     [ "$confirm" != "DELETE" ] && return
     
+    cmd_stop
     case "$INSTALL_MODE" in
         docker)
             cd "$SCRIPT_DIR"
@@ -574,12 +543,28 @@ cmd_reset() {
             rm -rf uploads/*
             ;;
         native|container)
-            native_stop
             rm -rf "$INSTALL_DIR_SYSTEM/uploads/*"
-            sudo -u postgres psql -c "DROP DATABASE ${DB_NAME:-bolt_db};" 2>/dev/null || true
+            sudo -u postgres psql -c "DROP DATABASE IF EXISTS ${DB_NAME:-bolt_db};" 2>/dev/null || true
             ;;
     esac
     success "Reset complete"
+}
+
+cmd_update() {
+    log "Updating..."
+    case "$INSTALL_MODE" in
+        docker)
+            check_docker
+            cd "$SCRIPT_DIR"
+            docker-compose pull && docker-compose up -d
+            ;;
+        native|container)
+            cd "$SCRIPT_DIR"
+            git pull 2>/dev/null || true
+            bash install.sh
+            ;;
+    esac
+    success "Updated"
 }
 
 # =============================================================================
@@ -595,13 +580,14 @@ main() {
         restart) cmd_restart ;;
         status) cmd_status ;;
         logs) cmd_logs "$2" ;;
-        backup) cmd_backup ;;
+        env) cmd_env ;;
+        fix) cmd_fix ;;
         db) cmd_db "$2" ;;
         shell) cmd_shell "$2" ;;
-        update) cmd_update ;;
+        backup) cmd_db backup ;;
         clean) cmd_clean ;;
         reset) cmd_reset ;;
-        fix) cmd_fix ;;
+        update) cmd_update ;;
         install) bash "${SCRIPT_DIR}/install.sh" ;;
         help|--help|-h|*) print_help ;;
     esac
