@@ -27,9 +27,9 @@ log_info() { echo -e "${CYAN}[i]${NC} $1" | tee -a "$LOG_FILE"; }
 print_banner() {
     clear
     echo -e "${CYAN}"
-    echo "╔══════════════════════════════════════════════════════════════════╗"
-    echo "║   BOLT Telegram Bot - Installation Script v2.5                   ║"
-    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo "╔════════════════════════════════════════════════════╗"
+    echo "║   BOLT Telegram Bot - Installation Script v2.5     ║"
+    echo "╚════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
 
