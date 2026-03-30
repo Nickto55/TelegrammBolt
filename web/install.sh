@@ -1,15 +1,13 @@
 #!/bin/bash
 
 # =============================================================================
-# BOLT - Installation Script v2.3
+# BOLT - Installation Script v2.4
 # =============================================================================
-# Supports: Docker, Native, Container (inside Docker)
-# Auto-detects build output structure
+# Fixed: npm install fallback when package-lock.json missing
 # =============================================================================
 
 set -e
 
-# Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 
@@ -18,10 +16,6 @@ INSTALL_DIR="${SCRIPT_DIR}"
 LOG_FILE="/var/log/bolt-install.log"
 INSTALL_DIR_SYSTEM="/opt/bolt"
 INSTALL_MODE="docker"
-
-# =============================================================================
-# Helpers
-# =============================================================================
 
 log() { echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"; }
 log_success() { echo -e "${GREEN}[✓]${NC} $1" | tee -a "$LOG_FILE"; }
@@ -33,8 +27,7 @@ print_banner() {
     clear
     echo -e "${CYAN}"
     echo "╔══════════════════════════════════════════════════════════════════╗"
-    echo "║   BOLT Management System - Installation Script v2.3              ║"
-    echo "║   Modes: Docker | Native | Container                             ║"
+    echo "║   BOLT Management System - Installation Script v2.4              ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -42,10 +35,6 @@ print_banner() {
 detect_container() {
     [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null
 }
-
-# =============================================================================
-# Mode Selection
-# =============================================================================
 
 ask_installation_mode() {
     echo ""
@@ -73,13 +62,8 @@ ask_installation_mode() {
             *) log_error "Invalid"; exit 1 ;;
         esac
     fi
-    
     log "Mode: $INSTALL_MODE"
 }
-
-# =============================================================================
-# Dependencies
-# =============================================================================
 
 install_deps() {
     local pkgs=("$@")
@@ -96,8 +80,6 @@ install_deps() {
 check_dependencies() {
     log "Checking dependencies..."
     
-    local needed=()
-    
     if [ "$INSTALL_MODE" = "docker" ]; then
         if ! command -v docker &> /dev/null; then
             log "Installing Docker..."
@@ -109,7 +91,6 @@ check_dependencies() {
         fi
         docker info &> /dev/null || { log_error "Docker not running"; exit 1; }
     else
-        # Node.js
         if ! command -v node &> /dev/null || [ "$(node --version | cut -d'v' -f2 | cut -d'.' -f1)" -lt 18 ]; then
             log "Installing Node.js 18..."
             if [[ "$(cat /etc/os-release 2>/dev/null | grep ^ID=)" == *"alpine"* ]]; then
@@ -121,46 +102,37 @@ check_dependencies() {
         fi
         log_success "Node.js $(node --version)"
         
-        # PostgreSQL
         if ! command -v psql &> /dev/null; then
             log "Installing PostgreSQL..."
             install_deps postgresql postgresql-contrib
-            service postgresql start 2>/dev/null || pg_ctlcluster 16 main start 2>/dev/null || true
+            service postgresql start 2>/dev/null || true
         fi
         
-        # Nginx
         if ! command -v nginx &> /dev/null; then
             log "Installing Nginx..."
             install_deps nginx
             mkdir -p /run/nginx
         fi
         
-        # PM2
         if ! command -v pm2 &> /dev/null; then
             log "Installing PM2..."
             npm install -g pm2
         fi
     fi
     
-    # Common
+    local needed=()
     for cmd in git curl openssl; do
         command -v "$cmd" &> /dev/null || needed+=("$cmd")
     done
-    
     [ ${#needed[@]} -gt 0 ] && install_deps "${needed[@]}"
     log_success "Dependencies OK"
 }
-
-# =============================================================================
-# Configuration
-# =============================================================================
 
 ask_config() {
     echo ""
     log_info "Configuration"
     echo "─────────────────────────────────────────────────────────────────────"
     
-    # Domain
     read -p "Custom domain? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -172,21 +144,17 @@ ask_config() {
         DOMAIN="localhost"
     fi
     
-    # Database
     DB_NAME="bolt_db"
     DB_USER="bolt_user"
     DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
     
     if [ "$INSTALL_MODE" = "docker" ]; then
         DB_HOST="postgres"
-        USE_EXTERNAL_DB=false
     else
         DB_HOST="localhost"
-        USE_EXTERNAL_DB=false
         setup_postgres
     fi
     
-    # Ports
     read -p "Backend port [3001]: " BACKEND_PORT
     BACKEND_PORT=${BACKEND_PORT:-3001}
     [ "$INSTALL_MODE" = "docker" ] && { read -p "Frontend port [5173]: " FRONTEND_PORT; FRONTEND_PORT=${FRONTEND_PORT:-5173}; } || FRONTEND_PORT=80
@@ -197,41 +165,45 @@ ask_config() {
 setup_postgres() {
     log "Setting up PostgreSQL..."
     
-    # Ensure running
     if ! pg_isready -U postgres &>/dev/null; then
         if command -v systemctl &>/dev/null; then
             systemctl start postgresql
         else
             mkdir -p /var/lib/postgresql/data /run/postgresql
             chown postgres:postgres /var/lib/postgresql/data /run/postgresql 2>/dev/null || true
-            su - postgres -c "pg_ctl start -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile" 2>/dev/null || \
-            pg_ctl start -D /var/lib/postgresql/data 2>/dev/null || true
+            su - postgres -c "pg_ctl start -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile" 2>/dev/null || true
         fi
         sleep 2
     fi
     
-    # Create DB and user
     local sql="CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD'; CREATE DATABASE $DB_NAME OWNER $DB_USER; GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
-    
-    su - postgres -c "psql -c \"$sql\"" 2>/dev/null || \
-    sudo -u postgres psql -c "$sql" 2>/dev/null || \
-    psql -U postgres -c "$sql" 2>/dev/null || true
+    su - postgres -c "psql -c \"$sql\"" 2>/dev/null || sudo -u postgres psql -c "$sql" 2>/dev/null || psql -U postgres -c "$sql" 2>/dev/null || true
     
     log_success "PostgreSQL ready"
 }
 
 # =============================================================================
-# Build & Install
+# NPM Install with fallback
 # =============================================================================
+
+npm_install_safe() {
+    log "Installing npm dependencies..."
+    
+    if [ -f "package-lock.json" ]; then
+        log "Found package-lock.json, using npm ci"
+        npm ci
+    else
+        log_warning "No package-lock.json, using npm install"
+        npm install
+    fi
+}
 
 find_entry_point() {
     local dir="$1"
-    # Common entry points
-    for f in "main.js" "index.js" "server.js" "dist/main.js" "dist/index.js" "build/main.js"; do
+    for f in "main.js" "index.js" "server.js" "dist/main.js" "dist/index.js" "dist/server.js" "build/main.js" "build/index.js"; do
         [ -f "$dir/$f" ] && { echo "$f"; return; }
     done
-    # Find any JS file in dist/build
-    find "$dir" -name "*.js" -type f 2>/dev/null | head -1 | sed "s|$dir/||"
+    find "$dir" -name "*.js" -type f 2>/dev/null | grep -E "(main|index|server|app|start)" | head -1 | sed "s|$dir/||"
 }
 
 install_backend() {
@@ -243,34 +215,44 @@ install_backend() {
     [ -d "$target_dir" ] && rm -rf "$target_dir"
     mkdir -p "$target_dir"
     
-    if [ -d "$src_dir" ]; then
-        cd "$src_dir"
-        
-        # Install and build
-        npm ci
-        
-        # Try different build scripts
-        npm run build 2>/dev/null || npm run compile 2>/dev/null || true
-        
-        # Find what was built
-        if [ -d "dist" ]; then
-            cp -r dist/* "$target_dir/"
-            [ -f "package.json" ] && cp package.json "$target_dir/"
-            [ -d "node_modules" ] && cp -r node_modules "$target_dir/"
-        elif [ -d "build" ]; then
-            cp -r build/* "$target_dir/"
-            [ -f "package.json" ] && cp package.json "$target_dir/"
-            [ -d "node_modules" ] && cp -r node_modules "$target_dir/"
-        else
-            # No build directory - copy everything
-            cp -r . "$target_dir/"
-        fi
-        
-        cd "$INSTALL_DIR"
-    else
+    if [ ! -d "$src_dir" ]; then
         log_error "Backend source not found at $src_dir"
         return 1
     fi
+    
+    cd "$src_dir"
+    
+    # Install dependencies (with fallback)
+    npm_install_safe
+    
+    # Build
+    npm run build 2>/dev/null || npm run compile 2>/dev/null || true
+    
+    # Copy files
+    if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then
+        cp -r dist/* "$target_dir/"
+    elif [ -d "build" ] && [ "$(ls -A build 2>/dev/null)" ]; then
+        cp -r build/* "$target_dir/"
+    else
+        # No build output - copy source
+        log_warning "No build directory, copying source files"
+        cp -r . "$target_dir/"
+        # Remove node_modules and reinstall in target to ensure native modules match
+        rm -rf "$target_dir/node_modules"
+        cd "$target_dir"
+        npm_install_safe
+        cd "$src_dir"
+    fi
+    
+    # Ensure node_modules exists in target
+    if [ ! -d "$target_dir/node_modules" ] && [ -d "node_modules" ]; then
+        cp -r node_modules "$target_dir/"
+    fi
+    
+    # Copy package.json if not exists
+    [ -f "$target_dir/package.json" ] || cp package.json "$target_dir/"
+    
+    cd "$INSTALL_DIR"
     
     # Find entry point
     local entry=$(find_entry_point "$target_dir")
@@ -288,8 +270,10 @@ install_backend() {
 #!/bin/bash
 cd \$(dirname "\$0")
 export NODE_ENV=production
-export \$(grep -v '^#' ../.env | xargs 2>/dev/null)
-node $entry
+if [ -f ../.env ]; then
+    export \$(grep -v '^#' ../.env | xargs 2>/dev/null)
+fi
+exec node $entry
 EOF
     chmod +x "$target_dir/start.sh"
 }
@@ -303,24 +287,25 @@ install_frontend() {
     [ -d "$target_dir" ] && rm -rf "$target_dir"
     mkdir -p "$target_dir"
     
-    if [ -d "$src_dir" ]; then
-        cd "$src_dir"
-        npm ci
-        npm run build 2>/dev/null || true
-        
-        if [ -d "dist" ]; then
-            cp -r dist/* "$target_dir/"
-        elif [ -d "build" ]; then
-            cp -r build/* "$target_dir/"
-        else
-            cp -r . "$target_dir/"
-        fi
-        
-        cd "$INSTALL_DIR"
-        log_success "Frontend installed"
-    else
-        log_warning "Frontend source not found, skipping"
+    if [ ! -d "$src_dir" ]; then
+        log_warning "Frontend source not found at $src_dir, skipping"
+        return
     fi
+    
+    cd "$src_dir"
+    npm_install_safe
+    npm run build 2>/dev/null || true
+    
+    if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then
+        cp -r dist/* "$target_dir/"
+    elif [ -d "build" ] && [ "$(ls -A build 2>/dev/null)" ]; then
+        cp -r build/* "$target_dir/"
+    else
+        cp -r . "$target_dir/"
+    fi
+    
+    cd "$INSTALL_DIR"
+    log_success "Frontend installed"
 }
 
 generate_configs() {
@@ -328,7 +313,6 @@ generate_configs() {
     
     mkdir -p "$INSTALL_DIR_SYSTEM" /var/log/bolt
     
-    # Environment
     cat > "$INSTALL_DIR_SYSTEM/.env" << EOF
 DOMAIN=$DOMAIN
 USE_SSL=$USE_SSL
@@ -347,7 +331,6 @@ UPLOAD_DIR=$INSTALL_DIR_SYSTEM/uploads
 MAX_FILE_SIZE=10485760
 EOF
 
-    # Nginx
     local nginx_conf="/etc/nginx/conf.d/bolt.conf"
     [ -d "/etc/nginx/sites-available" ] && nginx_conf="/etc/nginx/sites-available/bolt"
     
@@ -384,13 +367,11 @@ server {
 }
 EOF
 
-    # Enable site
     if [ -d "/etc/nginx/sites-enabled" ]; then
-        ln -sf "$nginx_conf" /etc/nginx/sites-enabled/bolt
+        ln -sf "$nginx_conf" /etc/nginx/sites-enabled/bolt 2>/dev/null || true
         rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
     fi
-    
-    # PM2 Ecosystem
+
     cat > "$INSTALL_DIR_SYSTEM/ecosystem.config.js" << 'EOF'
 module.exports = {
   apps: [{
@@ -418,33 +399,26 @@ EOF
 start_services() {
     log "Starting services..."
     
-    # Reload nginx
     nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || nginx 2>/dev/null || true)
     
-    # Start backend with PM2
     cd "$INSTALL_DIR_SYSTEM"
     pm2 start ecosystem.config.js
     pm2 save 2>/dev/null || true
     
-    # Wait for startup
     local attempt=1
     while [ $attempt -le 30 ]; do
         if curl -s "http://localhost:$BACKEND_PORT/health" &>/dev/null || \
            curl -s "http://localhost:$BACKEND_PORT/api/health" &>/dev/null || \
            curl -s "http://localhost:$BACKEND_PORT" &>/dev/null; then
             log_success "Backend responding on port $BACKEND_PORT"
-            break
+            return
         fi
         sleep 2
         attempt=$((attempt + 1))
     done
     
-    [ $attempt -gt 30 ] && log_warning "Backend may still be starting, check logs: pm2 logs"
+    log_warning "Backend may still be starting, check: pm2 logs"
 }
-
-# =============================================================================
-# Docker Mode
-# =============================================================================
 
 docker_install() {
     log "Docker installation..."
@@ -490,14 +464,15 @@ volumes:
   postgres_data:
 EOF
 
-    # Build frontend first
     if [ -d "app" ]; then
-        cd app && npm ci && npm run build && cd ..
+        cd app
+        [ -f package-lock.json ] && npm ci || npm install
+        npm run build
+        cd ..
     fi
     
     docker-compose up --build -d
     
-    # Wait for health
     local attempt=1
     while [ $attempt -le 30 ]; do
         if curl -s "http://localhost:$BACKEND_PORT/health" &>/dev/null; then
@@ -509,10 +484,6 @@ EOF
     done
     log_warning "Services starting, check: docker-compose logs -f"
 }
-
-# =============================================================================
-# Summary
-# =============================================================================
 
 print_summary() {
     echo ""
@@ -535,10 +506,6 @@ print_summary() {
     fi
     echo ""
 }
-
-# =============================================================================
-# Main
-# =============================================================================
 
 main() {
     mkdir -p /var/log /tmp
