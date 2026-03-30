@@ -453,9 +453,9 @@ start_services() {
 
 print_summary() {
     echo ""
-    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║              Installation Complete!                              ║${NC}"
-    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}╔═════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║              Installation Complete!                             ║${NC}"
+    echo -e "${GREEN}╚═════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo "  Frontend: http://localhost:$FRONTEND_PORT"
     echo "  Backend:  http://localhost:$BACKEND_PORT"
