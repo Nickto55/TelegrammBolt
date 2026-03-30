@@ -156,7 +156,7 @@ export function Login() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold">BOLT</h1>
-          <p className="text-muted-foreground mt-1">Система обработки заявок</p>
+          <p className="text-muted-foreground mt-1">Система управления ДСЕ</p>
         </div>
 
         <Card className="shadow-xl border-0">
