@@ -1,49 +1,29 @@
 #!/bin/bash
 
 # =============================================================================
-# BOLT - Installation Script
+# BOLT - Installation Script v2.3
 # =============================================================================
-# Supports: Docker, Native, or Already inside Docker container
+# Supports: Docker, Native, Container (inside Docker)
+# Auto-detects build output structure
 # =============================================================================
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Colors
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 
-# Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${SCRIPT_DIR}"
 LOG_FILE="/var/log/bolt-install.log"
 INSTALL_DIR_SYSTEM="/opt/bolt"
-
-# Defaults
-DOMAIN=""
-EMAIL=""
-DB_HOST=""
-DB_PORT="5432"
-DB_NAME="bolt_db"
-DB_USER="bolt_user"
-DB_PASSWORD=""
-BACKEND_PORT="3001"
-FRONTEND_PORT="5173"
-USE_EXTERNAL_DB=false
-USE_SSL=false
-INSTALL_MODE="docker"  # docker, native, container
+INSTALL_MODE="docker"
 
 # =============================================================================
-# Helper Functions
+# Helpers
 # =============================================================================
 
-log() {
-    echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
-}
-
+log() { echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"; }
 log_success() { echo -e "${GREEN}[✓]${NC} $1" | tee -a "$LOG_FILE"; }
 log_error() { echo -e "${RED}[✗]${NC} $1" | tee -a "$LOG_FILE"; }
 log_warning() { echo -e "${YELLOW}[!]${NC} $1" | tee -a "$LOG_FILE"; }
@@ -53,362 +33,303 @@ print_banner() {
     clear
     echo -e "${CYAN}"
     echo "╔══════════════════════════════════════════════════════════════════╗"
-    echo "║   ██████╗  ██████╗ ██╗  ████████╗                                ║"
-    echo "║   ██╔══██╗██╔═══██╗██║  ╚══██╔══╝                                ║"
-    echo "║   ██████╔╝██║   ██║██║     ██║                                   ║"
-    echo "║   ██╔══██╗██║   ██║██║     ██║                                   ║"
-    echo "║   ██████╔╝╚██████╔╝███████╗██║                                   ║"
-    echo "║   ╚═════╝  ╚═════╝ ╚══════╝╚═╝                                   ║"
-    echo "║                                                                  ║"
-    echo "║   BOLT Management System - Installation Script                   ║"
-    echo "║   Version: 2.2.0                                                 ║"
+    echo "║   BOLT Management System - Installation Script v2.3              ║"
+    echo "║   Modes: Docker | Native | Container                             ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
-    echo ""
 }
-
-# =============================================================================
-# Detect if running inside Docker
-# =============================================================================
 
 detect_container() {
-    if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
+    [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null
 }
 
 # =============================================================================
-# Installation Mode Selection
+# Mode Selection
 # =============================================================================
 
 ask_installation_mode() {
     echo ""
-    log_info "Installation Mode"
+    log_info "Select Installation Mode"
     echo "─────────────────────────────────────────────────────────────────────"
     
     if detect_container; then
-        echo -e "${YELLOW}⚠ Detected: Running inside Docker container${NC}"
-        echo ""
-        echo "  [1] Native inside container - Install Node.js, PostgreSQL directly here"
-        echo "  [2] Exit - Run this script on host system with Docker instead"
-        echo ""
-        read -p "Select option [1]: " choice
+        echo -e "${YELLOW}⚠ Running inside Docker container${NC}"
+        echo "  [1] Install inside this container (Node.js + PostgreSQL)"
+        echo "  [2] Exit and run on host instead"
+        read -p "Select [1]: " choice
         choice=${choice:-1}
-        
         case $choice in
             1) INSTALL_MODE="container" ;;
-            2) log_info "Exiting..."; exit 0 ;;
-            *) log_error "Invalid option"; exit 1 ;;
+            *) exit 0 ;;
         esac
     else
-        echo "  [1] Docker (recommended) - Full containerization"
-        echo "  [2] Native - Install directly on host server"
-        echo ""
-        read -p "Select option [1]: " choice
+        echo "  [1] Docker (recommended)"
+        echo "  [2] Native (direct install)"
+        read -p "Select [1]: " choice
         choice=${choice:-1}
-        
         case $choice in
             1) INSTALL_MODE="docker" ;;
             2) INSTALL_MODE="native" ;;
-            *) log_error "Invalid option"; exit 1 ;;
+            *) log_error "Invalid"; exit 1 ;;
         esac
     fi
     
-    log "Selected: $INSTALL_MODE installation"
-    echo ""
+    log "Mode: $INSTALL_MODE"
 }
 
 # =============================================================================
-# Dependency Checks
+# Dependencies
 # =============================================================================
+
+install_deps() {
+    local pkgs=("$@")
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "$ID" == "alpine" ]]; then
+            apk add --update ${pkgs[@]}
+        else
+            apt-get update && apt-get install -y ${pkgs[@]}
+        fi
+    fi
+}
 
 check_dependencies() {
     log "Checking dependencies..."
     
-    local missing_deps=()
+    local needed=()
     
     if [ "$INSTALL_MODE" = "docker" ]; then
-        # Docker mode on host
         if ! command -v docker &> /dev/null; then
-            missing_deps+=("docker")
-        else
-            log_success "Docker found: $(docker --version | grep -oP '\d+\.\d+\.\d+')"
-            if ! docker info &> /dev/null; then
-                log_error "Docker daemon not running!"
-                exit 1
+            log "Installing Docker..."
+            install_deps ca-certificates curl gnupg
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+            apt-get update && apt-get install -y docker-ce docker-compose-plugin
+        fi
+        docker info &> /dev/null || { log_error "Docker not running"; exit 1; }
+    else
+        # Node.js
+        if ! command -v node &> /dev/null || [ "$(node --version | cut -d'v' -f2 | cut -d'.' -f1)" -lt 18 ]; then
+            log "Installing Node.js 18..."
+            if [[ "$(cat /etc/os-release 2>/dev/null | grep ^ID=)" == *"alpine"* ]]; then
+                install_deps nodejs npm
+            else
+                curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+                install_deps nodejs
             fi
         fi
+        log_success "Node.js $(node --version)"
         
-        if ! (command -v docker-compose &> /dev/null || docker compose version &> /dev/null); then
-            missing_deps+=("docker-compose")
+        # PostgreSQL
+        if ! command -v psql &> /dev/null; then
+            log "Installing PostgreSQL..."
+            install_deps postgresql postgresql-contrib
+            service postgresql start 2>/dev/null || pg_ctlcluster 16 main start 2>/dev/null || true
         fi
         
-    elif [ "$INSTALL_MODE" = "native" ]; then
-        # Native mode
-        check_native_deps missing_deps
+        # Nginx
+        if ! command -v nginx &> /dev/null; then
+            log "Installing Nginx..."
+            install_deps nginx
+            mkdir -p /run/nginx
+        fi
         
-    elif [ "$INSTALL_MODE" = "container" ]; then
-        # Inside container - need to install everything
-        log_info "Container mode: Will install Node.js, PostgreSQL, Nginx inside this container"
-        check_native_deps missing_deps
+        # PM2
+        if ! command -v pm2 &> /dev/null; then
+            log "Installing PM2..."
+            npm install -g pm2
+        fi
     fi
     
-    # Common checks
+    # Common
     for cmd in git curl openssl; do
-        if ! command -v "$cmd" &> /dev/null; then
-            missing_deps+=("$cmd")
-        else
-            log_success "$cmd found"
-        fi
+        command -v "$cmd" &> /dev/null || needed+=("$cmd")
     done
     
-    if [ ${#missing_deps[@]} -ne 0 ]; then
-        log_info "Installing: ${missing_deps[*]}"
-        install_dependencies "${missing_deps[@]}"
-    else
-        log_success "All dependencies satisfied"
-    fi
-}
-
-check_native_deps() {
-    local -n deps=$1
-    
-    if ! command -v node &> /dev/null; then
-        deps+=("nodejs")
-    else
-        local node_ver=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-        [ "$node_ver" -lt 18 ] && deps+=("nodejs") || log_success "Node.js $(node --version)"
-    fi
-    
-    command -v npm &> /dev/null || deps+=("npm")
-    command -v psql &> /dev/null || deps+=("postgresql")
-    command -v nginx &> /dev/null || deps+=("nginx")
-    command -v pm2 &> /dev/null || deps+=("pm2")
-}
-
-install_dependencies() {
-    local deps=("$@")
-    
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS=$NAME
-    else
-        log_error "Cannot detect OS"
-        exit 1
-    fi
-    
-    log "OS: $OS"
-    
-    for dep in "${deps[@]}"; do
-        case $dep in
-            docker)
-                log "Installing Docker..."
-                if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
-                    apt-get update
-                    apt-get install -y apt-transport-https ca-certificates curl gnupg
-                    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-                    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
-                    apt-get update
-                    apt-get install -y docker-ce docker-compose-plugin
-                fi
-                ;;
-            nodejs)
-                log "Installing Node.js 18..."
-                if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
-                    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-                    apt-get install -y nodejs
-                elif [[ "$OS" == *"Alpine"* ]]; then
-                    apk add --update nodejs npm
-                fi
-                ;;
-            postgresql)
-                log "Installing PostgreSQL..."
-                if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
-                    apt-get update
-                    apt-get install -y postgresql postgresql-contrib
-                    service postgresql start || true
-                elif [[ "$OS" == *"Alpine"* ]]; then
-                    apk add postgresql
-                    mkdir -p /run/postgresql
-                    chown postgres:postgres /run/postgresql
-                    su - postgres -c "initdb -D /var/lib/postgresql/data" || true
-                    su - postgres -c "pg_ctl start -D /var/lib/postgresql/data" || true
-                fi
-                ;;
-            nginx)
-                log "Installing Nginx..."
-                if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
-                    apt-get install -y nginx
-                elif [[ "$OS" == *"Alpine"* ]]; then
-                    apk add nginx
-                fi
-                mkdir -p /run/nginx
-                ;;
-            pm2)
-                log "Installing PM2..."
-                npm install -g pm2
-                ;;
-            git|curl|openssl)
-                if [[ "$OS" == *"Alpine"* ]]; then
-                    apk add "$dep"
-                else
-                    apt-get install -y "$dep"
-                fi
-                ;;
-        esac
-    done
-    
-    log_success "Dependencies installed"
+    [ ${#needed[@]} -gt 0 ] && install_deps "${needed[@]}"
+    log_success "Dependencies OK"
 }
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-ask_domain() {
+ask_config() {
     echo ""
-    log_info "Domain Configuration"
+    log_info "Configuration"
     echo "─────────────────────────────────────────────────────────────────────"
-    read -p "Configure custom domain? (y/N): " -n 1 -r
-    echo
     
+    # Domain
+    read -p "Custom domain? (y/N): " -n 1 -r
+    echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        read -p "Domain (e.g., bolt.example.com): " DOMAIN
-        [ -z "$DOMAIN" ] && { log_error "Domain empty"; exit 1; }
-        
-        read -p "Enable SSL with Let's Encrypt? (y/N): " -n 1 -r
+        read -p "Domain: " DOMAIN
+        read -p "SSL with Let's Encrypt? (y/N): " -n 1 -r
         echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            USE_SSL=true
-            read -p "Email for Let's Encrypt: " EMAIL
-            [ -z "$EMAIL" ] && { log_error "Email required"; exit 1; }
-        fi
+        [[ $REPLY =~ ^[Yy]$ ]] && { USE_SSL=true; read -p "Email: " EMAIL; }
     else
         DOMAIN="localhost"
-        log "Using localhost"
-    fi
-}
-
-ask_database() {
-    echo ""
-    log_info "Database Configuration"
-    echo "─────────────────────────────────────────────────────────────────────"
-    
-    if [ "$INSTALL_MODE" = "container" ]; then
-        log_info "Container mode: Using local PostgreSQL"
-        USE_EXTERNAL_DB=false
-        DB_HOST="localhost"
-        DB_PORT="5432"
-        DB_NAME="bolt_db"
-        DB_USER="bolt_user"
-        DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
-        setup_local_postgres
-        return
     fi
     
-    read -p "Use external PostgreSQL? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        USE_EXTERNAL_DB=true
-        read -p "DB Host: " DB_HOST
-        read -p "DB Port [5432]: " DB_PORT; DB_PORT=${DB_PORT:-5432}
-        read -p "DB Name [bolt_db]: " DB_NAME; DB_NAME=${DB_NAME:-bolt_db}
-        read -p "DB User [bolt_user]: " DB_USER; DB_USER=${DB_USER:-bolt_user}
-        read -s -p "DB Password: " DB_PASSWORD; echo
-        [ -z "$DB_PASSWORD" ] && { log_error "Password required"; exit 1; }
-    else
-        USE_EXTERNAL_DB=false
-        if [ "$INSTALL_MODE" = "docker" ]; then
-            DB_HOST="postgres"
-            DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
-        else
-            DB_HOST="localhost"
-            DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
-            setup_local_postgres
-        fi
-        DB_NAME="bolt_db"
-        DB_USER="bolt_user"
-        DB_PORT="5432"
-    fi
-}
-
-setup_local_postgres() {
-    log "Setting up PostgreSQL..."
-    
-    if command -v systemctl &> /dev/null; then
-        # Systemd system
-        sudo -u postgres psql << EOF 2>/dev/null || true
-CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';
-CREATE DATABASE $DB_NAME OWNER $DB_USER;
-GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
-EOF
-        sudo systemctl restart postgresql 2>/dev/null || true
-    else
-        # Container/no systemd - run postgres manually
-        if [ ! -d "/var/lib/postgresql/data" ] || [ -z "$(ls -A /var/lib/postgresql/data 2>/dev/null)" ]; then
-            mkdir -p /var/lib/postgresql/data
-            chown postgres:postgres /var/lib/postgresql/data
-            su - postgres -c "initdb -D /var/lib/postgresql/data" 2>/dev/null || true
-        fi
-        
-        # Start PostgreSQL if not running
-        if ! pg_isready -U postgres &> /dev/null; then
-            su - postgres -c "pg_ctl start -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile" 2>/dev/null || \
-            pg_ctl start -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile 2>/dev/null || true
-            sleep 3
-        fi
-        
-        # Create user and database
-        su - postgres -c "psql << EOF
-CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';
-CREATE DATABASE $DB_NAME OWNER $DB_USER;
-GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
-EOF" 2>/dev/null || \
-        psql -U postgres << EOF 2>/dev/null || true
-CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';
-CREATE DATABASE $DB_NAME OWNER $DB_USER;
-GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
-EOF
-    fi
-    
-    log_success "PostgreSQL configured"
-}
-
-ask_ports() {
-    echo ""
-    log_info "Port Configuration"
-    echo "─────────────────────────────────────────────────────────────────────"
-    
-    read -p "Backend port [3001]: " BACKEND_PORT
-    BACKEND_PORT=${BACKEND_PORT:-3001}
+    # Database
+    DB_NAME="bolt_db"
+    DB_USER="bolt_user"
+    DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
     
     if [ "$INSTALL_MODE" = "docker" ]; then
-        read -p "Frontend port [5173]: " FRONTEND_PORT
-        FRONTEND_PORT=${FRONTEND_PORT:-5173}
+        DB_HOST="postgres"
+        USE_EXTERNAL_DB=false
     else
-        FRONTEND_PORT="80"
-        log "Frontend will use port 80 (Nginx)"
+        DB_HOST="localhost"
+        USE_EXTERNAL_DB=false
+        setup_postgres
     fi
     
-    log "Backend: $BACKEND_PORT, Frontend: $FRONTEND_PORT"
+    # Ports
+    read -p "Backend port [3001]: " BACKEND_PORT
+    BACKEND_PORT=${BACKEND_PORT:-3001}
+    [ "$INSTALL_MODE" = "docker" ] && { read -p "Frontend port [5173]: " FRONTEND_PORT; FRONTEND_PORT=${FRONTEND_PORT:-5173}; } || FRONTEND_PORT=80
+    
+    log "Config: $DOMAIN, Backend:$BACKEND_PORT, DB:$DB_HOST"
+}
+
+setup_postgres() {
+    log "Setting up PostgreSQL..."
+    
+    # Ensure running
+    if ! pg_isready -U postgres &>/dev/null; then
+        if command -v systemctl &>/dev/null; then
+            systemctl start postgresql
+        else
+            mkdir -p /var/lib/postgresql/data /run/postgresql
+            chown postgres:postgres /var/lib/postgresql/data /run/postgresql 2>/dev/null || true
+            su - postgres -c "pg_ctl start -D /var/lib/postgresql/data -l /var/lib/postgresql/logfile" 2>/dev/null || \
+            pg_ctl start -D /var/lib/postgresql/data 2>/dev/null || true
+        fi
+        sleep 2
+    fi
+    
+    # Create DB and user
+    local sql="CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD'; CREATE DATABASE $DB_NAME OWNER $DB_USER; GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
+    
+    su - postgres -c "psql -c \"$sql\"" 2>/dev/null || \
+    sudo -u postgres psql -c "$sql" 2>/dev/null || \
+    psql -U postgres -c "$sql" 2>/dev/null || true
+    
+    log_success "PostgreSQL ready"
 }
 
 # =============================================================================
-# Environment & Configs
+# Build & Install
 # =============================================================================
 
-generate_env_file() {
-    log "Generating .env..."
+find_entry_point() {
+    local dir="$1"
+    # Common entry points
+    for f in "main.js" "index.js" "server.js" "dist/main.js" "dist/index.js" "build/main.js"; do
+        [ -f "$dir/$f" ] && { echo "$f"; return; }
+    done
+    # Find any JS file in dist/build
+    find "$dir" -name "*.js" -type f 2>/dev/null | head -1 | sed "s|$dir/||"
+}
+
+install_backend() {
+    log "Installing Backend..."
     
-    local jwt_secret=$(openssl rand -base64 32)
-    local env_path="$INSTALL_DIR/.env"
-    [ "$INSTALL_MODE" != "docker" ] && env_path="$INSTALL_DIR_SYSTEM/.env"
+    local src_dir="$INSTALL_DIR/bolt-backend"
+    local target_dir="$INSTALL_DIR_SYSTEM/backend"
     
-    mkdir -p "$(dirname "$env_path")"
+    [ -d "$target_dir" ] && rm -rf "$target_dir"
+    mkdir -p "$target_dir"
     
-    cat > "$env_path" << EOF
+    if [ -d "$src_dir" ]; then
+        cd "$src_dir"
+        
+        # Install and build
+        npm ci
+        
+        # Try different build scripts
+        npm run build 2>/dev/null || npm run compile 2>/dev/null || true
+        
+        # Find what was built
+        if [ -d "dist" ]; then
+            cp -r dist/* "$target_dir/"
+            [ -f "package.json" ] && cp package.json "$target_dir/"
+            [ -d "node_modules" ] && cp -r node_modules "$target_dir/"
+        elif [ -d "build" ]; then
+            cp -r build/* "$target_dir/"
+            [ -f "package.json" ] && cp package.json "$target_dir/"
+            [ -d "node_modules" ] && cp -r node_modules "$target_dir/"
+        else
+            # No build directory - copy everything
+            cp -r . "$target_dir/"
+        fi
+        
+        cd "$INSTALL_DIR"
+    else
+        log_error "Backend source not found at $src_dir"
+        return 1
+    fi
+    
+    # Find entry point
+    local entry=$(find_entry_point "$target_dir")
+    if [ -z "$entry" ]; then
+        log_error "Cannot find entry point in $target_dir"
+        ls -la "$target_dir"
+        return 1
+    fi
+    
+    log_success "Backend entry: $entry"
+    echo "$entry" > "$target_dir/.entrypoint"
+    
+    # Create startup script
+    cat > "$target_dir/start.sh" << EOF
+#!/bin/bash
+cd \$(dirname "\$0")
+export NODE_ENV=production
+export \$(grep -v '^#' ../.env | xargs 2>/dev/null)
+node $entry
+EOF
+    chmod +x "$target_dir/start.sh"
+}
+
+install_frontend() {
+    log "Installing Frontend..."
+    
+    local src_dir="$INSTALL_DIR/app"
+    local target_dir="$INSTALL_DIR_SYSTEM/frontend"
+    
+    [ -d "$target_dir" ] && rm -rf "$target_dir"
+    mkdir -p "$target_dir"
+    
+    if [ -d "$src_dir" ]; then
+        cd "$src_dir"
+        npm ci
+        npm run build 2>/dev/null || true
+        
+        if [ -d "dist" ]; then
+            cp -r dist/* "$target_dir/"
+        elif [ -d "build" ]; then
+            cp -r build/* "$target_dir/"
+        else
+            cp -r . "$target_dir/"
+        fi
+        
+        cd "$INSTALL_DIR"
+        log_success "Frontend installed"
+    else
+        log_warning "Frontend source not found, skipping"
+    fi
+}
+
+generate_configs() {
+    log "Generating configs..."
+    
+    mkdir -p "$INSTALL_DIR_SYSTEM" /var/log/bolt
+    
+    # Environment
+    cat > "$INSTALL_DIR_SYSTEM/.env" << EOF
 DOMAIN=$DOMAIN
 USE_SSL=$USE_SSL
 DB_HOST=$DB_HOST
@@ -416,93 +337,123 @@ DB_PORT=$DB_PORT
 DB_NAME=$DB_NAME
 DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
-JWT_SECRET=$jwt_secret
+JWT_SECRET=$(openssl rand -base64 32)
 JWT_EXPIRES_IN=7d
 BACKEND_PORT=$BACKEND_PORT
 FRONTEND_PORT=$FRONTEND_PORT
 NODE_ENV=production
-CORS_ORIGIN=http://localhost:$([ "$INSTALL_MODE" = "docker" ] && echo "$FRONTEND_PORT" || echo "80")
-UPLOAD_DIR=$([ "$INSTALL_MODE" = "docker" ] && echo "./uploads" || echo "/opt/bolt/uploads")
+CORS_ORIGIN=http://localhost:$FRONTEND_PORT
+UPLOAD_DIR=$INSTALL_DIR_SYSTEM/uploads
 MAX_FILE_SIZE=10485760
-LETSENCRYPT_EMAIL=$EMAIL
 EOF
 
-    log_success "Environment file created"
-}
-
-generate_nginx_config() {
-    log "Generating Nginx config..."
+    # Nginx
+    local nginx_conf="/etc/nginx/conf.d/bolt.conf"
+    [ -d "/etc/nginx/sites-available" ] && nginx_conf="/etc/nginx/sites-available/bolt"
     
-    local nginx_conf=""
-    local upstream_host=$([ "$INSTALL_MODE" = "docker" ] && echo "backend" || echo "localhost")
-    
-    if [ "$INSTALL_MODE" = "docker" ]; then
-        mkdir -p "$INSTALL_DIR/nginx"
-        nginx_conf="$INSTALL_DIR/nginx/nginx.conf"
-    else
-        mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || \
-        mkdir -p /etc/nginx/conf.d 2>/dev/null || true
-        nginx_conf="/etc/nginx/sites-available/bolt"
-        [ -d "/etc/nginx/conf.d" ] && nginx_conf="/etc/nginx/conf.d/bolt.conf"
-    fi
+    mkdir -p "$(dirname "$nginx_conf")"
     
     cat > "$nginx_conf" << EOF
 server {
     listen 80;
     server_name $DOMAIN;
-    
-    root $([ "$INSTALL_MODE" = "docker" ] && echo "/usr/share/nginx/html" || echo "$INSTALL_DIR_SYSTEM/frontend");
+    root $INSTALL_DIR_SYSTEM/frontend;
     index index.html;
-
+    
     location / {
-        try_files \\\$uri \\\$uri/ /index.html;
+        try_files \$uri \$uri/ /index.html;
     }
-
+    
     location /api {
-        proxy_pass http://$upstream_host:$BACKEND_PORT;
+        proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \\\$http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 86400;
     }
-
+    
     location /socket.io {
-        proxy_pass http://$upstream_host:$BACKEND_PORT;
+        proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \\\$http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 86400;
     }
 }
 EOF
 
-    # Enable site for native mode
-    if [ "$INSTALL_MODE" != "docker" ]; then
-        if [ -d "/etc/nginx/sites-enabled" ]; then
-            ln -sf "$nginx_conf" /etc/nginx/sites-enabled/bolt 2>/dev/null || true
-            rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
-        fi
-        nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || nginx 2>/dev/null || true)
+    # Enable site
+    if [ -d "/etc/nginx/sites-enabled" ]; then
+        ln -sf "$nginx_conf" /etc/nginx/sites-enabled/bolt
+        rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
     fi
     
-    log_success "Nginx configured"
+    # PM2 Ecosystem
+    cat > "$INSTALL_DIR_SYSTEM/ecosystem.config.js" << 'EOF'
+module.exports = {
+  apps: [{
+    name: 'bolt-backend',
+    cwd: '/opt/bolt/backend',
+    script: './start.sh',
+    exec_mode: 'fork',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: { NODE_ENV: 'production' },
+    log_file: '/var/log/bolt/backend.log',
+    out_file: '/var/log/bolt/backend.out.log',
+    error_file: '/var/log/bolt/backend.error.log',
+    merge_logs: true,
+    time: true
+  }]
+};
+EOF
+
+    log_success "Configs generated"
 }
 
-generate_docker_compose() {
-    [ "$INSTALL_MODE" != "docker" ] && return
+start_services() {
+    log "Starting services..."
     
-    log "Generating docker-compose.yml..."
+    # Reload nginx
+    nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || nginx 2>/dev/null || true)
+    
+    # Start backend with PM2
+    cd "$INSTALL_DIR_SYSTEM"
+    pm2 start ecosystem.config.js
+    pm2 save 2>/dev/null || true
+    
+    # Wait for startup
+    local attempt=1
+    while [ $attempt -le 30 ]; do
+        if curl -s "http://localhost:$BACKEND_PORT/health" &>/dev/null || \
+           curl -s "http://localhost:$BACKEND_PORT/api/health" &>/dev/null || \
+           curl -s "http://localhost:$BACKEND_PORT" &>/dev/null; then
+            log_success "Backend responding on port $BACKEND_PORT"
+            break
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    
+    [ $attempt -gt 30 ] && log_warning "Backend may still be starting, check logs: pm2 logs"
+}
+
+# =============================================================================
+# Docker Mode
+# =============================================================================
+
+docker_install() {
+    log "Docker installation..."
     
     cat > "$INSTALL_DIR/docker-compose.yml" << EOF
 version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: bolt-postgres
-    restart: unless-stopped
     environment:
       POSTGRES_DB: $DB_NAME
       POSTGRES_USER: $DB_USER
@@ -511,139 +462,52 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "$DB_PORT:5432"
-    networks:
-      - bolt-network
-
   backend:
-    build:
-      context: ./bolt-backend
-      dockerfile: Dockerfile
-    container_name: bolt-backend
-    restart: unless-stopped
-    env_file:
-      - .env
+    build: ./bolt-backend
     environment:
       - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=$DB_NAME
+      - DB_USER=$DB_USER
+      - DB_PASSWORD=$DB_PASSWORD
+      - JWT_SECRET=$(openssl rand -base64 32)
+      - PORT=3001
     ports:
       - "$BACKEND_PORT:3001"
     volumes:
       - ./uploads:/app/uploads
     depends_on:
       - postgres
-    networks:
-      - bolt-network
-
   frontend:
     image: nginx:alpine
-    container_name: bolt-frontend
-    restart: unless-stopped
     ports:
       - "$FRONTEND_PORT:80"
     volumes:
       - ./app/dist:/usr/share/nginx/html:ro
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
-    networks:
-      - bolt-network
-
 volumes:
   postgres_data:
-
-networks:
-  bolt-network:
 EOF
 
-    log_success "Docker Compose created"
-}
-
-# =============================================================================
-# Installation
-# =============================================================================
-
-install_native() {
-    log "Native installation..."
-    
-    mkdir -p "$INSTALL_DIR_SYSTEM"/{backend,frontend,uploads,logs}
-    
-    # Backend
-    if [ -d "bolt-backend" ]; then
-        cd bolt-backend
-        npm ci
-        npm run build
-        cp -r dist/* "$INSTALL_DIR_SYSTEM/backend/"
-        cp -r node_modules "$INSTALL_DIR_SYSTEM/backend/"
-        cp package.json "$INSTALL_DIR_SYSTEM/backend/"
-        cd ..
-    fi
-    
-    # Frontend
+    # Build frontend first
     if [ -d "app" ]; then
-        cd app
-        npm ci
-        npm run build
-        cp -r dist/* "$INSTALL_DIR_SYSTEM/frontend/"
-        cd ..
+        cd app && npm ci && npm run build && cd ..
     fi
     
-    # PM2 config
-    cat > "$INSTALL_DIR_SYSTEM/ecosystem.config.js" << EOF
-module.exports = {
-  apps: [{
-    name: 'bolt-backend',
-    script: '$INSTALL_DIR_SYSTEM/backend/main.js',
-    env: { NODE_ENV: 'production' },
-    env_file: '$INSTALL_DIR_SYSTEM/.env',
-    log_file: '/var/log/bolt/backend.log',
-    restart_delay: 3000
-  }]
-};
-EOF
-
-    # Start services
-    if command -v pm2 &> /dev/null; then
-        cd "$INSTALL_DIR_SYSTEM"
-        pm2 start ecosystem.config.js
-        pm2 save 2>/dev/null || true
-    else
-        # Direct node execution
-        cd "$INSTALL_DIR_SYSTEM/backend"
-        nohup node main.js > /var/log/bolt/backend.log 2>&1 &
-    fi
+    docker-compose up --build -d
     
-    # Start nginx
-    if command -v nginx &> /dev/null; then
-        nginx 2>/dev/null || nginx -s reload 2>/dev/null || true
-    fi
-}
-
-install_container() {
-    log "Container mode installation..."
-    
-    # Same as native but optimized for container environment
-    install_native
-    
-    # Keep container running
-    log_info "Setup complete. Use 'tail -f /var/log/bolt/backend.log' to monitor"
-    log_info "Or run: pm2 logs"
-}
-
-install_docker() {
-    log "Docker installation..."
-    
-    docker-compose build backend
-    docker-compose up -d
-    
-    # Wait for startup
+    # Wait for health
     local attempt=1
     while [ $attempt -le 30 ]; do
-        if curl -s "http://localhost:$BACKEND_PORT/health" > /dev/null 2>&1; then
+        if curl -s "http://localhost:$BACKEND_PORT/health" &>/dev/null; then
             log_success "Services ready"
-            break
+            return
         fi
         sleep 2
         attempt=$((attempt + 1))
     done
+    log_warning "Services starting, check: docker-compose logs -f"
 }
 
 # =============================================================================
@@ -653,24 +517,21 @@ install_docker() {
 print_summary() {
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                    Installation Complete!                        ║${NC}"
+    echo -e "${GREEN}║              Installation Complete!                              ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     log_info "Mode: ${INSTALL_MODE^^}"
-    echo ""
-    echo "  Frontend: http://localhost:$([ "$INSTALL_MODE" = "docker" ] && echo "$FRONTEND_PORT" || echo "80")"
+    echo "  Frontend: http://localhost:$FRONTEND_PORT"
     echo "  Backend:  http://localhost:$BACKEND_PORT"
-    echo ""
     echo "  Admin:    admin / admin123"
     echo ""
     
     if [ "$INSTALL_MODE" = "docker" ]; then
-        echo "  Commands:"
-        echo "    docker-compose logs -f"
-        echo "    docker-compose down"
+        echo "  docker-compose logs -f"
+        echo "  docker-compose down"
     else
-        echo "  Logs: tail -f /var/log/bolt/backend.log"
-        [ -f "$INSTALL_DIR_SYSTEM/ecosystem.config.js" ] && echo "    pm2 status"
+        echo "  Logs: pm2 logs  или  tail -f /var/log/bolt/*.log"
+        echo "  PM2:  pm2 status | restart | stop"
     fi
     echo ""
 }
@@ -680,7 +541,7 @@ print_summary() {
 # =============================================================================
 
 main() {
-    mkdir -p /var/log
+    mkdir -p /var/log /tmp
     touch "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/bolt-install.log"
     
     print_banner
@@ -688,27 +549,19 @@ main() {
     
     ask_installation_mode
     check_dependencies
-    ask_domain
-    ask_database
-    ask_ports
-    generate_env_file
-    generate_nginx_config
+    ask_config
     
-    case $INSTALL_MODE in
-        docker)
-            generate_docker_compose
-            install_docker
-            ;;
-        native)
-            install_native
-            ;;
-        container)
-            install_container
-            ;;
-    esac
+    if [ "$INSTALL_MODE" = "docker" ]; then
+        docker_install
+    else
+        install_backend
+        install_frontend
+        generate_configs
+        start_services
+    fi
     
     print_summary
 }
 
-trap 'log_error "Interrupted"; exit 1' INT TERM
+trap 'echo; log_error "Interrupted"; exit 1' INT TERM
 main "$@"
