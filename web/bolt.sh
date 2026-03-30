@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # =============================================================================
-# BOLT - Management Script
+# BOLT - Management Script v2.0
 # =============================================================================
 # Usage: ./bolt.sh [command] [options]
+# Supports: Docker, Native, and Container modes
 # =============================================================================
 
 set -e
@@ -17,8 +18,24 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+INSTALL_DIR_SYSTEM="/opt/bolt"
 ENV_FILE="$SCRIPT_DIR/.env"
+[ -f "$INSTALL_DIR_SYSTEM/.env" ] && ENV_FILE="$INSTALL_DIR_SYSTEM/.env"
+
+# Detect installation mode
+detect_mode() {
+    if [ -f "$SCRIPT_DIR/docker-compose.yml" ] && [ -d "$SCRIPT_DIR/.git" ] 2>/dev/null; then
+        echo "docker"
+    elif [ -d "$INSTALL_DIR_SYSTEM/backend" ] && [ -f "$INSTALL_DIR_SYSTEM/ecosystem.config.js" ]; then
+        echo "native"
+    elif [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
+        echo "container"
+    else
+        echo "unknown"
+    fi
+}
+
+INSTALL_MODE=$(detect_mode)
 
 # =============================================================================
 # Helper Functions
@@ -31,9 +48,10 @@ warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 info() { echo -e "${CYAN}[i]${NC} $1"; }
 
 print_help() {
-    cat << 'EOF'
+    cat << EOF
 ╔══════════════════════════════════════════════════════════════════╗
-║                    BOLT Management Script                        ║
+║                    BOLT Management Script v2.0                   ║
+║                    Mode: ${INSTALL_MODE^^}                                 ║
 ╚══════════════════════════════════════════════════════════════════╝
 
 Usage: ./bolt.sh [command] [options]
@@ -43,20 +61,13 @@ Commands:
   stop               Stop all services
   restart            Restart all services
   status             Show service status
-  logs [service]     View logs (optionally for specific service)
+  logs [service]     View logs (backend/frontend/postgres/nginx)
   update             Update to latest version
   backup             Create manual backup
   restore [file]     Restore from backup file
-  shell [service]    Open shell in container (backend/frontend/postgres)
-  db [command]       Database operations
-    db backup        Backup database
-    db restore       Restore database
-    db migrate       Run migrations
-    db console       Open psql console
-  cert [command]     SSL certificate operations
-    cert renew       Renew Let's Encrypt certificate
-    cert status      Check certificate status
-  clean              Clean up unused Docker resources
+  shell [service]    Open shell (backend/postgres/nginx)
+  db [command]       Database operations (backup/restore/console)
+  clean              Clean up resources
   reset              Reset all data (DANGEROUS!)
   install            Run full installation
   help               Show this help message
@@ -64,9 +75,8 @@ Commands:
 Examples:
   ./bolt.sh start                    # Start all services
   ./bolt.sh logs backend             # View backend logs
-  ./bolt.sh shell postgres           # Open PostgreSQL console
   ./bolt.sh db backup                # Backup database
-  ./bolt.sh cert renew               # Renew SSL certificate
+  ./bolt.sh shell postgres           # Open database console
 
 EOF
 }
@@ -76,7 +86,6 @@ check_docker() {
         error "Docker is not installed"
         exit 1
     fi
-    
     if ! docker info &> /dev/null; then
         error "Docker daemon is not running"
         exit 1
@@ -85,36 +94,39 @@ check_docker() {
 
 load_env() {
     if [ -f "$ENV_FILE" ]; then
-        export $(grep -v '^#' "$ENV_FILE" | xargs)
+        set -a
+        source "$ENV_FILE"
+        set +a
     else
         warn "Environment file not found: $ENV_FILE"
     fi
 }
 
 # =============================================================================
-# Service Management
+# Service Management - Docker Mode
 # =============================================================================
 
-cmd_start() {
-    log "Starting BOLT services..."
+docker_start() {
+    log "Starting BOLT services (Docker)..."
     check_docker
     cd "$SCRIPT_DIR"
     docker-compose up -d
     success "Services started"
     
-    info "Waiting for services to be ready..."
+    info "Waiting for services..."
     sleep 5
     
-    if curl -s "http://localhost:${BACKEND_PORT:-3001}/health" > /dev/null 2>&1; then
-        success "Backend is ready at http://localhost:${BACKEND_PORT:-3001}"
+    if curl -s "http://localhost:${BACKEND_PORT:-3001}/health" > /dev/null 2>&1 || \
+       curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
+        success "Backend ready at http://localhost:${BACKEND_PORT:-3001}"
     else
         warn "Backend may still be starting..."
     fi
     
-    info "Frontend available at http://localhost:${FRONTEND_PORT:-5173}"
+    info "Frontend: http://localhost:${FRONTEND_PORT:-5173}"
 }
 
-cmd_stop() {
+docker_stop() {
     log "Stopping BOLT services..."
     check_docker
     cd "$SCRIPT_DIR"
@@ -122,54 +134,48 @@ cmd_stop() {
     success "Services stopped"
 }
 
-cmd_restart() {
-    log "Restarting BOLT services..."
-    cmd_stop
+docker_restart() {
+    log "Restarting..."
+    docker_stop
     sleep 2
-    cmd_start
+    docker_start
 }
 
-cmd_status() {
-    log "Service Status"
+docker_status() {
+    log "Service Status (Docker)"
     echo "─────────────────────────────────────────────────────────────────────"
-    
     check_docker
     cd "$SCRIPT_DIR"
-    
-    # Docker Compose status
     docker-compose ps
     
     echo ""
     info "Health Checks"
     echo "─────────────────────────────────────────────────────────────────────"
     
-    # Backend health
-    if curl -s "http://localhost:${BACKEND_PORT:-3001}/health" > /dev/null 2>&1; then
+    if curl -s "http://localhost:${BACKEND_PORT:-3001}/health" > /dev/null 2>&1 || \
+       curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
         success "Backend API: OK"
     else
         error "Backend API: Not responding"
     fi
     
-    # Frontend
     if curl -s "http://localhost:${FRONTEND_PORT:-5173}" > /dev/null 2>&1; then
         success "Frontend: OK"
     else
         error "Frontend: Not responding"
     fi
     
-    # Database
     if docker-compose exec -T postgres pg_isready -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" > /dev/null 2>&1; then
         success "Database: OK"
     else
-        warn "Database: Check skipped or not available"
+        warn "Database: Check skipped"
     fi
 }
 
-cmd_logs() {
+docker_logs() {
     local service="$1"
     check_docker
     cd "$SCRIPT_DIR"
-    
     if [ -n "$service" ]; then
         docker-compose logs -f "$service"
     else
@@ -178,143 +184,368 @@ cmd_logs() {
 }
 
 # =============================================================================
+# Service Management - Native/Container Mode
+# =============================================================================
+
+native_start() {
+    log "Starting BOLT services (Native)..."
+    
+    # Start PostgreSQL if local
+    if command -v systemctl &> /dev/null && systemctl is-active --quiet postgresql 2>/dev/null; then
+        success "PostgreSQL already running"
+    elif command -v service &> /dev/null; then
+        service postgresql start 2>/dev/null || true
+    fi
+    
+    # Start Nginx
+    if command -v systemctl &> /dev/null; then
+        systemctl start nginx 2>/dev/null || true
+    elif command -v service &> /dev/null; then
+        service nginx start 2>/dev/null || true
+    else
+        nginx 2>/dev/null || true
+    fi
+    
+    # Start Backend with PM2
+    if command -v pm2 &> /dev/null; then
+        cd "$INSTALL_DIR_SYSTEM"
+        pm2 start ecosystem.config.js 2>/dev/null || pm2 restart ecosystem.config.js
+        pm2 save
+        success "Backend started with PM2"
+    else
+        # Direct start
+        cd "$INSTALL_DIR_SYSTEM/backend"
+        nohup ./start.sh > /var/log/bolt/backend.log 2>&1 &
+        success "Backend started directly"
+    fi
+    
+    sleep 3
+    if curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
+        success "Backend ready on port ${BACKEND_PORT:-3001}"
+    fi
+}
+
+native_stop() {
+    log "Stopping BOLT services..."
+    
+    if command -v pm2 &> /dev/null; then
+        pm2 stop bolt-backend 2>/dev/null || true
+        pm2 delete bolt-backend 2>/dev/null || true
+    fi
+    
+    # Kill node processes
+    pkill -f "node.*main.js" 2>/dev/null || true
+    
+    if command -v systemctl &> /dev/null; then
+        systemctl stop nginx 2>/dev/null || true
+    elif command -v service &> /dev/null; then
+        service nginx stop 2>/dev/null || true
+    fi
+    
+    success "Services stopped"
+}
+
+native_restart() {
+    native_stop
+    sleep 2
+    native_start
+}
+
+native_status() {
+    log "Service Status (Native)"
+    echo "─────────────────────────────────────────────────────────────────────"
+    
+    # Check PM2
+    if command -v pm2 &> /dev/null; then
+        pm2 status
+    fi
+    
+    echo ""
+    info "Process Checks"
+    echo "─────────────────────────────────────────────────────────────────────"
+    
+    if pgrep -f "node.*main.js" > /dev/null; then
+        success "Backend process: Running"
+    else
+        error "Backend process: Not running"
+    fi
+    
+    if curl -s "http://localhost:${BACKEND_PORT:-3001}" > /dev/null 2>&1; then
+        success "Backend API: Responding"
+    else
+        error "Backend API: Not responding"
+    fi
+    
+    if curl -s "http://localhost:80" > /dev/null 2>&1; then
+        success "Nginx: Responding"
+    else
+        warn "Nginx: Check manually"
+    fi
+    
+    if pgrep nginx > /dev/null; then
+        success "Nginx process: Running"
+    fi
+}
+
+native_logs() {
+    local service="$1"
+    
+    case "$service" in
+        backend|api)
+            if [ -f "/var/log/bolt/backend.log" ]; then
+                tail -f "/var/log/bolt/backend.log"
+            elif command -v pm2 &> /dev/null; then
+                pm2 logs bolt-backend
+            else
+                error "No logs found"
+            fi
+            ;;
+        nginx)
+            tail -f /var/log/nginx/access.log /var/log/nginx/error.log 2>/dev/null || \
+            tail -f /var/log/nginx/*.log 2>/dev/null || \
+            error "Nginx logs not found"
+            ;;
+        postgres|db)
+            if [ -f "/var/log/postgresql/postgresql.log" ]; then
+                tail -f /var/log/postgresql/postgresql.log
+            else
+                error "PostgreSQL logs not found"
+            fi
+            ;;
+        *)
+            info "Available logs: backend, nginx, postgres"
+            ;;
+    esac
+}
+
+# =============================================================================
+# Unified Commands
+# =============================================================================
+
+cmd_start() {
+    load_env
+    case "$INSTALL_MODE" in
+        docker) docker_start ;;
+        native|container) native_start ;;
+        *) error "Unknown installation mode"; exit 1 ;;
+    esac
+}
+
+cmd_stop() {
+    load_env
+    case "$INSTALL_MODE" in
+        docker) docker_stop ;;
+        native|container) native_stop ;;
+        *) error "Unknown installation mode"; exit 1 ;;
+    esac
+}
+
+cmd_restart() {
+    load_env
+    case "$INSTALL_MODE" in
+        docker) docker_restart ;;
+        native|container) native_restart ;;
+        *) error "Unknown installation mode"; exit 1 ;;
+    esac
+}
+
+cmd_status() {
+    load_env
+    case "$INSTALL_MODE" in
+        docker) docker_status ;;
+        native|container) native_status ;;
+        *) error "Unknown installation mode"; exit 1 ;;
+    esac
+}
+
+cmd_logs() {
+    load_env
+    case "$INSTALL_MODE" in
+        docker) docker_logs "$1" ;;
+        native|container) native_logs "$1" ;;
+        *) error "Unknown installation mode"; exit 1 ;;
+    esac
+}
+
+# =============================================================================
 # Update & Maintenance
 # =============================================================================
 
 cmd_update() {
     log "Updating BOLT..."
-    check_docker
-    cd "$SCRIPT_DIR"
+    load_env
     
-    # Pull latest images
-    docker-compose pull
-    
-    # Rebuild local images
-    docker-compose build --no-cache
-    
-    # Restart services
-    docker-compose up -d
+    case "$INSTALL_MODE" in
+        docker)
+            check_docker
+            cd "$SCRIPT_DIR"
+            docker-compose pull
+            docker-compose build --no-cache
+            docker-compose up -d
+            ;;
+        native|container)
+            cd "$SCRIPT_DIR"
+            git pull 2>/dev/null || warn "Git pull failed"
+            bash install.sh
+            ;;
+    esac
     
     success "Update completed"
 }
 
 cmd_backup() {
+    load_env
     local backup_dir="${SCRIPT_DIR}/backups"
-    local date_stamp=$(date +%Y%m%d_%H%M%S)
+    [ "$INSTALL_MODE" = "native" ] && backup_dir="/var/backups/bolt"
     
     mkdir -p "$backup_dir"
+    local date_stamp=$(date +%Y%m%d_%H%M%S)
     
     log "Creating backup..."
     
-    # Backup database
-    if docker-compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" > "$backup_dir/db_$date_stamp.sql" 2>/dev/null; then
-        gzip "$backup_dir/db_$date_stamp.sql"
-        success "Database backup: backups/db_$date_stamp.sql.gz"
+    # Database backup
+    case "$INSTALL_MODE" in
+        docker)
+            if docker-compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" > "$backup_dir/db_$date_stamp.sql" 2>/dev/null; then
+                gzip "$backup_dir/db_$date_stamp.sql"
+                success "Database: db_$date_stamp.sql.gz"
+            fi
+            ;;
+        native|container)
+            if command -v pg_dump &> /dev/null; then
+                pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" | gzip > "$backup_dir/db_$date_stamp.sql.gz" 2>/dev/null || \
+                sudo -u postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" | gzip > "$backup_dir/db_$date_stamp.sql.gz"
+                success "Database: db_$date_stamp.sql.gz"
+            fi
+            ;;
+    esac
+    
+    # Uploads backup
+    local upload_dir="${SCRIPT_DIR}/uploads"
+    [ "$INSTALL_MODE" = "native" ] && upload_dir="$INSTALL_DIR_SYSTEM/uploads"
+    
+    if [ -d "$upload_dir" ] && [ "$(ls -A "$upload_dir" 2>/dev/null)" ]; then
+        tar -czf "$backup_dir/uploads_$date_stamp.tar.gz" -C "$(dirname "$upload_dir")" "$(basename "$upload_dir")"
+        success "Uploads: uploads_$date_stamp.tar.gz"
+    fi
+    
+    # Config backup
+    if [ "$INSTALL_MODE" = "docker" ]; then
+        tar -czf "$backup_dir/config_$date_stamp.tar.gz" -C "$SCRIPT_DIR" .env docker-compose.yml nginx 2>/dev/null || true
     else
-        warn "Database backup skipped (PostgreSQL container not running)"
+        tar -czf "$backup_dir/config_$date_stamp.tar.gz" -C "$INSTALL_DIR_SYSTEM" .env ecosystem.config.js 2>/dev/null || true
     fi
+    success "Config: config_$date_stamp.tar.gz"
     
-    # Backup uploads
-    if [ -d "${SCRIPT_DIR}/uploads" ]; then
-        tar -czf "$backup_dir/uploads_$date_stamp.tar.gz" -C "$SCRIPT_DIR" uploads
-        success "Uploads backup: backups/uploads_$date_stamp.tar.gz"
-    fi
-    
-    # Backup configuration
-    tar -czf "$backup_dir/config_$date_stamp.tar.gz" -C "$SCRIPT_DIR" .env docker-compose.yml nginx
-    success "Config backup: backups/config_$date_stamp.tar.gz"
-    
-    # Cleanup old backups (keep 30 days)
+    # Cleanup old backups
     find "$backup_dir" -name "*.gz" -mtime +30 -delete 2>/dev/null || true
     
-    success "Backup completed in $backup_dir"
+    success "Backup in $backup_dir"
 }
 
 cmd_restore() {
+    load_env
     local backup_file="$1"
     
     if [ -z "$backup_file" ]; then
-        # List available backups
+        local backup_dir="${SCRIPT_DIR}/backups"
+        [ "$INSTALL_MODE" = "native" ] && backup_dir="/var/backups/bolt"
+        
         log "Available backups:"
-        ls -la "${SCRIPT_DIR}/backups/" 2>/dev/null || error "No backups found"
+        ls -la "$backup_dir" 2>/dev/null || error "No backups found"
         return
     fi
     
     if [ ! -f "$backup_file" ]; then
-        error "Backup file not found: $backup_file"
+        error "Backup not found: $backup_file"
         exit 1
     fi
     
     warn "This will overwrite existing data!"
-    read -p "Are you sure? (yes/no): " confirm
-    
-    if [ "$confirm" != "yes" ]; then
-        log "Restore cancelled"
-        return
-    fi
+    read -p "Type 'yes' to confirm: " confirm
+    [ "$confirm" != "yes" ] && { log "Cancelled"; return; }
     
     log "Restoring from $backup_file..."
     
-    # Restore database
     if [[ "$backup_file" == *"db_"* ]]; then
-        if [[ "$backup_file" == *".gz" ]]; then
-            gunzip -c "$backup_file" | docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
-        else
-            docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
-        fi
+        case "$INSTALL_MODE" in
+            docker)
+                if [[ "$backup_file" == *".gz" ]]; then
+                    gunzip -c "$backup_file" | docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
+                else
+                    docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
+                fi
+                ;;
+            native|container)
+                if [[ "$backup_file" == *".gz" ]]; then
+                    gunzip -c "$backup_file" | psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" 2>/dev/null || \
+                    sudo -u postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < <(gunzip -c "$backup_file")
+                else
+                    psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file" 2>/dev/null || \
+                    sudo -u postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
+                fi
+                ;;
+        esac
         success "Database restored"
     fi
     
-    # Restore uploads
     if [[ "$backup_file" == *"uploads_"* ]]; then
-        tar -xzf "$backup_file" -C "$SCRIPT_DIR"
+        local upload_dir="${SCRIPT_DIR}"
+        [ "$INSTALL_MODE" = "native" ] && upload_dir="$INSTALL_DIR_SYSTEM"
+        tar -xzf "$backup_file" -C "$upload_dir"
         success "Uploads restored"
     fi
 }
 
 cmd_clean() {
-    log "Cleaning up Docker resources..."
+    log "Cleaning up..."
     
-    # Remove unused containers
-    docker container prune -f
-    
-    # Remove unused images
-    docker image prune -f
-    
-    # Remove unused volumes
-    docker volume prune -f
-    
-    # Remove unused networks
-    docker network prune -f
+    case "$INSTALL_MODE" in
+        docker)
+            docker container prune -f
+            docker image prune -f
+            docker volume prune -f
+            docker network prune -f
+            ;;
+        native|container)
+            # Clean npm cache
+            npm cache clean --force 2>/dev/null || true
+            # Clean logs
+            find /var/log/bolt -name "*.log" -mtime +7 -delete 2>/dev/null || true
+            ;;
+    esac
     
     success "Cleanup completed"
 }
 
 cmd_reset() {
     warn "⚠⚠⚠ DANGER: This will DELETE ALL DATA! ⚠⚠⚠"
-    echo "This action will:"
+    echo "This will:"
     echo "  - Stop all services"
-    echo "  - Delete all containers"
-    echo "  - Delete all volumes (including database)"
-    echo "  - Delete all uploads"
+    echo "  - Delete all data"
     echo ""
     read -p "Type 'DELETE EVERYTHING' to confirm: " confirm
-    
-    if [ "$confirm" != "DELETE EVERYTHING" ]; then
-        log "Reset cancelled"
-        return
-    fi
+    [ "$confirm" != "DELETE EVERYTHING" ] && { log "Cancelled"; return; }
     
     log "Resetting BOLT..."
-    cd "$SCRIPT_DIR"
     
-    # Stop and remove everything
-    docker-compose down -v
+    case "$INSTALL_MODE" in
+        docker)
+            cd "$SCRIPT_DIR"
+            docker-compose down -v
+            rm -rf uploads/*
+            ;;
+        native|container)
+            native_stop
+            rm -rf "$INSTALL_DIR_SYSTEM/uploads/*"
+            # Drop and recreate database
+            psql -U postgres -c "DROP DATABASE IF EXISTS ${DB_NAME:-bolt_db};" 2>/dev/null || \
+            sudo -u postgres psql -c "DROP DATABASE IF EXISTS ${DB_NAME:-bolt_db};"
+            setup_postgres
+            ;;
+    esac
     
-    # Remove uploads
-    rm -rf "${SCRIPT_DIR}/uploads/*"
-    
-    success "BOLT has been reset. Run './bolt.sh start' to start fresh."
+    success "Reset completed. Run './bolt.sh start' to start fresh."
 }
 
 # =============================================================================
@@ -322,91 +553,46 @@ cmd_reset() {
 # =============================================================================
 
 cmd_db() {
+    load_env
     local subcommand="$1"
     
     case "$subcommand" in
         backup)
-            local backup_dir="${SCRIPT_DIR}/backups"
-            local date_stamp=$(date +%Y%m%d_%H%M%S)
-            mkdir -p "$backup_dir"
-            
-            log "Backing up database..."
-            docker-compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" | gzip > "$backup_dir/db_$date_stamp.sql.gz"
-            success "Database backup: backups/db_$date_stamp.sql.gz"
+            cmd_backup
             ;;
-            
         restore)
-            local backup_file="$2"
-            if [ -z "$backup_file" ]; then
-                error "Please specify backup file"
-                exit 1
-            fi
-            
-            if [ ! -f "$backup_file" ]; then
-                error "Backup file not found"
-                exit 1
-            fi
-            
-            warn "This will overwrite the current database!"
-            read -p "Continue? (yes/no): " confirm
-            
-            if [ "$confirm" = "yes" ]; then
-                log "Restoring database..."
-                if [[ "$backup_file" == *".gz" ]]; then
-                    gunzip -c "$backup_file" | docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
-                else
-                    docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
-                fi
-                success "Database restored"
-            fi
+            cmd_restore "$2"
             ;;
-            
+        console|psql|shell)
+            case "$INSTALL_MODE" in
+                docker)
+                    docker-compose exec postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
+                    ;;
+                native|container)
+                    psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" 2>/dev/null || \
+                    sudo -u postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
+                    ;;
+            esac
+            ;;
         migrate)
-            log "Running database migrations..."
-            docker-compose exec backend npm run db:migrate
+            case "$INSTALL_MODE" in
+                docker)
+                    docker-compose exec backend npm run db:migrate 2>/dev/null || \
+                    docker-compose exec backend npx sequelize-cli db:migrate
+                    ;;
+                native|container)
+                    cd "$INSTALL_DIR_SYSTEM/backend"
+                    npm run db:migrate 2>/dev/null || npx sequelize-cli db:migrate
+                    ;;
+            esac
             success "Migrations completed"
             ;;
-            
-        console|psql)
-            log "Opening PostgreSQL console..."
-            docker-compose exec postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
-            ;;
-            
         *)
             info "Database commands:"
-            echo "  ./bolt.sh db backup    - Backup database"
-            echo "  ./bolt.sh db restore   - Restore database"
-            echo "  ./bolt.sh db migrate   - Run migrations"
-            echo "  ./bolt.sh db console   - Open psql console"
-            ;;
-    esac
-}
-
-# =============================================================================
-# SSL Certificate Operations
-# =============================================================================
-
-cmd_cert() {
-    local subcommand="$1"
-    
-    case "$subcommand" in
-        renew)
-            log "Renewing SSL certificate..."
-            sudo certbot renew --force-renewal
-            docker-compose restart nginx
-            success "Certificate renewed"
-            ;;
-            
-        status)
-            log "SSL Certificate Status"
-            echo "─────────────────────────────────────────────────────────────────────"
-            sudo certbot certificates 2>/dev/null || info "No certificates found"
-            ;;
-            
-        *)
-            info "SSL certificate commands:"
-            echo "  ./bolt.sh cert renew   - Renew certificate"
-            echo "  ./bolt.sh cert status  - Check certificate status"
+            echo "  db backup    - Backup database"
+            echo "  db restore   - Restore database"
+            echo "  db console   - Open psql console"
+            echo "  db migrate   - Run migrations"
             ;;
     esac
 }
@@ -416,27 +602,62 @@ cmd_cert() {
 # =============================================================================
 
 cmd_shell() {
+    load_env
     local service="$1"
     
-    if [ -z "$service" ]; then
-        error "Please specify service: backend, frontend, or postgres"
-        exit 1
-    fi
+    [ -z "$service" ] && { error "Specify: backend, postgres, or nginx"; exit 1; }
     
-    case "$service" in
-        backend|api)
-            docker-compose exec backend /bin/sh
+    case "$INSTALL_MODE" in
+        docker)
+            case "$service" in
+                backend|api) docker-compose exec backend /bin/sh ;;
+                postgres|db) docker-compose exec postgres /bin/bash ;;
+                nginx|frontend) docker-compose exec frontend /bin/sh ;;
+                *) error "Unknown service: $service" ;;
+            esac
             ;;
-        frontend|nginx)
-            docker-compose exec frontend /bin/sh
+        native|container)
+            case "$service" in
+                backend|api)
+                    cd "$INSTALL_DIR_SYSTEM/backend"
+                    /bin/bash
+                    ;;
+                postgres|db)
+                    sudo -u postgres /bin/bash 2>/dev/null || su - postgres
+                    ;;
+                nginx)
+                    cd /etc/nginx && /bin/bash
+                    ;;
+                *) error "Unknown service: $service" ;;
+            esac
             ;;
-        postgres|db|database)
-            docker-compose exec postgres /bin/bash
+    esac
+}
+
+# =============================================================================
+# SSL Certificate (Docker only primarily)
+# =============================================================================
+
+cmd_cert() {
+    load_env
+    local subcommand="$1"
+    
+    case "$subcommand" in
+        renew)
+            if command -v certbot &> /dev/null; then
+                sudo certbot renew --force-renewal
+                [ "$INSTALL_MODE" = "docker" ] && docker-compose restart nginx
+                [ "$INSTALL_MODE" = "native" ] && sudo systemctl reload nginx 2>/dev/null || true
+                success "Certificate renewed"
+            else
+                error "certbot not installed"
+            fi
+            ;;
+        status)
+            sudo certbot certificates 2>/dev/null || info "No certificates found"
             ;;
         *)
-            error "Unknown service: $service"
-            echo "Available services: backend, frontend, postgres"
-            exit 1
+            info "SSL commands: cert renew, cert status"
             ;;
     esac
 }
@@ -446,58 +667,25 @@ cmd_shell() {
 # =============================================================================
 
 main() {
-    load_env
+    load_env 2>/dev/null || true
     
     case "$1" in
-        start)
-            cmd_start
-            ;;
-        stop)
-            cmd_stop
-            ;;
-        restart)
-            cmd_restart
-            ;;
-        status)
-            cmd_status
-            ;;
-        logs)
-            cmd_logs "$2"
-            ;;
-        update)
-            cmd_update
-            ;;
-        backup)
-            cmd_backup
-            ;;
-        restore)
-            cmd_restore "$2"
-            ;;
-        shell)
-            cmd_shell "$2"
-            ;;
-        db)
-            cmd_db "$2" "$3"
-            ;;
-        cert)
-            cmd_cert "$2"
-            ;;
-        clean)
-            cmd_clean
-            ;;
-        reset)
-            cmd_reset
-            ;;
-        install)
-            bash "${SCRIPT_DIR}/install.sh"
-            ;;
-        help|--help|-h)
-            print_help
-            ;;
-        *)
-            print_help
-            exit 1
-            ;;
+        start) cmd_start ;;
+        stop) cmd_stop ;;
+        restart) cmd_restart ;;
+        status) cmd_status ;;
+        logs) cmd_logs "$2" ;;
+        update) cmd_update ;;
+        backup) cmd_backup ;;
+        restore) cmd_restore "$2" ;;
+        shell) cmd_shell "$2" ;;
+        db) cmd_db "$2" "$3" ;;
+        cert) cmd_cert "$2" ;;
+        clean) cmd_clean ;;
+        reset) cmd_reset ;;
+        install) bash "${SCRIPT_DIR}/install.sh" ;;
+        help|--help|-h) print_help ;;
+        *) print_help; exit 1 ;;
     esac
 }
 
