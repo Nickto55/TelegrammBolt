@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # =============================================================================
-# BOLT - Installation Script v2.4
+# BOLT - Installation Script v2.5
 # =============================================================================
-# Fixed: npm install fallback when package-lock.json missing
+# Adapted for: https://github.com/Nickto55/TelegrammBolt
+# Structure: /web (frontend), /backend (backend)
 # =============================================================================
 
 set -e
@@ -27,7 +28,7 @@ print_banner() {
     clear
     echo -e "${CYAN}"
     echo "╔══════════════════════════════════════════════════════════════════╗"
-    echo "║   BOLT Management System - Installation Script v2.4              ║"
+    echo "║   BOLT Telegram Bot - Installation Script v2.5                   ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -183,14 +184,12 @@ setup_postgres() {
 }
 
 # =============================================================================
-# NPM Install with fallback
+# NPM with fallback
 # =============================================================================
 
 npm_install_safe() {
-    log "Installing npm dependencies..."
-    
     if [ -f "package-lock.json" ]; then
-        log "Found package-lock.json, using npm ci"
+        log "Using npm ci"
         npm ci
     else
         log_warning "No package-lock.json, using npm install"
@@ -198,72 +197,63 @@ npm_install_safe() {
     fi
 }
 
-find_entry_point() {
-    local dir="$1"
-    for f in "main.js" "index.js" "server.js" "dist/main.js" "dist/index.js" "dist/server.js" "build/main.js" "build/index.js"; do
-        [ -f "$dir/$f" ] && { echo "$f"; return; }
-    done
-    find "$dir" -name "*.js" -type f 2>/dev/null | grep -E "(main|index|server|app|start)" | head -1 | sed "s|$dir/||"
-}
+# =============================================================================
+# Backend Installation (NestJS structure)
+# =============================================================================
 
 install_backend() {
-    log "Installing Backend..."
+    log "Installing Backend (NestJS)..."
     
-    local src_dir="$INSTALL_DIR/bolt-backend"
+    # Your project structure: /backend (not /bolt-backend)
+    local src_dir="$INSTALL_DIR/backend"
     local target_dir="$INSTALL_DIR_SYSTEM/backend"
+    
+    if [ ! -d "$src_dir" ]; then
+        log_error "Backend not found at $src_dir"
+        log_info "Expected structure: /backend with package.json"
+        return 1
+    fi
     
     [ -d "$target_dir" ] && rm -rf "$target_dir"
     mkdir -p "$target_dir"
     
-    if [ ! -d "$src_dir" ]; then
-        log_error "Backend source not found at $src_dir"
+    cd "$src_dir"
+    
+    # Install dependencies
+    npm_install_safe
+    
+    # Build NestJS
+    log "Building NestJS application..."
+    npm run build
+    
+    # NestJS creates /dist folder
+    if [ ! -d "dist" ]; then
+        log_error "Build failed - no dist folder created"
+        ls -la
         return 1
     fi
     
-    cd "$src_dir"
+    # Copy built files
+    cp -r dist/* "$target_dir/"
+    cp package.json "$target_dir/"
+    cp -r node_modules "$target_dir/"
     
-    # Install dependencies (with fallback)
-    npm_install_safe
-    
-    # Build
-    npm run build 2>/dev/null || npm run compile 2>/dev/null || true
-    
-    # Copy files
-    if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then
-        cp -r dist/* "$target_dir/"
-    elif [ -d "build" ] && [ "$(ls -A build 2>/dev/null)" ]; then
-        cp -r build/* "$target_dir/"
-    else
-        # No build output - copy source
-        log_warning "No build directory, copying source files"
-        cp -r . "$target_dir/"
-        # Remove node_modules and reinstall in target to ensure native modules match
-        rm -rf "$target_dir/node_modules"
-        cd "$target_dir"
-        npm_install_safe
-        cd "$src_dir"
-    fi
-    
-    # Ensure node_modules exists in target
-    if [ ! -d "$target_dir/node_modules" ] && [ -d "node_modules" ]; then
-        cp -r node_modules "$target_dir/"
-    fi
-    
-    # Copy package.json if not exists
-    [ -f "$target_dir/package.json" ] || cp package.json "$target_dir/"
+    # Copy .env if exists
+    [ -f ".env" ] && cp .env "$target_dir/"
     
     cd "$INSTALL_DIR"
     
-    # Find entry point
-    local entry=$(find_entry_point "$target_dir")
-    if [ -z "$entry" ]; then
+    # NestJS entry point is usually main.js
+    local entry="main.js"
+    [ ! -f "$target_dir/$entry" ] && entry=$(find "$target_dir" -name "main.js" | head -1 | xargs basename 2>/dev/null)
+    
+    if [ ! -f "$target_dir/$entry" ]; then
         log_error "Cannot find entry point in $target_dir"
         ls -la "$target_dir"
         return 1
     fi
     
     log_success "Backend entry: $entry"
-    echo "$entry" > "$target_dir/.entrypoint"
     
     # Create startup script
     cat > "$target_dir/start.sh" << EOF
@@ -276,36 +266,56 @@ fi
 exec node $entry
 EOF
     chmod +x "$target_dir/start.sh"
+    
+    # Also check for required environment variables
+    log_info "Backend installed to $target_dir"
+    log_info "Make sure to configure Telegram Bot Token in environment"
 }
 
+# =============================================================================
+# Frontend Installation (Vite/React structure)
+# =============================================================================
+
 install_frontend() {
-    log "Installing Frontend..."
+    log "Installing Frontend (Vite)..."
     
-    local src_dir="$INSTALL_DIR/app"
+    # Your project structure: /web (not /app)
+    local src_dir="$INSTALL_DIR/web"
     local target_dir="$INSTALL_DIR_SYSTEM/frontend"
+    
+    if [ ! -d "$src_dir" ]; then
+        log_warning "Frontend not found at $src_dir, skipping"
+        return
+    fi
     
     [ -d "$target_dir" ] && rm -rf "$target_dir"
     mkdir -p "$target_dir"
     
-    if [ ! -d "$src_dir" ]; then
-        log_warning "Frontend source not found at $src_dir, skipping"
+    cd "$src_dir"
+    
+    # Check package.json exists
+    if [ ! -f "package.json" ]; then
+        log_warning "No package.json in $src_dir, copying as static files"
+        cp -r . "$target_dir/"
         return
     fi
     
-    cd "$src_dir"
+    # Install and build
     npm_install_safe
-    npm run build 2>/dev/null || true
     
-    if [ -d "dist" ] && [ "$(ls -A dist 2>/dev/null)" ]; then
+    # Vite build creates /dist
+    log "Building Vite application..."
+    npm run build
+    
+    if [ -d "dist" ]; then
         cp -r dist/* "$target_dir/"
-    elif [ -d "build" ] && [ "$(ls -A build 2>/dev/null)" ]; then
-        cp -r build/* "$target_dir/"
+        log_success "Frontend built and installed"
     else
+        log_warning "No dist folder, copying source"
         cp -r . "$target_dir/"
     fi
     
     cd "$INSTALL_DIR"
-    log_success "Frontend installed"
 }
 
 generate_configs() {
@@ -313,24 +323,37 @@ generate_configs() {
     
     mkdir -p "$INSTALL_DIR_SYSTEM" /var/log/bolt
     
+    # Environment file
     cat > "$INSTALL_DIR_SYSTEM/.env" << EOF
-DOMAIN=$DOMAIN
-USE_SSL=$USE_SSL
+# Database
 DB_HOST=$DB_HOST
 DB_PORT=$DB_PORT
 DB_NAME=$DB_NAME
 DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
+
+# JWT
 JWT_SECRET=$(openssl rand -base64 32)
 JWT_EXPIRES_IN=7d
+
+# Server
+DOMAIN=$DOMAIN
+USE_SSL=$USE_SSL
 BACKEND_PORT=$BACKEND_PORT
 FRONTEND_PORT=$FRONTEND_PORT
 NODE_ENV=production
 CORS_ORIGIN=http://localhost:$FRONTEND_PORT
+
+# File Upload
 UPLOAD_DIR=$INSTALL_DIR_SYSTEM/uploads
 MAX_FILE_SIZE=10485760
+
+# Telegram Bot (configure these!)
+# BOT_TOKEN=your_telegram_bot_token
+# WEBHOOK_URL=https://your-domain.com/webhook
 EOF
 
+    # Nginx config
     local nginx_conf="/etc/nginx/conf.d/bolt.conf"
     [ -d "/etc/nginx/sites-available" ] && nginx_conf="/etc/nginx/sites-available/bolt"
     
@@ -343,20 +366,22 @@ server {
     root $INSTALL_DIR_SYSTEM/frontend;
     index index.html;
     
+    # Frontend
     location / {
         try_files \$uri \$uri/ /index.html;
     }
     
+    # Backend API
     location /api {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_read_timeout 86400;
     }
     
+    # WebSocket support
     location /socket.io {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
@@ -372,6 +397,7 @@ EOF
         rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
     fi
 
+    # PM2 config
     cat > "$INSTALL_DIR_SYSTEM/ecosystem.config.js" << 'EOF'
 module.exports = {
   apps: [{
@@ -405,11 +431,11 @@ start_services() {
     pm2 start ecosystem.config.js
     pm2 save 2>/dev/null || true
     
+    # Wait for backend
     local attempt=1
     while [ $attempt -le 30 ]; do
-        if curl -s "http://localhost:$BACKEND_PORT/health" &>/dev/null || \
-           curl -s "http://localhost:$BACKEND_PORT/api/health" &>/dev/null || \
-           curl -s "http://localhost:$BACKEND_PORT" &>/dev/null; then
+        if curl -s "http://localhost:$BACKEND_PORT" &>/dev/null || \
+           curl -s "http://localhost:$BACKEND_PORT/health" &>/dev/null; then
             log_success "Backend responding on port $BACKEND_PORT"
             return
         fi
@@ -423,11 +449,13 @@ start_services() {
 docker_install() {
     log "Docker installation..."
     
+    # Create docker-compose for your project structure
     cat > "$INSTALL_DIR/docker-compose.yml" << EOF
 version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: bolt-postgres
     environment:
       POSTGRES_DB: $DB_NAME
       POSTGRES_USER: $DB_USER
@@ -436,8 +464,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "$DB_PORT:5432"
+    networks:
+      - bolt-network
+
   backend:
-    build: ./bolt-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bolt-backend
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -452,20 +486,31 @@ services:
       - ./uploads:/app/uploads
     depends_on:
       - postgres
+    networks:
+      - bolt-network
+
   frontend:
     image: nginx:alpine
+    container_name: bolt-frontend
     ports:
       - "$FRONTEND_PORT:80"
     volumes:
-      - ./app/dist:/usr/share/nginx/html:ro
+      - ./web/dist:/usr/share/nginx/html:ro
     depends_on:
       - backend
+    networks:
+      - bolt-network
+
 volumes:
   postgres_data:
+
+networks:
+  bolt-network:
 EOF
 
-    if [ -d "app" ]; then
-        cd app
+    # Build frontend first
+    if [ -d "web" ]; then
+        cd web
         [ -f package-lock.json ] && npm ci || npm install
         npm run build
         cd ..
@@ -475,7 +520,7 @@ EOF
     
     local attempt=1
     while [ $attempt -le 30 ]; do
-        if curl -s "http://localhost:$BACKEND_PORT/health" &>/dev/null; then
+        if curl -s "http://localhost:$BACKEND_PORT" &>/dev/null; then
             log_success "Services ready"
             return
         fi
@@ -494,16 +539,22 @@ print_summary() {
     log_info "Mode: ${INSTALL_MODE^^}"
     echo "  Frontend: http://localhost:$FRONTEND_PORT"
     echo "  Backend:  http://localhost:$BACKEND_PORT"
-    echo "  Admin:    admin / admin123"
     echo ""
     
     if [ "$INSTALL_MODE" = "docker" ]; then
-        echo "  docker-compose logs -f"
-        echo "  docker-compose down"
+        echo "  Commands:"
+        echo "    docker-compose logs -f"
+        echo "    docker-compose down"
     else
-        echo "  Logs: pm2 logs  или  tail -f /var/log/bolt/*.log"
-        echo "  PM2:  pm2 status | restart | stop"
+        echo "  Commands:"
+        echo "    pm2 logs           - View logs"
+        echo "    pm2 status         - Check status"
+        echo "    pm2 restart all    - Restart services"
     fi
+    echo ""
+    log_warning "IMPORTANT: Configure Telegram Bot Token!"
+    echo "  Edit: $INSTALL_DIR_SYSTEM/.env"
+    echo "  Add: BOT_TOKEN=your_telegram_bot_token_from_BotFather"
     echo ""
 }
 
@@ -513,6 +564,8 @@ main() {
     
     print_banner
     log "Starting BOLT installation..."
+    log "Project: TelegrammBolt"
+    log "Structure: /backend (NestJS) + /web (Vite)"
     
     ask_installation_mode
     check_dependencies
