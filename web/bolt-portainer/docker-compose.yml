@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: bolt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-bolt_db}
+      POSTGRES_USER: ${DB_USER:-bolt_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bolt_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-bolt_user} -d ${DB_NAME:-bolt_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bolt-network
+    labels:
+      - "com.bolt.service=database"
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bolt-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${BACKEND_PORT:-3001}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-bolt_db}
+      DB_USER: ${DB_USER:-bolt_user}
+      DB_PASSWORD: ${DB_PASSWORD:-bolt_password}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    volumes:
+      - backend_uploads:/app/uploads
+      - ./backend:/app:cached
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bolt-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.bolt.service=backend"
+
+  # Frontend + Nginx Proxy
+  frontend:
+    image: nginx:alpine
+    container_name: bolt-frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: ${BACKEND_PORT:-3001}
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx/nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    networks:
+      - bolt-network
+    labels:
+      - "com.bolt.service=frontend"
+
+volumes:
+  postgres_data:
+    driver: local
+    name: bolt_postgres_data
+  backend_uploads:
+    driver: local
+    name: bolt_backend_uploads
+
+networks:
+  bolt-network:
+    driver: bridge
+    name: bolt_network
