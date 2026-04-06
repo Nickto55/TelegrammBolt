@@ -74,12 +74,10 @@ EOF
 check_docker() {
     if ! command -v docker &> /dev/null; then
         error "Docker is not installed"
-        exit 1
     fi
     
     if ! docker info &> /dev/null; then
         error "Docker daemon is not running"
-        exit 1
     fi
 }
 
