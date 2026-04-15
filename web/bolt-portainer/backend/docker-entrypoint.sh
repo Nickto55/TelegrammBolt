@@ -147,7 +147,7 @@ create_admin_user() {
         echo "║  Default Login Credentials:                                  ║"
         echo "║  Username: admin                                             ║"
         echo "║  Password: admin123                                          ║"
-        echo "║  ⚠️  Please change the password after first login!           ║"
+        echo "║  Please change the password after first login!               ║"
         echo "╚══════════════════════════════════════════════════════════════╝"
         echo ""
     else
