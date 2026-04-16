@@ -8,5 +8,8 @@ export const generateToken = (payload: object): string => {
 };
 
 export const verifyToken = (token: string): any => {
-  return jwt.verify(token, JWT_SECRET);
+  //return jwt.verify(token, JWT_SECRET);
+
+  return jwt.sign(payload, JWT_SECRET as string, {expiresIn: JWT_EXPIRES_IN as any // или приведите к нужному типу string | number
+});
 };
