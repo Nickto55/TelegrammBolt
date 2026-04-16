@@ -19,7 +19,10 @@ export interface UserAttributes {
   updated_at?: Date;
 }
 
-interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'created_at' | 'updated_at'> {}
+interface UserCreationAttributes extends Optional<
+  UserAttributes, 
+  'id' | 'created_at' | 'updated_at' | 'telegram_linked' | 'role' | 'auth_type' | 'status'
+> {}
 
 class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
   public id!: string;

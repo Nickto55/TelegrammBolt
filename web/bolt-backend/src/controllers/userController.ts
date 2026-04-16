@@ -1,6 +1,9 @@
+// userController
+
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { User } from '../models';
+import { Op } from 'sequelize'; // <--- ДОБАВЬТЕ ЭТУ СТРОКУ
 import { logAction } from '../utils/logger';
 import { AuthRequest } from '../middleware/auth';
 
