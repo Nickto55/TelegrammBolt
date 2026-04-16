@@ -129,6 +129,7 @@ export const createDSE = async (req: AuthRequest, res: Response) => {
       machine_number,
       installer_fio,
       programmer_name,
+      datetime: new Date(),
       user_id: req.user.id,
       status: 'in_progress',
       hidden: false,
