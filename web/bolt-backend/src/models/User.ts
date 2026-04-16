@@ -12,7 +12,7 @@ export interface UserAttributes {
   role: 'admin' | 'responder' | 'initiator' | 'user';
   auth_type: 'telegram' | 'qr' | 'admin';
   telegram_id?: string;
-  telegram_linked: false;
+  telegram_linked: boolean;
   status: 'active' | 'inactive' | 'banned';
   last_login?: Date;
   created_at?: Date;
