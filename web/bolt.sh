@@ -17,7 +17,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+COMPOSE_FILE="$SCRIPT_DIR/docker compose.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
 
 # =============================================================================
@@ -97,7 +97,7 @@ cmd_start() {
     log "Starting BOLT services..."
     check_docker
     cd "$SCRIPT_DIR"
-    docker-compose up -d
+    docker compose up -d
     success "Services started"
     
     info "Waiting for services to be ready..."
@@ -116,7 +116,7 @@ cmd_stop() {
     log "Stopping BOLT services..."
     check_docker
     cd "$SCRIPT_DIR"
-    docker-compose down
+    docker compose down
     success "Services stopped"
 }
 
@@ -135,7 +135,7 @@ cmd_status() {
     cd "$SCRIPT_DIR"
     
     # Docker Compose status
-    docker-compose ps
+    docker compose ps
     
     echo ""
     info "Health Checks"
@@ -156,7 +156,7 @@ cmd_status() {
     fi
     
     # Database
-    if docker-compose exec -T postgres pg_isready -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" > /dev/null 2>&1; then
+    if docker compose exec -T postgres pg_isready -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" > /dev/null 2>&1; then
         success "Database: OK"
     else
         warn "Database: Check skipped or not available"
@@ -169,9 +169,9 @@ cmd_logs() {
     cd "$SCRIPT_DIR"
     
     if [ -n "$service" ]; then
-        docker-compose logs -f "$service"
+        docker compose logs -f "$service"
     else
-        docker-compose logs -f
+        docker compose logs -f
     fi
 }
 
@@ -185,13 +185,13 @@ cmd_update() {
     cd "$SCRIPT_DIR"
     
     # Pull latest images
-    docker-compose pull
+    docker compose pull
     
     # Rebuild local images
-    docker-compose build --no-cache
+    docker compose build --no-cache
     
     # Restart services
-    docker-compose up -d
+    docker compose up -d
     
     success "Update completed"
 }
@@ -205,7 +205,7 @@ cmd_backup() {
     log "Creating backup..."
     
     # Backup database
-    if docker-compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" > "$backup_dir/db_$date_stamp.sql" 2>/dev/null; then
+    if docker compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" > "$backup_dir/db_$date_stamp.sql" 2>/dev/null; then
         gzip "$backup_dir/db_$date_stamp.sql"
         success "Database backup: backups/db_$date_stamp.sql.gz"
     else
@@ -219,7 +219,7 @@ cmd_backup() {
     fi
     
     # Backup configuration
-    tar -czf "$backup_dir/config_$date_stamp.tar.gz" -C "$SCRIPT_DIR" .env docker-compose.yml nginx
+    tar -czf "$backup_dir/config_$date_stamp.tar.gz" -C "$SCRIPT_DIR" .env docker compose.yml nginx
     success "Config backup: backups/config_$date_stamp.tar.gz"
     
     # Cleanup old backups (keep 30 days)
@@ -256,9 +256,9 @@ cmd_restore() {
     # Restore database
     if [[ "$backup_file" == *"db_"* ]]; then
         if [[ "$backup_file" == *".gz" ]]; then
-            gunzip -c "$backup_file" | docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
+            gunzip -c "$backup_file" | docker compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
         else
-            docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
+            docker compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
         fi
         success "Database restored"
     fi
@@ -307,7 +307,7 @@ cmd_reset() {
     cd "$SCRIPT_DIR"
     
     # Stop and remove everything
-    docker-compose down -v
+    docker compose down -v
     
     # Remove uploads
     rm -rf "${SCRIPT_DIR}/uploads/*"
@@ -329,7 +329,7 @@ cmd_db() {
             mkdir -p "$backup_dir"
             
             log "Backing up database..."
-            docker-compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" | gzip > "$backup_dir/db_$date_stamp.sql.gz"
+            docker compose exec -T postgres pg_dump -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" | gzip > "$backup_dir/db_$date_stamp.sql.gz"
             success "Database backup: backups/db_$date_stamp.sql.gz"
             ;;
             
@@ -351,9 +351,9 @@ cmd_db() {
             if [ "$confirm" = "yes" ]; then
                 log "Restoring database..."
                 if [[ "$backup_file" == *".gz" ]]; then
-                    gunzip -c "$backup_file" | docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
+                    gunzip -c "$backup_file" | docker compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
                 else
-                    docker-compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
+                    docker compose exec -T postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}" < "$backup_file"
                 fi
                 success "Database restored"
             fi
@@ -361,13 +361,13 @@ cmd_db() {
             
         migrate)
             log "Running database migrations..."
-            docker-compose exec backend npm run db:migrate
+            docker compose exec backend npm run db:migrate
             success "Migrations completed"
             ;;
             
         console|psql)
             log "Opening PostgreSQL console..."
-            docker-compose exec postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
+            docker compose exec postgres psql -U "${DB_USER:-bolt_user}" -d "${DB_NAME:-bolt_db}"
             ;;
             
         *)
@@ -391,7 +391,7 @@ cmd_cert() {
         renew)
             log "Renewing SSL certificate..."
             sudo certbot renew --force-renewal
-            docker-compose restart nginx
+            docker compose restart nginx
             success "Certificate renewed"
             ;;
             
@@ -423,13 +423,13 @@ cmd_shell() {
     
     case "$service" in
         backend|api)
-            docker-compose exec backend /bin/sh
+            docker compose exec backend /bin/sh
             ;;
         frontend|nginx)
-            docker-compose exec frontend /bin/sh
+            docker compose exec frontend /bin/sh
             ;;
         postgres|db|database)
-            docker-compose exec postgres /bin/bash
+            docker compose exec postgres /bin/bash
             ;;
         *)
             error "Unknown service: $service"

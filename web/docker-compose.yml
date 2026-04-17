@@ -55,19 +55,19 @@ services:
       timeout: 10s
       retries: 3
 
-  # Frontend (optional - can be served via CDN or separate container)
-  # frontend:
-  #   build:
-  #     context: ./app
-  #     dockerfile: Dockerfile
-  #   container_name: bolt-frontend
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - bolt-network
+  Frontend (optional - can be served via CDN or separate container)
+  frontend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: bolt-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - bolt-network
 
 volumes:
   postgres_data:
