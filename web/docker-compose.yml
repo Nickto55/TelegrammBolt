@@ -62,6 +62,8 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
     container_name: bolt-frontend
     restart: unless-stopped
     env_file:
