@@ -29,6 +29,8 @@ services:
       dockerfile: Dockerfile
     container_name: bolt-backend
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -39,7 +41,7 @@ services:
       DB_PASSWORD: bolt_password
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_EXPIRES_IN: 7d
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://boltvolna.ru}
     ports:
       - "3001:3001"
     volumes:
@@ -55,13 +57,15 @@ services:
       timeout: 10s
       retries: 3
 
-  Frontend (optional - can be served via CDN or separate container)
+  # Frontend (optional - can be served via CDN or separate container)
   frontend:
     build:
       context: ./app
       dockerfile: Dockerfile
     container_name: bolt-frontend
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "80:80"
     depends_on:
