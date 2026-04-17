@@ -119,13 +119,13 @@ check_dependencies() {
     fi
     
     # Check Docker Compose
-    if check_command "docker-compose"; then
-        local compose_version=$(docker-compose --version | grep -oP '\d+\.\d+\.\d+' | head -1)
+    if check_command "docker compose"; then
+        local compose_version=$(docker compose --version | grep -oP '\d+\.\d+\.\d+' | head -1)
         log_success "Docker Compose found: v$compose_version"
     elif docker compose version &> /dev/null; then
         log_success "Docker Compose (plugin) found"
     else
-        missing_deps+=("docker-compose")
+        missing_deps+=("docker compose")
     fi
     
     # Check Git
@@ -206,7 +206,7 @@ install_dependencies() {
                     exit 1
                 fi
                 ;;
-            docker-compose)
+            docker compose)
                 log "Installing Docker Compose..."
                 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
                 sudo chmod +x /usr/local/bin/docker-compose
@@ -788,7 +788,7 @@ build_images() {
     
     # Build backend
     log "Building backend image..."
-    docker-compose build backend
+    docker compose build backend
     
     log_success "Docker images built successfully"
 }
@@ -803,10 +803,10 @@ start_services() {
     mkdir -p uploads
     
     # Pull images
-    docker-compose pull
+    docker compose pull
     
     # Start services
-    docker-compose up -d
+    docker compose up -d
     
     log_success "Services started"
 }
@@ -839,7 +839,7 @@ wait_for_services() {
     if [ "$USE_EXTERNAL_DB" = false ]; then
         attempt=1
         while [ $attempt -le $max_attempts ]; do
-            if docker-compose exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1; then
+            if docker compose exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1; then
                 log_success "Database is ready"
                 break
             fi
@@ -910,7 +910,7 @@ check_services() {
             log_warning "External Database: psql not installed, skipping check"
         fi
     else
-        if docker-compose exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1; then
+        if docker compose exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1; then
             log_success "Database Container: Running ✓"
         else
             log_error "Database Container: Not responding ✗"
@@ -949,7 +949,7 @@ if [ -f .env ]; then
     if [ "$USE_EXTERNAL_DB" = "true" ]; then
         PGPASSWORD="$DB_PASSWORD" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" > "$BACKUP_DIR/db_backup_$DATE.sql"
     else
-        docker-compose exec -T postgres pg_dump -U "$DB_USER" -d "$DB_NAME" > "$BACKUP_DIR/db_backup_$DATE.sql"
+        docker compose exec -T postgres pg_dump -U "$DB_USER" -d "$DB_NAME" > "$BACKUP_DIR/db_backup_$DATE.sql"
     fi
     gzip "$BACKUP_DIR/db_backup_$DATE.sql"
 fi
@@ -1088,12 +1088,12 @@ main() {
             print_summary
         else
             log_warning "Some services may not be fully ready yet"
-            log_info "Please check the logs: docker-compose logs -f"
+            log_info "Please check the logs: docker compose logs -f"
             print_summary
         fi
     else
         log_error "Installation completed with errors"
-        log_info "Please check the logs: docker-compose logs -f"
+        log_info "Please check the logs: docker compose logs -f"
         exit 1
     fi
 }
