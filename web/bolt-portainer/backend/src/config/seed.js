@@ -27,6 +27,8 @@ async function seedDatabase() {
        RETURNING id`,
       ['admin', 'admin@bolt.local', adminPassword, 'System Administrator', 'admin', true]
     );
+    console.log("_______________________________________ admin123______________________________adminPassword")
+    
 
     console.log('Created admin user: admin / admin123');
 
