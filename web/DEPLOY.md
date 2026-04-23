@@ -15,8 +15,8 @@
 ### 1. Клонирование и подготовка
 
 ```bash
-git clone <repository-url>
-cd bolt
+git clone https://github.com/Nickto55/TelegrammBolt.git
+cd TelegrammBolt/web/
 ```
 
 ### 2. Настройка окружения
@@ -49,7 +49,7 @@ NODE_ENV=production
 FRONTEND_PORT=5173
 
 # CORS
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://<domain>
 ```
 
 ### 3. Запуск через Docker Compose
@@ -355,7 +355,3 @@ add_header X-XSS-Protection "1; mode=block" always;
 3. Создайте issue в репозитории
 
 ---
-
-## Лицензия
-
-MIT License

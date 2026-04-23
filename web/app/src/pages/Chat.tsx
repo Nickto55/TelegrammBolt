@@ -46,10 +46,17 @@ const mockMessages: Message[] = [
 ];
 
 export function Chat() {
+  // const { user } = useAuth();
+  // const [rooms] = useState<ChatRoom[]>(mockRooms);
+  // const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(mockRooms[1]);
+  // const [messages, setMessages] = useState<Message[]>(mockMessages);
+  // const [newMessage, setNewMessage] = useState('');
+  // const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const { user } = useAuth();
-  const [rooms] = useState<ChatRoom[]>(mockRooms);
-  const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(mockRooms[1]);
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const [rooms] = useState<ChatRoom[]>();
+  const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>();
+  const [messages, setMessages] = useState<Message[]>();
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -70,7 +77,7 @@ export function Chat() {
       isOwn: true,
     };
 
-    setMessages(prev => [...prev, message]);
+    setMessages((prev: any) => [...prev, message]);
     setNewMessage('');
   };
 
@@ -95,7 +102,7 @@ export function Chat() {
           </CardHeader>
           <ScrollArea className="flex-1">
             <div className="space-y-1 p-2">
-              {rooms.map((room) => (
+              {rooms.map((room: { id: any; avatar: any; name: string; isOnline: any; lastMessageTime: Date; lastMessage: any; unreadCount: number; }) => (
                 <button
                   key={room.id}
                   onClick={() => setSelectedRoom(room)}
@@ -176,7 +183,7 @@ export function Chat() {
               {/* Messages */}
               <ScrollArea className="flex-1 p-4">
                 <div className="space-y-4">
-                  {messages.map((message, index) => {
+                  {messages.map((message: { senderId: any; id: any; isOwn: any; senderAvatar: any; senderName: string; text: any; timestamp: Date; }, index: number) => {
                     const showAvatar = index === 0 || messages[index - 1].senderId !== message.senderId;
                     
                     return (
@@ -227,7 +234,7 @@ export function Chat() {
                   <Input
                     placeholder="Введите сообщение..."
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={(e: { target: { value: any; }; }) => setNewMessage(e.target.value)}
                     onKeyDown={handleKeyPress}
                     className="flex-1"
                   />

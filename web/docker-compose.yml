@@ -60,10 +60,10 @@ services:
   # Frontend (optional - can be served via CDN or separate container)
   frontend:
     build:
-      context: ./app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./app/Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_API_URL: https://boltvolna.ru/api
     container_name: bolt-frontend
     restart: unless-stopped
     env_file:
