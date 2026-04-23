@@ -1,4 +1,4 @@
-#  BOLT - DSE Management System
+#  BOLT
 
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/yourusername/bolt)
 [![Docker](https://img.shields.io/badge/docker-ready-green.svg)](https://docker.com)
@@ -24,22 +24,24 @@
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Frontend      │────▶│    Backend      │────▶│   PostgreSQL    │
-│   (React)       │◄────│   (Node.js)     │◄────│   (Docker)      │
+│   Frontend      │     │    Backend      │     │   PostgreSQL    │
+│   (React)       │     │   (Node.js)     │     │   (Docker)      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-       Port: 5173              Port: 3001             Port: 5432
+     Port: 5173              Port: 3001             Port: 5432
 ```
 
 ## Быстрая установка
 
 ### Автоматическая установка (рекомендуется)
 
+1. Склонируйте репозиторий
 ```bash
-# 1. Склонируйте репозиторий
-git clone https://github.com/yourusername/bolt.git
-cd bolt
-
-# 2. Запустите установочный скрипт
+git clone https://github.com/Nickto55/TelegrammBolt.git
+cd TelegrammBolt/web/
+```
+2. Запустите установочный скрипт
+```bash
+chmod +x install.sh
 ./install.sh
 ```
 
