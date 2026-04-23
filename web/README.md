@@ -1,4 +1,4 @@
-# ⚡ BOLT - DSE Management System
+#  BOLT - DSE Management System
 
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/yourusername/bolt)
 [![Docker](https://img.shields.io/badge/docker-ready-green.svg)](https://docker.com)
@@ -6,21 +6,21 @@
 
 > Современная система управления деталями и заявками (ДСЕ) с веб-интерфейсом, чатом и аналитикой.
 
-![Dashboard Preview](docs/dashboard-preview.png)
+![Dashboard Preview](static_p/preview_login_page.png)
 
-## ✨ Возможности
+## Возможности
 
-- 📊 **Дашборд с аналитикой** - графики, статистика, KPI
-- 📝 **Управление заявками** - создание, редактирование, фильтрация
-- 💬 **Встроенный чат** - WebSocket, real-time сообщения
-- 👥 **Управление пользователями** - роли, права доступа
-- 🔐 **Множественная авторизация** - Login/Password, Telegram, QR-код
-- 📱 **Адаптивный дизайн** - работает на всех устройствах
-- 🌙 **Тёмная тема** - переключатель тем
-- 📤 **Экспорт данных** - Excel, PDF, CSV
-- 🔍 **Поиск и фильтрация** - мощные инструменты поиска
+- **Дашборд с аналитикой** - графики, статистика, KPI
+- **Управление заявками** - создание, редактирование, фильтрация
+- **Встроенный чат** - WebSocket, real-time сообщения
+- **Управление пользователями** - роли, права доступа
+- **Множественная авторизация** - Login/Password, Telegram, QR-код
+- **Адаптивный дизайн** - работает на всех устройствах
+- **Тёмная тема** - переключатель тем
+- **Экспорт данных** - Excel, PDF, CSV
+- **Поиск и фильтрация** - мощные инструменты поиска
 
-## 🏗️ Архитектура
+## Архитектура
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -30,7 +30,7 @@
        Port: 5173              Port: 3001             Port: 5432
 ```
 
-## 🚀 Быстрая установка
+## Быстрая установка
 
 ### Автоматическая установка (рекомендуется)
 
@@ -44,12 +44,12 @@ cd bolt
 ```
 
 Скрипт автоматически:
-- ✅ Проверит и установит зависимости (Docker, Docker Compose)
-- ✅ Настроит домен и SSL-сертификаты (Let's Encrypt)
-- ✅ Позволит выбрать порт для подключения к БД
-- ✅ Сгенерирует все конфигурационные файлы
-- ✅ Запустит все сервисы
-- ✅ Проверит работоспособность
+- Проверит и установит зависимости (Docker, Docker Compose)
+- Настроит домен и SSL-сертификаты (Let's Encrypt)
+- Позволит выбрать порт для подключения к БД
+- Сгенерирует все конфигурационные файлы
+- Запустит все сервисы
+- Проверит работоспособность
 
 ### Ручная установка через Docker
 
@@ -69,7 +69,7 @@ docker-compose up -d
 curl http://localhost:3001/health
 ```
 
-## 📋 Требования
+## Требования
 
 ### Минимальные
 - **CPU**: 1 ядро
@@ -90,7 +90,7 @@ curl http://localhost:3001/health
 - curl
 - OpenSSL
 
-## 🔧 Управление системой
+## Управление системой
 
 Используйте скрипт `bolt.sh` для управления:
 
@@ -128,7 +128,7 @@ curl http://localhost:3001/health
 ./bolt.sh help           # Показать справку
 ```
 
-## 🔐 Данные для входа
+## Данные для входа
 
 После установки используйте:
 
@@ -136,9 +136,9 @@ curl http://localhost:3001/health
 - **Логин**: `admin`
 - **Пароль**: `admin123`
 
-⚠️ **Важно**: Смените пароль после первого входа!
+ **Важно**: Смените пароль после первого входа!
 
-## 🌐 Настройка домена и SSL
+## Настройка домена и SSL
 
 ### При установке
 
@@ -164,7 +164,7 @@ sudo cp /etc/letsencrypt/live/bolt.yourdomain.com/privkey.pem ./nginx/ssl/
 docker-compose restart nginx
 ```
 
-## 🗄️ Подключение к внешней базе данных
+## Подключение к внешней базе данных
 
 ### При установке
 
@@ -196,7 +196,7 @@ listen_addresses = '*'
 host bolt_db bolt_user 0.0.0.0/0 md5
 ```
 
-## 📊 API Endpoints
+## API Endpoints
 
 ### Аутентификация
 
@@ -220,7 +220,7 @@ host bolt_db bolt_user 0.0.0.0/0 md5
 
 Полная документация API: [API.md](docs/API.md)
 
-## 🔌 WebSocket Events
+## WebSocket Events
 
 ### Подключение
 ```javascript
@@ -240,7 +240,7 @@ const socket = io('ws://localhost:3001', {
 - `new-message` - Новое сообщение
 - `user-typing` - Пользователь печатает
 
-## 📁 Структура проекта
+## Структура проекта
 
 ```
 bolt/
@@ -267,7 +267,7 @@ bolt/
 └── DEPLOY.md               # Детальная инструкция
 ```
 
-## 🛠️ Разработка
+## Разработка
 
 ### Frontend
 
@@ -295,7 +295,7 @@ docker-compose exec backend npm run db:migrate
 docker-compose exec backend npm run db:seed
 ```
 
-## 🧪 Тестирование
+## Тестирование
 
 ```bash
 # Backend tests
@@ -307,7 +307,7 @@ cd app
 npm test
 ```
 
-## 📦 Резервное копирование
+## Резервное копирование
 
 ### Автоматическое
 
@@ -329,7 +329,7 @@ npm test
 - Загруженные файлы (uploads/)
 - Конфигурация (.env, docker-compose.yml, nginx/)
 
-## 🚨 Устранение неполадок
+## Устранение неполадок
 
 ### Сервисы не запускаются
 
@@ -371,7 +371,7 @@ sudo certbot renew --force-renewal
 ./bolt.sh reset
 ```
 
-## 📈 Мониторинг
+## Мониторинг
 
 ### Health Check
 
@@ -388,35 +388,3 @@ docker stats
 # Логи в реальном времени
 ./bolt.sh logs -f
 ```
-
-## 🤝 Вклад в проект
-
-1. Fork репозитория
-2. Создайте ветку (`git checkout -b feature/amazing`)
-3. Commit изменения (`git commit -m 'Add feature'`)
-4. Push в ветку (`git push origin feature/amazing`)
-5. Откройте Pull Request
-
-## 📄 Лицензия
-
-MIT License - см. [LICENSE](LICENSE)
-
-## 💬 Поддержка
-
-- 📧 Email: support@bolt-system.com
-- 💬 Telegram: @bolt_support
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/bolt/issues)
-
-## 🙏 Благодарности
-
-- [React](https://reactjs.org/)
-- [Node.js](https://nodejs.org/)
-- [PostgreSQL](https://postgresql.org/)
-- [Docker](https://docker.com/)
-- [shadcn/ui](https://ui.shadcn.com/)
-
----
-
-<p align="center">
-  Made with ❤️ by BOLT Team
-</p>
